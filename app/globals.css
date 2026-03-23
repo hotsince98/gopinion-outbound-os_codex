@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --ink: 8 11 18;
+  --shell: 18 24 36;
+  --line: 148 163 184;
+  --copy: 232 238 247;
+  --muted: 143 156 177;
+  --accent: 111 202 255;
+  --success: 92 214 170;
+  --warning: 245 184 73;
+}
+
+html {
+  min-height: 100%;
+  background-color: rgb(var(--ink));
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(102, 145, 190, 0.16), transparent 32%),
+    linear-gradient(180deg, #0b0f18 0%, #080b12 100%);
+  color: rgb(var(--copy));
+  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(111, 202, 255, 0.22);
+  color: rgb(var(--copy));
+}
+
+@layer base {
+  * {
+    @apply border-line/10;
+  }
+}
+
+@layer components {
+  .surface-panel {
+    @apply rounded-3xl border border-white/10 bg-white/5 shadow-panel shadow-black/70 backdrop-blur-xl;
+  }
+
+  .surface-muted {
+    @apply rounded-2xl border border-white/10 bg-white/5 shadow-innerline;
+  }
+
+  .eyebrow {
+    @apply text-[0.68rem] font-medium uppercase tracking-[0.28em] text-muted;
+  }
+
+  .micro-label {
+    @apply text-[0.7rem] font-medium uppercase tracking-[0.24em] text-muted;
+  }
+}
