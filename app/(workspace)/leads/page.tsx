@@ -13,12 +13,14 @@ export const metadata = {
   title: "Leads",
 };
 
+export const dynamic = "force-dynamic";
+
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function LeadsPage({ searchParams }: PageProps) {
-  const view = getLeadsWorkspaceView(await searchParams);
+  const view = await getLeadsWorkspaceView(await searchParams);
 
   const queueItems = view.queueTabs.map((tab) => ({
     href: buildPathWithQuery("/leads", view.query, {

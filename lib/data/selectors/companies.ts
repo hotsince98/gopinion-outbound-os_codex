@@ -24,6 +24,7 @@ import {
   type SelectorBadge,
   type WorkspaceStat,
 } from "@/lib/data/selectors/shared";
+import { getSelectorDataSnapshot } from "@/lib/data/selectors/snapshot";
 
 export interface CompaniesWorkspaceFilters {
   q: string;
@@ -102,9 +103,9 @@ export interface CompaniesWorkspaceView {
   };
 }
 
-function getReadinessOptions() {
-  const bundles = listCompanyBundles();
-
+function buildReadinessOptions(
+  bundles: ReturnType<typeof listCompanyBundles>,
+) {
   return makeCountedOptions(
     [
       { value: "all", label: "All readiness states" },
@@ -120,9 +121,9 @@ function getReadinessOptions() {
   );
 }
 
-export function getCompaniesWorkspaceView(
+export async function getCompaniesWorkspaceView(
   searchParams: SearchParamsInput,
-): CompaniesWorkspaceView {
+): Promise<CompaniesWorkspaceView> {
   const filters: CompaniesWorkspaceFilters = {
     q: readSearchParam(searchParams.q).trim(),
     icp: readSearchParam(searchParams.icp) || "all",
@@ -131,7 +132,8 @@ export function getCompaniesWorkspaceView(
     companyId: readSearchParam(searchParams.companyId),
   };
 
-  const bundles = listCompanyBundles();
+  const snapshot = await getSelectorDataSnapshot();
+  const bundles = listCompanyBundles(snapshot);
   const filteredBundles = bundles.filter((bundle) => {
     return (
       matchesSearch(bundle, filters.q) &&
@@ -321,7 +323,7 @@ export function getCompaniesWorkspaceView(
       values: filters,
       icpOptions: getIcpFilterOptions(bundles),
       tierOptions: getTierFilterOptions(bundles),
-      readinessOptions: getReadinessOptions(),
+      readinessOptions: buildReadinessOptions(bundles),
     },
     rows,
     selectedCompany,

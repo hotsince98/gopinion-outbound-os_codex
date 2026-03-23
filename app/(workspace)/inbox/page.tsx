@@ -14,12 +14,14 @@ export const metadata = {
   title: "Inbox",
 };
 
+export const dynamic = "force-dynamic";
+
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function InboxPage({ searchParams }: PageProps) {
-  const view = getInboxWorkspaceView(await searchParams);
+  const view = await getInboxWorkspaceView(await searchParams);
 
   const rows = view.rows.map((row) => ({
     id: row.replyId,

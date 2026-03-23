@@ -1,5 +1,4 @@
 import { initialIcpProfiles } from "@/lib/data/config/icp";
-import { getDataAccess } from "@/lib/data/access";
 import {
   cleanQuery,
   makeCountedOptions,
@@ -9,6 +8,11 @@ import {
   type SelectorBadge,
   type WorkspaceStat,
 } from "@/lib/data/selectors/shared";
+import {
+  buildIdMap,
+  getSelectorDataSnapshot,
+  type SelectorDataSnapshot,
+} from "@/lib/data/selectors/snapshot";
 import type {
   Appointment,
   Campaign,
@@ -24,29 +28,9 @@ import type {
   Sequence,
 } from "@/lib/domain";
 
-const dataAccess = getDataAccess();
 const operationsNow = new Date("2026-03-23T12:00:00.000Z");
 
 const icpById = new Map(initialIcpProfiles.map((profile) => [profile.id, profile]));
-const companyById = new Map(
-  dataAccess.companies.list().map((company) => [company.id, company]),
-);
-const contactById = new Map(
-  dataAccess.contacts.list().map((contact) => [contact.id, contact]),
-);
-const campaignById = new Map(
-  dataAccess.campaigns.list().map((campaign) => [campaign.id, campaign]),
-);
-const offerById = new Map(dataAccess.offers.list().map((offer) => [offer.id, offer]));
-const sequenceById = new Map(
-  dataAccess.sequences.list().map((sequence) => [sequence.id, sequence]),
-);
-const enrollmentById = new Map(
-  dataAccess.enrollments.list().map((enrollment) => [enrollment.id, enrollment]),
-);
-const appointmentByReplyId = new Map(
-  dataAccess.appointments.list().map((appointment) => [appointment.replyId, appointment]),
-);
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -296,9 +280,18 @@ function getHandlingBadge(path: ReplyHandlingPath): SelectorBadge {
   }
 }
 
-function listInboxReplyRecords(): InboxReplyRecord[] {
-  return dataAccess.replies
-    .list()
+function listInboxReplyRecords(snapshot: SelectorDataSnapshot): InboxReplyRecord[] {
+  const companyById = buildIdMap(snapshot.companies);
+  const contactById = buildIdMap(snapshot.contacts);
+  const campaignById = buildIdMap(snapshot.campaigns);
+  const offerById = buildIdMap(snapshot.offers);
+  const sequenceById = buildIdMap(snapshot.sequences);
+  const enrollmentById = buildIdMap(snapshot.enrollments);
+  const appointmentByReplyId = new Map(
+    snapshot.appointments.map((appointment) => [appointment.replyId, appointment] as const),
+  );
+
+  return snapshot.replies
     .map((reply) => {
       const enrollment = enrollmentById.get(reply.enrollmentId);
       const company = companyById.get(reply.companyId);
@@ -309,7 +302,9 @@ function listInboxReplyRecords(): InboxReplyRecord[] {
       const appointment =
         appointmentByReplyId.get(reply.id) ??
         (enrollment?.appointmentId
-          ? dataAccess.appointments.getById(enrollment.appointmentId)
+          ? snapshot.appointments.find(
+              (candidate) => candidate.id === enrollment.appointmentId,
+            )
           : undefined);
       const primaryContact = company?.primaryContactId
         ? contactById.get(company.primaryContactId)
@@ -334,10 +329,10 @@ function listInboxReplyRecords(): InboxReplyRecord[] {
         sequence,
         appointment,
         primaryContact,
-        relatedInsights: dataAccess.insights.list().filter((insight) =>
+        relatedInsights: snapshot.insights.filter((insight) =>
           relatedEntityIds.has(insight.sourceEntityId),
         ),
-        relatedNotes: dataAccess.memoryEntries.list().filter((entry) =>
+        relatedNotes: snapshot.memoryEntries.filter((entry) =>
           relatedEntityIds.has(entry.relatedEntityId),
         ),
       };
@@ -539,11 +534,14 @@ function getClassificationOptions(records: InboxReplyRecord[]) {
   );
 }
 
-function getCampaignOptions(records: InboxReplyRecord[]) {
+function getCampaignOptions(
+  records: InboxReplyRecord[],
+  campaigns: readonly Campaign[],
+) {
   return makeCountedOptions(
     [
       { value: "all", label: "All campaigns" },
-      ...dataAccess.campaigns.list().map((campaign) => ({
+      ...campaigns.map((campaign) => ({
         value: campaign.id,
         label: campaign.name,
       })),
@@ -555,11 +553,14 @@ function getCampaignOptions(records: InboxReplyRecord[]) {
   );
 }
 
-function getOfferOptions(records: InboxReplyRecord[]) {
+function getOfferOptions(
+  records: InboxReplyRecord[],
+  offers: readonly Offer[],
+) {
   return makeCountedOptions(
     [
       { value: "all", label: "All offers" },
-      ...dataAccess.offers.list().map((offer) => ({
+      ...offers.map((offer) => ({
         value: offer.id,
         label: offer.name,
       })),
@@ -637,7 +638,14 @@ function getDateOptions(records: InboxReplyRecord[]) {
   );
 }
 
-export function getInboxSummaryMetrics(replies: readonly Reply[] = dataAccess.replies.list()) {
+export function getInboxSummaryMetrics(
+  replies: readonly Reply[],
+  appointments: readonly Appointment[],
+) {
+  const appointmentByReplyId = new Map(
+    appointments.map((appointment) => [appointment.replyId, appointment] as const),
+  );
+
   return {
     totalReplies: replies.length,
     needingReview: replies.filter((reply) => reply.requiresHumanReview).length,
@@ -651,15 +659,22 @@ export function getInboxSummaryMetrics(replies: readonly Reply[] = dataAccess.re
   } satisfies InboxSummaryMetricsView;
 }
 
-function buildInboxStats(records: InboxReplyRecord[]): WorkspaceStat[] {
-  const metrics = getInboxSummaryMetrics(records.map((record) => record.reply));
+function buildInboxStats(
+  records: InboxReplyRecord[],
+  totalReplies: number,
+  appointments: Appointment[],
+): WorkspaceStat[] {
+  const metrics = getInboxSummaryMetrics(
+    records.map((record) => record.reply),
+    appointments,
+  );
 
   return [
     {
       label: "Total replies",
       value: String(metrics.totalReplies),
       detail: "All reply records currently visible in the operational inbox.",
-      change: `${dataAccess.replies.list().length} tracked`,
+      change: `${totalReplies} tracked`,
       tone: "neutral",
     },
     {
@@ -803,13 +818,18 @@ function buildReplyDetailView(record: InboxReplyRecord): ReplyDetailView {
   };
 }
 
-export function getReplyDetailView(replyId: Reply["id"]) {
-  const record = listInboxReplyRecords().find((candidate) => candidate.reply.id === replyId);
+export async function getReplyDetailView(replyId: Reply["id"]) {
+  const snapshot = await getSelectorDataSnapshot();
+  const record = listInboxReplyRecords(snapshot).find(
+    (candidate) => candidate.reply.id === replyId,
+  );
 
   return record ? buildReplyDetailView(record) : undefined;
 }
 
-export function getInboxWorkspaceView(searchParams: SearchParamsInput): InboxWorkspaceView {
+export async function getInboxWorkspaceView(
+  searchParams: SearchParamsInput,
+): Promise<InboxWorkspaceView> {
   const filters: InboxWorkspaceFilters = {
     q: readSearchParam(searchParams.q).trim(),
     classification: readSearchParam(searchParams.classification) || "all",
@@ -822,7 +842,8 @@ export function getInboxWorkspaceView(searchParams: SearchParamsInput): InboxWor
     replyId: readSearchParam(searchParams.replyId),
   };
 
-  const records = listInboxReplyRecords();
+  const snapshot = await getSelectorDataSnapshot();
+  const records = listInboxReplyRecords(snapshot);
   const filteredRecords = records.filter((record) => {
     return (
       matchesSearch(record, filters.q) &&
@@ -882,12 +903,12 @@ export function getInboxWorkspaceView(searchParams: SearchParamsInput): InboxWor
   });
 
   return {
-    stats: buildInboxStats(filteredRecords),
+    stats: buildInboxStats(filteredRecords, snapshot.replies.length, snapshot.appointments),
     filters: {
       values: filters,
       classificationOptions: getClassificationOptions(records),
-      campaignOptions: getCampaignOptions(records),
-      offerOptions: getOfferOptions(records),
+      campaignOptions: getCampaignOptions(records, snapshot.campaigns),
+      offerOptions: getOfferOptions(records, snapshot.offers),
       icpOptions: getIcpOptions(records),
       reviewOptions: getReviewOptions(records),
       statusOptions: getStatusOptions(records),

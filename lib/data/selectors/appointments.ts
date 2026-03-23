@@ -1,5 +1,4 @@
 import { initialIcpProfiles } from "@/lib/data/config/icp";
-import { getDataAccess } from "@/lib/data/access";
 import {
   cleanQuery,
   makeCountedOptions,
@@ -9,6 +8,11 @@ import {
   type SelectorBadge,
   type WorkspaceStat,
 } from "@/lib/data/selectors/shared";
+import {
+  buildIdMap,
+  getSelectorDataSnapshot,
+  type SelectorDataSnapshot,
+} from "@/lib/data/selectors/snapshot";
 import type {
   Appointment,
   Campaign,
@@ -22,27 +26,9 @@ import type {
   Sequence,
 } from "@/lib/domain";
 
-const dataAccess = getDataAccess();
 const operationsNow = new Date("2026-03-23T12:00:00.000Z");
 
 const icpById = new Map(initialIcpProfiles.map((profile) => [profile.id, profile]));
-const companyById = new Map(
-  dataAccess.companies.list().map((company) => [company.id, company]),
-);
-const contactById = new Map(
-  dataAccess.contacts.list().map((contact) => [contact.id, contact]),
-);
-const campaignById = new Map(
-  dataAccess.campaigns.list().map((campaign) => [campaign.id, campaign]),
-);
-const offerById = new Map(dataAccess.offers.list().map((offer) => [offer.id, offer]));
-const enrollmentById = new Map(
-  dataAccess.enrollments.list().map((enrollment) => [enrollment.id, enrollment]),
-);
-const replyById = new Map(dataAccess.replies.list().map((reply) => [reply.id, reply]));
-const sequenceById = new Map(
-  dataAccess.sequences.list().map((sequence) => [sequence.id, sequence]),
-);
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -214,9 +200,16 @@ function getReplyClassificationBadge(classification: Reply["classification"]): S
   }
 }
 
-function listAppointmentRecords(): AppointmentRecord[] {
-  return dataAccess.appointments
-    .list()
+function listAppointmentRecords(snapshot: SelectorDataSnapshot): AppointmentRecord[] {
+  const companyById = buildIdMap(snapshot.companies);
+  const contactById = buildIdMap(snapshot.contacts);
+  const campaignById = buildIdMap(snapshot.campaigns);
+  const offerById = buildIdMap(snapshot.offers);
+  const enrollmentById = buildIdMap(snapshot.enrollments);
+  const replyById = buildIdMap(snapshot.replies);
+  const sequenceById = buildIdMap(snapshot.sequences);
+
+  return snapshot.appointments
     .map((appointment) => {
       const company = companyById.get(appointment.companyId);
       const contact = contactById.get(appointment.contactId);
@@ -244,10 +237,10 @@ function listAppointmentRecords(): AppointmentRecord[] {
         enrollment,
         reply,
         sequence,
-        relatedInsights: dataAccess.insights.list().filter((insight) =>
+        relatedInsights: snapshot.insights.filter((insight) =>
           relatedEntityIds.has(insight.sourceEntityId),
         ),
-        relatedNotes: dataAccess.memoryEntries.list().filter((entry) =>
+        relatedNotes: snapshot.memoryEntries.filter((entry) =>
           relatedEntityIds.has(entry.relatedEntityId),
         ),
       };
@@ -397,11 +390,14 @@ function getStatusOptions(records: AppointmentRecord[]) {
   );
 }
 
-function getCampaignOptions(records: AppointmentRecord[]) {
+function getCampaignOptions(
+  records: AppointmentRecord[],
+  campaigns: readonly Campaign[],
+) {
   return makeCountedOptions(
     [
       { value: "all", label: "All campaigns" },
-      ...dataAccess.campaigns.list().map((campaign) => ({
+      ...campaigns.map((campaign) => ({
         value: campaign.id,
         label: campaign.name,
       })),
@@ -413,11 +409,14 @@ function getCampaignOptions(records: AppointmentRecord[]) {
   );
 }
 
-function getOfferOptions(records: AppointmentRecord[]) {
+function getOfferOptions(
+  records: AppointmentRecord[],
+  offers: readonly Offer[],
+) {
   return makeCountedOptions(
     [
       { value: "all", label: "All offers" },
-      ...dataAccess.offers.list().map((offer) => ({
+      ...offers.map((offer) => ({
         value: offer.id,
         label: offer.name,
       })),
@@ -588,17 +587,20 @@ function buildAppointmentDetailView(record: AppointmentRecord): AppointmentDetai
   };
 }
 
-export function getAppointmentDetailView(appointmentId: Appointment["id"]) {
-  const record = listAppointmentRecords().find(
+export async function getAppointmentDetailView(
+  appointmentId: Appointment["id"],
+) {
+  const snapshot = await getSelectorDataSnapshot();
+  const record = listAppointmentRecords(snapshot).find(
     (candidate) => candidate.appointment.id === appointmentId,
   );
 
   return record ? buildAppointmentDetailView(record) : undefined;
 }
 
-export function getAppointmentsWorkspaceView(
+export async function getAppointmentsWorkspaceView(
   searchParams: SearchParamsInput,
-): AppointmentsWorkspaceView {
+): Promise<AppointmentsWorkspaceView> {
   const filters: AppointmentsWorkspaceFilters = {
     q: readSearchParam(searchParams.q).trim(),
     status: readSearchParam(searchParams.status) || "all",
@@ -609,7 +611,8 @@ export function getAppointmentsWorkspaceView(
     appointmentId: readSearchParam(searchParams.appointmentId),
   };
 
-  const records = listAppointmentRecords();
+  const snapshot = await getSelectorDataSnapshot();
+  const records = listAppointmentRecords(snapshot);
   const filteredRecords = records.filter((record) => {
     return (
       matchesSearch(record, filters.q) &&
@@ -658,8 +661,8 @@ export function getAppointmentsWorkspaceView(
     filters: {
       values: filters,
       statusOptions: getStatusOptions(records),
-      campaignOptions: getCampaignOptions(records),
-      offerOptions: getOfferOptions(records),
+      campaignOptions: getCampaignOptions(records, snapshot.campaigns),
+      offerOptions: getOfferOptions(records, snapshot.offers),
       confirmationOptions: getConfirmationOptions(records),
       windowOptions: getWindowOptions(records),
     },

@@ -1,5 +1,4 @@
 import { initialIcpProfiles } from "@/lib/data/config/icp";
-import { getDataAccess } from "@/lib/data/access";
 import {
   cleanQuery,
   formatPriorityLabel,
@@ -10,12 +9,19 @@ import {
   type SelectorBadge,
   type WorkspaceStat,
 } from "@/lib/data/selectors/shared";
+import {
+  buildIdMap,
+  getSelectorDataSnapshot,
+  type SelectorDataSnapshot,
+} from "@/lib/data/selectors/snapshot";
 import type {
   Appointment,
   Campaign,
   CampaignId,
   CampaignStatus,
   ChannelKind,
+  Company,
+  Contact,
   Enrollment,
   Experiment,
   IcpProfile,
@@ -28,15 +34,7 @@ import type {
   SequenceStatus,
 } from "@/lib/domain";
 
-const dataAccess = getDataAccess();
 const icpById = new Map(initialIcpProfiles.map((profile) => [profile.id, profile]));
-const offerById = new Map(dataAccess.offers.list().map((offer) => [offer.id, offer]));
-const companyById = new Map(
-  dataAccess.companies.list().map((company) => [company.id, company]),
-);
-const contactById = new Map(
-  dataAccess.contacts.list().map((contact) => [contact.id, contact]),
-);
 
 const campaignStatusOrder: Record<CampaignStatus, number> = {
   active: 0,
@@ -77,6 +75,15 @@ interface CampaignRecord {
   experiments: Experiment[];
   insights: Insight[];
   memoryEntries: MemoryEntry[];
+}
+
+interface CampaignSelectorContext {
+  records: CampaignRecord[];
+  offerById: Map<string, Offer>;
+  companyById: Map<string, Company>;
+  contactById: Map<string, Contact>;
+  sequenceById: Map<string, Sequence>;
+  sequences: Sequence[];
 }
 
 export interface CampaignsWorkspaceFilters {
@@ -369,34 +376,33 @@ function matchesSearch(record: CampaignRecord, search: string) {
   return haystack.includes(normalizedSearch);
 }
 
-function listCampaignRecords(): CampaignRecord[] {
-  const sequences = dataAccess.sequences.list();
-  const experiments = dataAccess.experiments.list();
-  const insights = dataAccess.insights.list();
-  const memoryEntries = dataAccess.memoryEntries.list();
+function buildCampaignSelectorContext(
+  snapshot: SelectorDataSnapshot,
+): CampaignSelectorContext {
+  const offerById = buildIdMap(snapshot.offers);
+  const companyById = buildIdMap(snapshot.companies);
+  const contactById = buildIdMap(snapshot.contacts);
+  const sequenceById = buildIdMap(snapshot.sequences);
 
-  return dataAccess.campaigns
-    .list()
+  const records = snapshot.campaigns
     .map((campaign) => {
-      const currentSequence = dataAccess.sequences.getById(campaign.sequenceId);
+      const currentSequence = sequenceById.get(campaign.sequenceId);
       const sequenceVersions = currentSequence
-        ? sequences
+        ? snapshot.sequences
             .filter((sequence) => sequence.lineageKey === currentSequence.lineageKey)
             .sort((left, right) => right.version - left.version)
         : [];
       const sequenceIds = new Set(sequenceVersions.map((sequence) => sequence.id));
-      const enrollments = dataAccess.enrollments
-        .list()
+      const enrollments = snapshot.enrollments
         .filter((enrollment) => enrollment.campaignId === campaign.id)
         .sort((left, right) =>
           right.enteredSequenceAt.localeCompare(left.enteredSequenceAt),
         );
-      const replies = dataAccess.replies
-        .list()
+      const replies = snapshot.replies
         .filter((reply) => reply.campaignId === campaign.id)
         .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
-      const appointments = dataAccess.appointments
-        .listByCampaignId(campaign.id)
+      const appointments = snapshot.appointments
+        .filter((appointment) => appointment.campaignId === campaign.id)
         .sort((left, right) => left.scheduledFor.localeCompare(right.scheduledFor));
 
       return {
@@ -408,7 +414,7 @@ function listCampaignRecords(): CampaignRecord[] {
         enrollments,
         replies,
         appointments,
-        experiments: experiments.filter(
+        experiments: snapshot.experiments.filter(
           (experiment) =>
             (experiment.targetEntityType === "campaign" &&
               experiment.targetEntityId === campaign.id) ||
@@ -416,7 +422,7 @@ function listCampaignRecords(): CampaignRecord[] {
               Boolean(experiment.targetEntityId) &&
               sequenceIds.has(experiment.targetEntityId as SequenceId)),
         ),
-        insights: insights.filter(
+        insights: snapshot.insights.filter(
           (insight) =>
             (insight.sourceEntityType === "campaign" &&
               insight.sourceEntityId === campaign.id) ||
@@ -424,7 +430,7 @@ function listCampaignRecords(): CampaignRecord[] {
               Boolean(insight.sourceEntityId) &&
               sequenceIds.has(insight.sourceEntityId as SequenceId)),
         ),
-        memoryEntries: memoryEntries.filter(
+        memoryEntries: snapshot.memoryEntries.filter(
           (entry) =>
             (entry.relatedEntityType === "campaign" &&
               entry.relatedEntityId === campaign.id) ||
@@ -442,6 +448,15 @@ function listCampaignRecords(): CampaignRecord[] {
         left.campaign.name.localeCompare(right.campaign.name)
       );
     });
+
+  return {
+    records,
+    offerById,
+    companyById,
+    contactById,
+    sequenceById,
+    sequences: snapshot.sequences,
+  };
 }
 
 function getNextActionAt(record: CampaignRecord) {
@@ -542,9 +557,12 @@ function buildCampaignMetrics(
   };
 }
 
-function buildSequenceSummary(sequence: Sequence): CampaignSequenceSummaryView {
-  const versions = dataAccess.sequences
-    .list()
+function buildSequenceSummary(
+  sequence: Sequence,
+  sequences: Sequence[],
+  offerById: Map<string, Offer>,
+): CampaignSequenceSummaryView {
+  const versions = sequences
     .filter((candidate) => candidate.lineageKey === sequence.lineageKey)
     .sort((left, right) => {
       return (
@@ -588,10 +606,17 @@ function buildSequenceSummary(sequence: Sequence): CampaignSequenceSummaryView {
   };
 }
 
-function buildCampaignDetailView(record: CampaignRecord): CampaignDetailView {
+function buildCampaignDetailView(
+  record: CampaignRecord,
+  context: CampaignSelectorContext,
+): CampaignDetailView {
   const metrics = buildCampaignMetrics(record);
   const linkedSequence = record.currentSequence
-    ? buildSequenceSummary(record.currentSequence)
+    ? buildSequenceSummary(
+        record.currentSequence,
+        context.sequences,
+        context.offerById,
+      )
     : undefined;
   const latestReply = record.replies[0];
   const latestAppointment = [...record.appointments].sort((left, right) =>
@@ -726,10 +751,10 @@ function buildCampaignDetailView(record: CampaignRecord): CampaignDetailView {
     experimentNotes,
     recentReplies: record.replies.slice(0, 3).map((reply) => ({
       id: reply.id,
-      companyName: companyById.get(reply.companyId)?.name ?? "Unknown company",
+      companyName: context.companyById.get(reply.companyId)?.name ?? "Unknown company",
       contactName:
-        contactById.get(reply.contactId)?.fullName ??
-        contactById.get(reply.contactId)?.title ??
+        context.contactById.get(reply.contactId)?.fullName ??
+        context.contactById.get(reply.contactId)?.title ??
         "Unknown contact",
       classificationLabel: formatLabel(reply.classification),
       classificationBadge: getReplyClassificationBadge(reply.classification),
@@ -904,33 +929,38 @@ function buildStats(records: CampaignRecord[]): WorkspaceStat[] {
   ];
 }
 
-export function getCampaignHealthStatusMetrics(
+export async function getCampaignHealthStatusMetrics(
   campaignId: CampaignId,
-): CampaignHealthStatusMetricsView | undefined {
-  const record = listCampaignRecords().find((candidate) => candidate.campaign.id === campaignId);
+): Promise<CampaignHealthStatusMetricsView | undefined> {
+  const context = buildCampaignSelectorContext(await getSelectorDataSnapshot());
+  const record = context.records.find((candidate) => candidate.campaign.id === campaignId);
 
   return record ? buildCampaignMetrics(record) : undefined;
 }
 
-export function getCampaignSequenceSummary(
+export async function getCampaignSequenceSummary(
   sequenceId: SequenceId,
-): CampaignSequenceSummaryView | undefined {
-  const sequence = dataAccess.sequences.getById(sequenceId);
+): Promise<CampaignSequenceSummaryView | undefined> {
+  const context = buildCampaignSelectorContext(await getSelectorDataSnapshot());
+  const sequence = context.sequenceById.get(sequenceId);
 
-  return sequence ? buildSequenceSummary(sequence) : undefined;
+  return sequence
+    ? buildSequenceSummary(sequence, context.sequences, context.offerById)
+    : undefined;
 }
 
-export function getCampaignDetailView(
+export async function getCampaignDetailView(
   campaignId: CampaignId,
-): CampaignDetailView | undefined {
-  const record = listCampaignRecords().find((candidate) => candidate.campaign.id === campaignId);
+): Promise<CampaignDetailView | undefined> {
+  const context = buildCampaignSelectorContext(await getSelectorDataSnapshot());
+  const record = context.records.find((candidate) => candidate.campaign.id === campaignId);
 
-  return record ? buildCampaignDetailView(record) : undefined;
+  return record ? buildCampaignDetailView(record, context) : undefined;
 }
 
-export function getCampaignsWorkspaceView(
+export async function getCampaignsWorkspaceView(
   searchParams: SearchParamsInput,
-): CampaignsWorkspaceView {
+): Promise<CampaignsWorkspaceView> {
   const filters: CampaignsWorkspaceFilters = {
     q: readSearchParam(searchParams.q).trim(),
     status: readSearchParam(searchParams.status) || "all",
@@ -940,7 +970,8 @@ export function getCampaignsWorkspaceView(
     campaignId: readSearchParam(searchParams.campaignId),
   };
 
-  const records = listCampaignRecords();
+  const context = buildCampaignSelectorContext(await getSelectorDataSnapshot());
+  const records = context.records;
   const filteredRecords = records.filter((record) => {
     return (
       matchesSearch(record, filters.q) &&
@@ -975,7 +1006,7 @@ export function getCampaignsWorkspaceView(
     },
     rows: buildRows(filteredRecords),
     selectedCampaign: selectedRecord
-      ? buildCampaignDetailView(selectedRecord)
+      ? buildCampaignDetailView(selectedRecord, context)
       : undefined,
     query,
     hasActiveFilters: Object.keys(query).length > 0,

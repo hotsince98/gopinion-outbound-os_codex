@@ -14,12 +14,14 @@ export const metadata = {
   title: "Appointments",
 };
 
+export const dynamic = "force-dynamic";
+
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function AppointmentsPage({ searchParams }: PageProps) {
-  const view = getAppointmentsWorkspaceView(await searchParams);
+  const view = await getAppointmentsWorkspaceView(await searchParams);
 
   const rows = view.rows.map((row) => ({
     id: row.appointmentId,

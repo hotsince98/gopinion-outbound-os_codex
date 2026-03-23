@@ -48,6 +48,103 @@ The data layer now exposes a single runtime-selected entry point:
 
 Selectors now read through `getDataAccess()` instead of importing the mock implementation directly.
 
+## Current Persistence Status
+
+### First Supabase/Postgres tranche implemented
+
+The app can now run in either mode:
+
+- `DATA_BACKEND=mock`
+  - Existing in-memory/config-backed behavior
+- `DATA_BACKEND=postgres`
+  - Supabase-backed repositories for:
+    - `Company`
+    - `Contact`
+    - `Campaign`
+    - `Reply`
+    - `Appointment`
+  - Mock/config-backed repositories still power:
+    - `Offer`
+    - `Sequence`
+    - `Enrollment`
+    - `Experiment`
+    - `Insight`
+    - `MemoryEntry`
+
+### Runtime composition
+
+- `lib/data/access.ts`
+  - Chooses `mock` vs `postgres`
+- `lib/data/postgres/client.ts`
+  - Resolves server-only Supabase env and creates the admin client
+- `lib/data/postgres/repositories/index.ts`
+  - Implements the first DB-backed repositories
+- `lib/data/postgres/mappers/index.ts`
+  - Maps snake_case database rows into the domain models used by selectors/pages
+- `lib/data/postgres/data-access.ts`
+  - Composes a hybrid `DataAccess` object so selectors/pages stay unchanged
+
+## Seeding and Empty-State Behavior
+
+### Seed source of truth
+
+The first seed path reuses the existing typed mock store:
+
+- `lib/data/mock/store.ts`
+  - Canonical typed seed records for the currently supported operational entities
+- `lib/data/postgres/mappers/index.ts`
+  - Translates those domain records into Postgres row payloads
+- `lib/data/postgres/seed.ts`
+  - Builds the seed payload and performs safe upserts
+- `scripts/seed-supabase.ts`
+  - CLI entry point
+
+### What gets seeded
+
+`npm run db:seed` currently upserts:
+
+- `companies`
+- `contacts`
+- `campaigns`
+- `replies`
+- `appointments`
+
+The seed runner uses `upsert` on `id`, so it is additive and repeatable.
+It does not wipe tables or silently reset anything.
+
+### How to run the seed
+
+1. Apply the SQL migration for the core operational tables.
+2. Set:
+   - `DATA_BACKEND=postgres`
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_DB_SCHEMA=public`
+3. Run:
+   - `npm run db:seed`
+
+### Empty Postgres behavior
+
+When `DATA_BACKEND=postgres`:
+
+- If the supported tables contain data, selectors/pages use that Postgres data.
+- If the supported tables are empty, selectors/pages return empty collections and zero-valued summaries for those entities.
+- The app does not silently swap those persisted entities back to mock records.
+
+### Intentional hybrid behavior
+
+The following entities still come from mock/config in Postgres mode by design:
+
+- `Offer`
+- `Sequence`
+- `Enrollment`
+- `Experiment`
+- `Insight`
+- `MemoryEntry`
+
+That is not an empty-table fallback. It is the current repository coverage boundary.
+This means an empty Postgres database will still show config-driven control-plane data and the remaining mock-backed entities, while companies/campaigns/replies/appointments stay empty until seeded or written for real.
+
 ## Folder Structure
 
 ```text
@@ -118,6 +215,34 @@ Recommended approach:
 2. Keep control-plane config file-backed until operators truly need live edits.
 3. Promote config tables later behind the same selector/repository boundary.
 
+## First Migration Notes
+
+The first SQL migration now lives at:
+
+- `db/migrations/20260323_001_supabase_core_operational_entities.sql`
+
+### What the migration covers
+
+- Creates `companies`, `contacts`, `campaigns`, `replies`, and `appointments`
+- Uses `text` primary keys to stay aligned with the current domain IDs like `company_*`
+- Uses `jsonb` for nested domain structures that are still evolving:
+  - `companies.location`
+  - `companies.presence`
+  - `companies.scoring`
+  - `companies.source`
+  - `contacts.confidence`
+  - `contacts.source`
+- Uses `text[]` for lightweight list fields
+- Adds practical indexes for the first repository filters and operational views
+
+### Intentional v1 compromises
+
+- `offer_id`, `sequence_id`, and `enrollment_id` are stored as plain text references for now
+  - those entities are still mock/config-backed in this tranche
+- `primary_contact_id`, `active_campaign_ids`, and `appointment_ids` stay denormalized on `companies`
+  - this preserves parity with the current domain model and keeps the first migration practical
+- Only the `public` schema is supported in the first Supabase implementation
+
 ## Postgres Implementation Path
 
 ### Phase 1: Schema and migrations
@@ -126,6 +251,10 @@ Recommended approach:
 2. Decide which fields stay JSON in v1 versus normalized child tables.
 3. Create local and hosted migration flow for Supabase/Postgres.
 
+Status:
+
+- Complete for the first five operational entities
+
 ### Phase 2: Client and repository implementation
 
 1. Implement a server-safe Postgres/Supabase client in `lib/data/postgres/client.ts`.
@@ -133,16 +262,23 @@ Recommended approach:
 3. Add row/domain mappers under `lib/data/postgres/mappers/`.
 4. Compose those repositories in `lib/data/postgres/data-access.ts`.
 
+Status:
+
+- Complete for the first five operational entities
+
 ### Phase 3: Backend activation
 
 1. Keep `DATA_BACKEND=mock` as the default.
 2. Enable `DATA_BACKEND=postgres` only after repository coverage exists.
 3. Run the full app with selectors unchanged and pages untouched.
 4. Validate parity against the mock-backed workspaces.
+5. Migrate the remaining entities only when their write/read paths justify it.
 
 ## Practical Notes
 
 - The app intentionally still boots on mock data.
-- No live Supabase credentials or network calls are wired in yet.
-- The `postgres` path fails loudly by design so there is no false signal that persistence is already working.
+- No live Supabase credentials are checked into the repo.
+- The Postgres path now uses Supabase when explicitly enabled via env.
+- Because only the first five entities are DB-backed, Postgres mode is intentionally hybrid for now.
+- Campaigns, replies, and appointments should continue referencing the seeded offer/sequence/enrollment IDs until those entities are promoted into persistence.
 - Because selectors now read through a single data-access boundary, the implementation swap is localized to the data layer instead of spread across workspace pages.

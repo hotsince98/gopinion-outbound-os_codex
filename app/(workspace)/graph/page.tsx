@@ -13,12 +13,14 @@ export const metadata = {
   title: "Graph",
 };
 
+export const dynamic = "force-dynamic";
+
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function GraphPage({ searchParams }: PageProps) {
-  const view = getGraphWorkspaceView(await searchParams);
+  const view = await getGraphWorkspaceView(await searchParams);
 
   return (
     <div className="space-y-6">

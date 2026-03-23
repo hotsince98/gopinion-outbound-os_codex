@@ -1,6 +1,5 @@
 import { initialIcpProfiles } from "@/lib/data/config/icp";
 import { priorityTierDefinitions } from "@/lib/data/config/priority-tiers";
-import { getDataAccess } from "@/lib/data/access";
 import type {
   Appointment,
   Campaign,
@@ -13,8 +12,7 @@ import type {
   Reply,
 } from "@/lib/domain";
 import type { Tone } from "@/lib/presentation";
-
-const dataAccess = getDataAccess();
+import { buildIdMap, type SelectorDataSnapshot } from "@/lib/data/selectors/snapshot";
 
 export type SearchParamValue = string | string[] | undefined;
 export type SearchParamsInput = Record<string, SearchParamValue>;
@@ -305,25 +303,34 @@ export function getSuggestedNextAction(bundle: CompanyBundle) {
   return "Monitor the account and keep progression visible";
 }
 
-export function getCompanyBundle(company: Company): CompanyBundle {
-  const contacts = dataAccess.contacts.listByCompanyId(company.id);
+function createSnapshotLookups(snapshot: SelectorDataSnapshot) {
+  return {
+    offerById: buildIdMap(snapshot.offers),
+    campaignById: buildIdMap(snapshot.campaigns),
+    appointmentById: buildIdMap(snapshot.appointments),
+  };
+}
+
+export function getCompanyBundle(
+  company: Company,
+  snapshot: SelectorDataSnapshot,
+  lookups = createSnapshotLookups(snapshot),
+): CompanyBundle {
+  const contacts = snapshot.contacts.filter((contact) => contact.companyId === company.id);
   const recommendedOffer = company.recommendedOfferIds
-    .map((offerId) => dataAccess.offers.getById(offerId))
+    .map((offerId) => lookups.offerById.get(offerId))
     .find(Boolean);
   const activeCampaigns = company.activeCampaignIds
-    .map((campaignId) => dataAccess.campaigns.getById(campaignId))
+    .map((campaignId) => lookups.campaignById.get(campaignId))
     .filter((campaign): campaign is Campaign => Boolean(campaign));
-  const enrollments = dataAccess
-    .enrollments
-    .list()
-    .filter((enrollment) => enrollment.companyId === company.id);
-  const latestReply = dataAccess
-    .replies
-    .list()
+  const enrollments = snapshot.enrollments.filter(
+    (enrollment) => enrollment.companyId === company.id,
+  );
+  const latestReply = snapshot.replies
     .filter((reply) => reply.companyId === company.id)
     .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt))[0];
   const appointments = company.appointmentIds
-    .map((appointmentId) => dataAccess.appointments.getById(appointmentId))
+    .map((appointmentId) => lookups.appointmentById.get(appointmentId))
     .filter((appointment): appointment is Appointment => Boolean(appointment));
 
   return {
@@ -341,8 +348,10 @@ export function getCompanyBundle(company: Company): CompanyBundle {
   };
 }
 
-export function listCompanyBundles() {
-  return dataAccess.companies.list().map(getCompanyBundle);
+export function listCompanyBundles(snapshot: SelectorDataSnapshot) {
+  const lookups = createSnapshotLookups(snapshot);
+
+  return snapshot.companies.map((company) => getCompanyBundle(company, snapshot, lookups));
 }
 
 export function matchesSearch(bundle: CompanyBundle, search: string) {

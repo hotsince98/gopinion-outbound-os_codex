@@ -26,6 +26,7 @@ import {
   type WorkspaceStat,
   type WorkflowState,
 } from "@/lib/data/selectors/shared";
+import { getSelectorDataSnapshot } from "@/lib/data/selectors/snapshot";
 
 export interface LeadsWorkspaceFilters {
   q: string;
@@ -88,9 +89,9 @@ function matchesQueue(value: string, workflowState: WorkflowState) {
   return value === "all" || value === workflowState;
 }
 
-function getEnrichmentOptions() {
-  const bundles = listCompanyBundles();
-
+function buildEnrichmentOptions(
+  bundles: ReturnType<typeof listCompanyBundles>,
+) {
   return makeCountedOptions(
     [
       { value: "all", label: "All enrichment states" },
@@ -106,9 +107,9 @@ function getEnrichmentOptions() {
   );
 }
 
-function getCompanyStatusOptions() {
-  const bundles = listCompanyBundles();
-
+function buildCompanyStatusOptions(
+  bundles: ReturnType<typeof listCompanyBundles>,
+) {
   return makeCountedOptions(
     [
       { value: "all", label: "All company states" },
@@ -147,9 +148,9 @@ function getQueueTabs(
   }));
 }
 
-export function getLeadsWorkspaceView(
+export async function getLeadsWorkspaceView(
   searchParams: SearchParamsInput,
-): LeadsWorkspaceView {
+): Promise<LeadsWorkspaceView> {
   const filters: LeadsWorkspaceFilters = {
     q: readSearchParam(searchParams.q).trim(),
     icp: readSearchParam(searchParams.icp) || "all",
@@ -159,7 +160,8 @@ export function getLeadsWorkspaceView(
     queue: readSearchParam(searchParams.queue) || "all",
   };
 
-  const bundles = listCompanyBundles();
+  const snapshot = await getSelectorDataSnapshot();
+  const bundles = listCompanyBundles(snapshot);
   const filteredBundles = bundles.filter((bundle) => {
     const enrichmentState = deriveEnrichmentState(bundle.company);
     const workflowState = deriveWorkflowState(bundle);
@@ -196,7 +198,7 @@ export function getLeadsWorkspaceView(
       label: "Total leads",
       value: String(filteredBundles.length),
       detail: "Prospect records currently in the operational intake queue.",
-      change: `${bundles.length} in mock store`,
+      change: `${bundles.length} in data layer`,
       tone: "neutral",
     },
     {
@@ -250,8 +252,8 @@ export function getLeadsWorkspaceView(
       values: filters,
       icpOptions: getIcpFilterOptions(bundles),
       tierOptions: getTierFilterOptions(bundles),
-      enrichmentOptions: getEnrichmentOptions(),
-      statusOptions: getCompanyStatusOptions(),
+      enrichmentOptions: buildEnrichmentOptions(bundles),
+      statusOptions: buildCompanyStatusOptions(bundles),
     },
     queueTabs: getQueueTabs(bundles, filters.queue),
     rows,

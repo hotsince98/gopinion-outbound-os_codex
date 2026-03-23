@@ -21,8 +21,6 @@ export function createDataAccess(
   switch (backend) {
     case "postgres":
       return createPostgresDataAccess({
-        url: process.env.DATABASE_URL,
-        schema: "public",
         provider: "supabase",
       });
     case "mock":

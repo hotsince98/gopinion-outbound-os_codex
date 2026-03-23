@@ -5,9 +5,7 @@ import type {
   MemoryEntry,
   Sequence,
 } from "@/lib/domain";
-import { getDataAccess } from "@/lib/data/access";
-
-const dataAccess = getDataAccess();
+import { buildIdMap, getSelectorDataSnapshot } from "@/lib/data/selectors/snapshot";
 
 export interface DashboardStat {
   label: string;
@@ -99,13 +97,13 @@ function getNextStep(company: Company) {
   }
 }
 
-function getPriorityLeads(): PriorityLeadRow[] {
-  const companies = dataAccess.companies
-    .list()
-    .filter(
-      (company) =>
-        company.status !== "disqualified" && company.status !== "customer",
-    )
+function getPriorityLeads(
+  companies: Company[],
+  contactById: Map<string, Contact>,
+  offerById: Map<string, { name: string }>,
+): PriorityLeadRow[] {
+  return companies
+    .filter((company) => company.status !== "disqualified" && company.status !== "customer")
     .sort((left, right) => {
       const tierOrder = { tier_1: 0, tier_2: 1, tier_3: 2 } as const;
 
@@ -114,14 +112,13 @@ function getPriorityLeads(): PriorityLeadRow[] {
         right.scoring.fitScore - left.scoring.fitScore
       );
     })
-    .slice(0, 3);
-
-  return companies.map((company) => {
+    .slice(0, 3)
+    .map((company) => {
     const offer = company.recommendedOfferIds
-      .map((offerId) => dataAccess.offers.getById(offerId))
+      .map((offerId) => offerById.get(offerId))
       .find(Boolean);
     const contact = company.primaryContactId
-      ? dataAccess.contacts.getById(company.primaryContactId)
+      ? contactById.get(company.primaryContactId)
       : undefined;
 
     return {
@@ -138,32 +135,37 @@ function getPriorityLeads(): PriorityLeadRow[] {
   });
 }
 
-function getSequenceHealth(): SequenceHealthRow[] {
-  return dataAccess.sequences.listByStatus("active").map((sequence: Sequence) => {
-    const enrollments = dataAccess.enrollments.listBySequenceId(sequence.id);
-    const enrollmentIds = new Set(enrollments.map((enrollment) => enrollment.id));
-    const replies = dataAccess
-      .replies
-      .list()
+function getSequenceHealth(
+  sequences: Sequence[],
+  enrollments: { sequenceId: string; id: string }[],
+  replies: { enrollmentId: string }[],
+  appointments: { enrollmentId: string }[],
+): SequenceHealthRow[] {
+  return sequences
+    .filter((sequence) => sequence.status === "active")
+    .map((sequence: Sequence) => {
+    const sequenceEnrollments = enrollments.filter(
+      (enrollment) => enrollment.sequenceId === sequence.id,
+    );
+    const enrollmentIds = new Set(sequenceEnrollments.map((enrollment) => enrollment.id));
+    const sequenceReplies = replies
       .filter((reply) => enrollmentIds.has(reply.enrollmentId));
-    const bookedAppointments = dataAccess
-      .appointments
-      .list()
+    const bookedAppointments = appointments
       .filter((appointment) => enrollmentIds.has(appointment.enrollmentId));
 
     return {
       sequenceId: sequence.id,
       name: sequence.name,
       segment: `${formatTierLabel(sequence.targetTier)} / ${sequence.audienceSummary}`,
-      enrolledCount: String(enrollments.length),
-      replyRate: formatPercent(replies.length, enrollments.length),
+      enrolledCount: String(sequenceEnrollments.length),
+      replyRate: formatPercent(sequenceReplies.length, sequenceEnrollments.length),
       bookedCount: String(bookedAppointments.length),
     };
   });
 }
 
-function getLearningSignals(): DashboardSignal[] {
-  return dataAccess.insights.list().slice(0, 3).map((insight) => ({
+function getLearningSignals(insights: Insight[]): DashboardSignal[] {
+  return insights.slice(0, 3).map((insight) => ({
     id: insight.id,
     title: insight.title,
     tag: formatInsightTag(insight.type),
@@ -171,10 +173,8 @@ function getLearningSignals(): DashboardSignal[] {
   }));
 }
 
-function getBlockers(): DashboardBlocker[] {
-  return dataAccess
-    .memoryEntries
-    .list()
+function getBlockers(memoryEntries: MemoryEntry[]): DashboardBlocker[] {
+  return memoryEntries
     .filter((entry: MemoryEntry) => entry.kind === "constraint")
     .slice(0, 2)
     .map((entry) => ({
@@ -184,14 +184,18 @@ function getBlockers(): DashboardBlocker[] {
     }));
 }
 
-function getStats(): DashboardStat[] {
-  const companies = dataAccess.companies.list();
-  const activeSequences = dataAccess.sequences.listByStatus("active").length;
-  const positiveReplies = dataAccess.replies.listByClassification("positive").length;
-  const appointmentsToday = dataAccess
-    .appointments
-    .list()
-    .filter((appointment) => appointment.scheduledFor.startsWith("2026-03-23")).length;
+function getStats(
+  companies: Company[],
+  sequences: Sequence[],
+  replies: { classification: string }[],
+  appointments: { scheduledFor: string }[],
+  enrollmentsCount: number,
+): DashboardStat[] {
+  const activeSequences = sequences.filter((sequence) => sequence.status === "active").length;
+  const positiveReplies = replies.filter((reply) => reply.classification === "positive").length;
+  const appointmentsToday = appointments.filter((appointment) =>
+    appointment.scheduledFor.startsWith("2026-03-23"),
+  ).length;
   const tierOneQueued = companies.filter(
     (company) =>
       company.priorityTier === "tier_1" &&
@@ -218,10 +222,7 @@ function getStats(): DashboardStat[] {
     {
       label: "Positive replies",
       value: String(positiveReplies),
-      change: `${formatPercent(
-        positiveReplies,
-        dataAccess.enrollments.list().length,
-      )} positive rate`,
+      change: `${formatPercent(positiveReplies, enrollmentsCount)} positive rate`,
       detail:
         "Reply classifications now flow through a typed contract instead of a loose dashboard stub.",
       tone: "positive",
@@ -237,12 +238,27 @@ function getStats(): DashboardStat[] {
   ];
 }
 
-export function getDashboardView(): DashboardView {
+export async function getDashboardView(): Promise<DashboardView> {
+  const snapshot = await getSelectorDataSnapshot();
+  const contactById = buildIdMap(snapshot.contacts);
+  const offerById = buildIdMap(snapshot.offers);
+
   return {
-    stats: getStats(),
-    priorityLeads: getPriorityLeads(),
-    sequenceHealth: getSequenceHealth(),
-    learningSignals: getLearningSignals(),
-    blockers: getBlockers(),
+    stats: getStats(
+      snapshot.companies,
+      snapshot.sequences,
+      snapshot.replies,
+      snapshot.appointments,
+      snapshot.enrollments.length,
+    ),
+    priorityLeads: getPriorityLeads(snapshot.companies, contactById, offerById),
+    sequenceHealth: getSequenceHealth(
+      snapshot.sequences,
+      snapshot.enrollments,
+      snapshot.replies,
+      snapshot.appointments,
+    ),
+    learningSignals: getLearningSignals(snapshot.insights),
+    blockers: getBlockers(snapshot.memoryEntries),
   };
 }

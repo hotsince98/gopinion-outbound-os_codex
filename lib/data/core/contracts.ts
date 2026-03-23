@@ -29,45 +29,49 @@ import type {
   SequenceStatus,
 } from "@/lib/domain";
 
+export type RepositoryResult<T> = T | Promise<T>;
+
 export interface Repository<TEntity, TId extends string> {
-  list(): TEntity[];
-  getById(id: TId): TEntity | undefined;
+  list(): RepositoryResult<TEntity[]>;
+  getById(id: TId): RepositoryResult<TEntity | undefined>;
 }
 
 export interface CompanyRepository extends Repository<Company, CompanyId> {
-  listByPriorityTier(tier: PriorityTier): Company[];
+  listByPriorityTier(tier: PriorityTier): RepositoryResult<Company[]>;
 }
 
 export interface ContactRepository extends Repository<Contact, ContactId> {
-  listByCompanyId(companyId: CompanyId): Contact[];
+  listByCompanyId(companyId: CompanyId): RepositoryResult<Contact[]>;
 }
 
 export interface OfferRepository extends Repository<Offer, OfferId> {
-  listByCategory(category: OfferCategory): Offer[];
+  listByCategory(category: OfferCategory): RepositoryResult<Offer[]>;
 }
 
 export interface CampaignRepository extends Repository<Campaign, CampaignId> {
-  listByStatus(status: CampaignStatus): Campaign[];
+  listByStatus(status: CampaignStatus): RepositoryResult<Campaign[]>;
 }
 
 export interface SequenceRepository extends Repository<Sequence, SequenceId> {
-  listByStatus(status: SequenceStatus): Sequence[];
+  listByStatus(status: SequenceStatus): RepositoryResult<Sequence[]>;
 }
 
 export interface EnrollmentRepository
   extends Repository<Enrollment, EnrollmentId> {
-  listBySequenceId(sequenceId: SequenceId): Enrollment[];
-  listByState(state: EnrollmentState): Enrollment[];
+  listBySequenceId(sequenceId: SequenceId): RepositoryResult<Enrollment[]>;
+  listByState(state: EnrollmentState): RepositoryResult<Enrollment[]>;
 }
 
 export interface ReplyRepository extends Repository<Reply, ReplyId> {
-  listByClassification(classification: ReplyClassification): Reply[];
-  listByEnrollmentId(enrollmentId: EnrollmentId): Reply[];
+  listByClassification(
+    classification: ReplyClassification,
+  ): RepositoryResult<Reply[]>;
+  listByEnrollmentId(enrollmentId: EnrollmentId): RepositoryResult<Reply[]>;
 }
 
 export interface AppointmentRepository
   extends Repository<Appointment, AppointmentId> {
-  listByCampaignId(campaignId: CampaignId): Appointment[];
+  listByCampaignId(campaignId: CampaignId): RepositoryResult<Appointment[]>;
 }
 
 export interface ExperimentRepository

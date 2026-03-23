@@ -1,7 +1,6 @@
-import { getDataAccess } from "@/lib/data/access";
 import {
   cleanQuery,
-  getCompanyBundle,
+  type CompanyBundle,
   getCompanyStatusBadge,
   getDecisionMakerLabel,
   getIcpLabel,
@@ -16,16 +15,20 @@ import {
   type SelectorBadge,
   type WorkspaceStat,
 } from "@/lib/data/selectors/shared";
+import {
+  buildIdMap,
+  getSelectorDataSnapshot,
+  type SelectorDataSnapshot,
+} from "@/lib/data/selectors/snapshot";
 import type {
   Appointment,
   Campaign,
   Company,
   Contact,
+  Enrollment,
   Insight,
   Offer,
 } from "@/lib/domain";
-
-const dataAccess = getDataAccess();
 export type GraphNodeType =
   | "company"
   | "contact"
@@ -67,6 +70,18 @@ interface GraphNodeGroup {
   label: string;
   count: number;
   nodes: GraphNodeRecord[];
+}
+
+interface GraphSelectorContext {
+  snapshot: SelectorDataSnapshot;
+  companyBundles: CompanyBundle[];
+  companyById: Map<string, Company>;
+  contactById: Map<string, Contact>;
+  offerById: Map<string, Offer>;
+  campaignById: Map<string, Campaign>;
+  appointmentById: Map<string, Appointment>;
+  insightById: Map<string, Insight>;
+  enrollmentById: Map<string, Enrollment>;
 }
 
 export interface GraphRelationshipToggle {
@@ -183,6 +198,22 @@ function formatShortDate(dateString: string) {
   });
 }
 
+function buildGraphSelectorContext(
+  snapshot: SelectorDataSnapshot,
+): GraphSelectorContext {
+  return {
+    snapshot,
+    companyBundles: listCompanyBundles(snapshot),
+    companyById: buildIdMap(snapshot.companies),
+    contactById: buildIdMap(snapshot.contacts),
+    offerById: buildIdMap(snapshot.offers),
+    campaignById: buildIdMap(snapshot.campaigns),
+    appointmentById: buildIdMap(snapshot.appointments),
+    insightById: buildIdMap(snapshot.insights),
+    enrollmentById: buildIdMap(snapshot.enrollments),
+  };
+}
+
 function getContactStatusBadge(contact: Contact): SelectorBadge {
   switch (contact.status) {
     case "verified":
@@ -244,8 +275,8 @@ function getInsightBadge(insight: Insight): SelectorBadge {
   }
 }
 
-function getCompanyNodes() {
-  return listCompanyBundles().map((bundle) => ({
+function getCompanyNodes(context: GraphSelectorContext) {
+  return context.companyBundles.map((bundle) => ({
     id: bundle.company.id,
     type: "company" as const,
     title: bundle.company.name,
@@ -269,9 +300,9 @@ function getCompanyNodes() {
   }));
 }
 
-function getContactNodes() {
-  return dataAccess.contacts.list().map((contact) => {
-    const company = dataAccess.companies.getById(contact.companyId);
+function getContactNodes(context: GraphSelectorContext) {
+  return context.snapshot.contacts.map((contact) => {
+    const company = context.companyById.get(contact.companyId);
 
     return {
       id: contact.id,
@@ -296,13 +327,12 @@ function getContactNodes() {
   });
 }
 
-function getCampaignNodes() {
-  return dataAccess.campaigns.list().map((campaign) => {
-    const offer = dataAccess.offers.getById(campaign.offerId);
-    const enrolledCount = dataAccess
-      .enrollments
-      .list()
-      .filter((enrollment) => enrollment.campaignId === campaign.id).length;
+function getCampaignNodes(context: GraphSelectorContext) {
+  return context.snapshot.campaigns.map((campaign) => {
+    const offer = context.offerById.get(campaign.offerId);
+    const enrolledCount = context.snapshot.enrollments.filter(
+      (enrollment) => enrollment.campaignId === campaign.id,
+    ).length;
 
     return {
       id: campaign.id,
@@ -323,12 +353,11 @@ function getCampaignNodes() {
   });
 }
 
-function getOfferNodes() {
-  return dataAccess.offers.list().map((offer) => {
-    const campaignCount = dataAccess
-      .campaigns
-      .list()
-      .filter((campaign) => campaign.offerId === offer.id).length;
+function getOfferNodes(context: GraphSelectorContext) {
+  return context.snapshot.offers.map((offer) => {
+    const campaignCount = context.snapshot.campaigns.filter(
+      (campaign) => campaign.offerId === offer.id,
+    ).length;
 
     return {
       id: offer.id,
@@ -345,9 +374,9 @@ function getOfferNodes() {
   });
 }
 
-function getAppointmentNodes() {
-  return dataAccess.appointments.list().map((appointment) => {
-    const company = dataAccess.companies.getById(appointment.companyId);
+function getAppointmentNodes(context: GraphSelectorContext) {
+  return context.snapshot.appointments.map((appointment) => {
+    const company = context.companyById.get(appointment.companyId);
 
     return {
       id: appointment.id,
@@ -372,8 +401,8 @@ function getAppointmentNodes() {
   });
 }
 
-function getInsightNodes() {
-  return dataAccess.insights.list().map((insight) => ({
+function getInsightNodes(context: GraphSelectorContext) {
+  return context.snapshot.insights.map((insight) => ({
     id: insight.id,
     type: "insight" as const,
     title: insight.title,
@@ -391,21 +420,21 @@ function getInsightNodes() {
   }));
 }
 
-function buildNodes() {
+function buildNodes(context: GraphSelectorContext) {
   return [
-    ...getCompanyNodes(),
-    ...getContactNodes(),
-    ...getCampaignNodes(),
-    ...getOfferNodes(),
-    ...getAppointmentNodes(),
-    ...getInsightNodes(),
+    ...getCompanyNodes(context),
+    ...getContactNodes(context),
+    ...getCampaignNodes(context),
+    ...getOfferNodes(context),
+    ...getAppointmentNodes(context),
+    ...getInsightNodes(context),
   ];
 }
 
-function buildEdges() {
+function buildEdges(context: GraphSelectorContext) {
   const edges: GraphEdgeRecord[] = [];
 
-  for (const bundle of listCompanyBundles()) {
+  for (const bundle of context.companyBundles) {
     for (const contact of bundle.contacts) {
       edges.push({
         id: `${bundle.company.id}:${contact.id}`,
@@ -453,15 +482,12 @@ function buildEdges() {
     }
   }
 
-  for (const campaign of dataAccess.campaigns.list()) {
-    const insights = dataAccess
-      .insights
-      .list()
-      .filter(
-        (insight) =>
-          insight.sourceEntityType === "campaign" &&
-          insight.sourceEntityId === campaign.id,
-      );
+  for (const campaign of context.snapshot.campaigns) {
+    const insights = context.snapshot.insights.filter(
+      (insight) =>
+        insight.sourceEntityType === "campaign" &&
+        insight.sourceEntityId === campaign.id,
+    );
 
     for (const insight of insights) {
       edges.push({
@@ -578,14 +604,16 @@ function getConnectedNodeIds(edges: GraphEdgeRecord[], nodeIds: Set<string>) {
 function getNodeDetail(
   node: GraphNodeRecord,
   edges: GraphEdgeRecord[],
+  context: GraphSelectorContext,
 ): GraphNodeDetailView | undefined {
   const relatedEdges = edges.filter(
     (edge) => edge.sourceId === node.id || edge.targetId === node.id,
   );
 
   if (node.type === "company") {
-    const company = dataAccess.companies.getById(node.id as Company["id"]);
-    const bundle = company ? getCompanyBundle(company) : undefined;
+    const bundle = context.companyBundles.find(
+      (candidate) => candidate.company.id === node.id,
+    );
     if (!bundle) {
       return undefined;
     }
@@ -626,12 +654,14 @@ function getNodeDetail(
   }
 
   if (node.type === "contact") {
-    const contact = dataAccess.contacts.getById(node.id as Contact["id"]);
+    const contact = context.contactById.get(node.id as Contact["id"]);
     if (!contact) {
       return undefined;
     }
-    const company = dataAccess.companies.getById(contact.companyId);
-    const bundle = company ? getCompanyBundle(company) : undefined;
+    const company = context.companyById.get(contact.companyId);
+    const bundle = context.companyBundles.find(
+      (candidate) => candidate.company.id === company?.id,
+    );
 
     return {
       id: node.id,
@@ -666,26 +696,22 @@ function getNodeDetail(
   }
 
   if (node.type === "campaign") {
-    const campaign = dataAccess.campaigns.getById(node.id as Campaign["id"]);
+    const campaign = context.campaignById.get(node.id as Campaign["id"]);
     if (!campaign) {
       return undefined;
     }
-    const offer = dataAccess.offers.getById(campaign.offerId);
-    const companies = listCompanyBundles().filter((bundle) =>
+    const offer = context.offerById.get(campaign.offerId);
+    const companies = context.companyBundles.filter((bundle) =>
       bundle.activeCampaigns.some((candidate) => candidate.id === campaign.id),
     );
-    const insights = dataAccess
-      .insights
-      .list()
-      .filter(
-        (insight) =>
-          insight.sourceEntityType === "campaign" &&
-          insight.sourceEntityId === campaign.id,
-      );
-    const enrollments = dataAccess
-      .enrollments
-      .list()
-      .filter((enrollment) => enrollment.campaignId === campaign.id);
+    const insights = context.snapshot.insights.filter(
+      (insight) =>
+        insight.sourceEntityType === "campaign" &&
+        insight.sourceEntityId === campaign.id,
+    );
+    const enrollments = context.snapshot.enrollments.filter(
+      (enrollment) => enrollment.campaignId === campaign.id,
+    );
 
     return {
       id: node.id,
@@ -710,7 +736,9 @@ function getNodeDetail(
         {
           label: "Appointments",
           value: String(
-            dataAccess.appointments.listByCampaignId(campaign.id).length,
+            context.snapshot.appointments.filter(
+              (appointment) => appointment.campaignId === campaign.id,
+            ).length,
           ),
         },
       ],
@@ -722,17 +750,16 @@ function getNodeDetail(
   }
 
   if (node.type === "offer") {
-    const offer = dataAccess.offers.getById(node.id as Offer["id"]);
+    const offer = context.offerById.get(node.id as Offer["id"]);
     if (!offer) {
       return undefined;
     }
-    const companyCount = listCompanyBundles().filter(
+    const companyCount = context.companyBundles.filter(
       (bundle) => bundle.recommendedOffer?.id === offer.id,
     ).length;
-    const campaignCount = dataAccess
-      .campaigns
-      .list()
-      .filter((campaign) => campaign.offerId === offer.id).length;
+    const campaignCount = context.snapshot.campaigns.filter(
+      (campaign) => campaign.offerId === offer.id,
+    ).length;
 
     return {
       id: node.id,
@@ -765,15 +792,15 @@ function getNodeDetail(
   }
 
   if (node.type === "appointment") {
-    const appointment = dataAccess.appointments.getById(
+    const appointment = context.appointmentById.get(
       node.id as Appointment["id"],
     );
     if (!appointment) {
       return undefined;
     }
-    const company = dataAccess.companies.getById(appointment.companyId);
-    const contact = dataAccess.contacts.getById(appointment.contactId);
-    const campaign = dataAccess.campaigns.getById(appointment.campaignId);
+    const company = context.companyById.get(appointment.companyId);
+    const contact = context.contactById.get(appointment.contactId);
+    const campaign = context.campaignById.get(appointment.campaignId);
 
     return {
       id: node.id,
@@ -802,13 +829,13 @@ function getNodeDetail(
   }
 
   if (node.type === "insight") {
-    const insight = dataAccess.insights.getById(node.id as Insight["id"]);
+    const insight = context.insightById.get(node.id as Insight["id"]);
     if (!insight) {
       return undefined;
     }
     const source =
       insight.sourceEntityType === "campaign" && insight.sourceEntityId
-        ? dataAccess.campaigns.getById(insight.sourceEntityId as Campaign["id"])?.name ??
+        ? context.campaignById.get(insight.sourceEntityId as Campaign["id"])?.name ??
           insight.sourceEntityId
         : insight.sourceEntityId ?? "Unlinked";
 
@@ -840,17 +867,18 @@ function getNodeDetail(
   return undefined;
 }
 
-export function getGraphWorkspaceView(
+export async function getGraphWorkspaceView(
   searchParams: SearchParamsInput,
-): GraphWorkspaceView {
+): Promise<GraphWorkspaceView> {
   const q = readSearchParam(searchParams.q).trim();
   const nodeType = readSearchParam(searchParams.nodeType) || "all";
   const status = readSearchParam(searchParams.status) || "all";
   const nodeId = readSearchParam(searchParams.nodeId);
   const toggles = getSelectedEdgeTypes(searchParams);
 
-  const allNodes = buildNodes();
-  const allEdges = buildEdges();
+  const context = buildGraphSelectorContext(await getSelectorDataSnapshot());
+  const allNodes = buildNodes(context);
+  const allEdges = buildEdges(context);
   const enabledEdges = allEdges.filter((edge) => isEdgeEnabled(edge, toggles));
 
   const baseNodes = allNodes.filter(
@@ -982,7 +1010,9 @@ export function getGraphWorkspaceView(
         summary: edge.summary,
       };
     }),
-    selectedNode: selectedNode ? getNodeDetail(selectedNode, visibleEdges) : undefined,
+    selectedNode: selectedNode
+      ? getNodeDetail(selectedNode, visibleEdges, context)
+      : undefined,
     query,
     resultLabel:
       visibleNodes.length === 1

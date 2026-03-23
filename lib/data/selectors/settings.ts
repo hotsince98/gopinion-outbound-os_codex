@@ -7,13 +7,15 @@ import {
   learningConfiguration,
   workflowChannelConfigurations,
 } from "@/lib/data/config/settings";
-import { getDataAccess } from "@/lib/data/access";
 import {
   getPriorityBadge,
   type SelectorBadge,
   type WorkspaceStat,
 } from "@/lib/data/selectors/shared";
+import { getSelectorDataSnapshot } from "@/lib/data/selectors/snapshot";
 import type {
+  Appointment,
+  Campaign,
   IcpProfile,
   IntegrationReadinessCheck,
   IntegrationReadinessStatus,
@@ -23,13 +25,13 @@ import type {
   MemoryEntryKind,
   Offer,
   PriorityTierDefinition,
+  Reply,
   ScoringBucket,
+  Sequence,
   WorkflowApprovalMode,
   WorkflowChannelConfiguration,
   WorkflowChannelStatus,
 } from "@/lib/domain";
-
-const dataAccess = getDataAccess();
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
@@ -275,22 +277,22 @@ function getIntegrationStatusBadge(
   return { label: "Unknown", tone: "neutral" };
 }
 
-function getOfferUsageCounts(offerId: Offer["id"]) {
-  const campaigns = dataAccess
-    .campaigns
-    .list()
-    .filter((campaign) => campaign.offerId === offerId);
-  const sequences = dataAccess
-    .sequences
-    .list()
-    .filter((sequence) => sequence.offerId === offerId);
+function getOfferUsageCounts(
+  offerId: Offer["id"],
+  campaigns: Campaign[],
+  sequences: Sequence[],
+) {
+  const matchingCampaigns = campaigns.filter((campaign) => campaign.offerId === offerId);
+  const matchingSequences = sequences.filter((sequence) => sequence.offerId === offerId);
 
   return {
-    activeCampaignCount: campaigns.filter((campaign) => campaign.status === "active")
+    activeCampaignCount: matchingCampaigns.filter(
+      (campaign) => campaign.status === "active",
+    )
       .length,
     configuredCount:
-      campaigns.filter((campaign) => campaign.status === "draft").length +
-      sequences.filter(
+      matchingCampaigns.filter((campaign) => campaign.status === "draft").length +
+      matchingSequences.filter(
         (sequence) => sequence.status === "active" || sequence.status === "draft",
       ).length,
   };
@@ -308,16 +310,14 @@ function formatOfferRoleLabel(offer: Offer) {
   return "Supporting offer";
 }
 
-function formatOfferUsageLabel(offer: Offer) {
-  const counts = getOfferUsageCounts(offer.id);
-  const campaignCount = dataAccess
-    .campaigns
-    .list()
-    .filter((campaign) => campaign.offerId === offer.id).length;
-  const sequenceCount = dataAccess
-    .sequences
-    .list()
-    .filter((sequence) => sequence.offerId === offer.id).length;
+function formatOfferUsageLabel(
+  offer: Offer,
+  campaigns: Campaign[],
+  sequences: Sequence[],
+) {
+  const counts = getOfferUsageCounts(offer.id, campaigns, sequences);
+  const campaignCount = campaigns.filter((campaign) => campaign.offerId === offer.id).length;
+  const sequenceCount = sequences.filter((sequence) => sequence.offerId === offer.id).length;
 
   if (campaignCount === 0 && sequenceCount === 0) {
     return "Not referenced by campaigns or sequences yet.";
@@ -354,11 +354,17 @@ function getRoutingNote(definition: PriorityTierDefinition) {
   return "No routing note configured.";
 }
 
-function getWorkflowUsageLabel(configuration: WorkflowChannelConfiguration) {
+function getWorkflowUsageLabel(
+  configuration: WorkflowChannelConfiguration,
+  campaigns: Campaign[],
+  sequences: Sequence[],
+) {
   switch (configuration.key) {
     case "email": {
-      const activeCampaigns = dataAccess.campaigns.listByStatus("active").length;
-      const activeSequences = dataAccess.sequences.listByStatus("active").length;
+      const activeCampaigns = campaigns.filter((campaign) => campaign.status === "active")
+        .length;
+      const activeSequences = sequences.filter((sequence) => sequence.status === "active")
+        .length;
 
       return `${activeCampaigns} active ${pluralize(
         "campaign",
@@ -377,17 +383,18 @@ function getWorkflowUsageLabel(configuration: WorkflowChannelConfiguration) {
   }
 }
 
-function getCurrentOutcomeSignal(outcome: LearningOutcomeConfiguration) {
+function getCurrentOutcomeSignal(
+  outcome: LearningOutcomeConfiguration,
+  replies: Reply[],
+  appointments: Appointment[],
+  memoryEntryKinds: { kind: MemoryEntryKind }[],
+) {
   switch (outcome.key) {
     case "appointments_booked": {
-      const appointmentCount = dataAccess
-        .appointments
-        .list()
-        .filter(
-          (appointment) =>
-            appointment.status === "scheduled" ||
-            appointment.status === "completed",
-        ).length;
+      const appointmentCount = appointments.filter(
+        (appointment) =>
+          appointment.status === "scheduled" || appointment.status === "completed",
+      ).length;
 
       return `${appointmentCount} scheduled or completed ${pluralize(
         "appointment",
@@ -395,21 +402,19 @@ function getCurrentOutcomeSignal(outcome: LearningOutcomeConfiguration) {
       )}`;
     }
     case "positive_replies": {
-      const positiveReplies = dataAccess.replies.listByClassification("positive")
-        .length;
+      const positiveReplies = replies.filter(
+        (reply) => reply.classification === "positive",
+      ).length;
 
       return `${positiveReplies} positive ${pluralize("reply", positiveReplies)}`;
     }
     case "objection_patterns": {
-      const patternCount = dataAccess
-        .replies
-        .list()
-        .filter(
-          (reply) =>
-            reply.classification === "objection" ||
-            reply.classification === "not_now" ||
-            reply.classification === "wrong_person",
-        ).length;
+      const patternCount = replies.filter(
+        (reply) =>
+          reply.classification === "objection" ||
+          reply.classification === "not_now" ||
+          reply.classification === "wrong_person",
+      ).length;
 
       return `${patternCount} objection or timing ${pluralize(
         "signal",
@@ -417,14 +422,10 @@ function getCurrentOutcomeSignal(outcome: LearningOutcomeConfiguration) {
       )}`;
     }
     case "operator_review_gates": {
-      const constraints = dataAccess
-        .memoryEntries
-        .list()
-        .filter((entry) => entry.kind === "constraint").length;
-      const flaggedReplies = dataAccess
-        .replies
-        .list()
-        .filter((reply) => reply.requiresHumanReview).length;
+      const constraints = memoryEntryKinds.filter(
+        (entry) => entry.kind === "constraint",
+      ).length;
+      const flaggedReplies = replies.filter((reply) => reply.requiresHumanReview).length;
 
       return `${constraints} constraint ${pluralize(
         "entry",
@@ -541,9 +542,12 @@ function getIcpConfigurations(): SettingsIcpConfigurationView[] {
   });
 }
 
-function getOfferConfigurations(): SettingsOfferConfigurationView[] {
+function getOfferConfigurations(
+  campaigns: Campaign[],
+  sequences: Sequence[],
+): SettingsOfferConfigurationView[] {
   return initialOffers.map((offer) => {
-    const usageCounts = getOfferUsageCounts(offer.id);
+    const usageCounts = getOfferUsageCounts(offer.id, campaigns, sequences);
 
     return {
       offer,
@@ -553,7 +557,7 @@ function getOfferConfigurations(): SettingsOfferConfigurationView[] {
       ),
       categoryLabel: formatOfferCategoryLabel(offer.category),
       roleLabel: formatOfferRoleLabel(offer),
-      usageLabel: formatOfferUsageLabel(offer),
+      usageLabel: formatOfferUsageLabel(offer, campaigns, sequences),
       pricingNotes: formatPricingNotes(offer.pricing),
       ctaGuidance: offer.primaryCta,
     };
@@ -576,25 +580,35 @@ function getScoringConfigurations(): SettingsScoringConfigurationView[] {
   }));
 }
 
-function getWorkflowConfigurations(): SettingsWorkflowConfigurationView[] {
+function getWorkflowConfigurations(
+  campaigns: Campaign[],
+  sequences: Sequence[],
+): SettingsWorkflowConfigurationView[] {
   return workflowChannelConfigurations.map((configuration) => ({
     configuration,
     statusBadge: getWorkflowStatusBadge(configuration.status),
     roleLabel: formatWorkflowRoleLabel(configuration.role),
     approvalModeLabel: formatApprovalModeLabel(configuration.approvalMode),
-    usageLabel: getWorkflowUsageLabel(configuration),
+    usageLabel: getWorkflowUsageLabel(configuration, campaigns, sequences),
   }));
 }
 
-function getLearningView(): SettingsLearningView {
-  const entries = dataAccess.memoryEntries.list();
-
+function getLearningView(
+  entries: Array<{ kind: MemoryEntryKind }>,
+  replies: Reply[],
+  appointments: Appointment[],
+): SettingsLearningView {
   return {
     configuration: learningConfiguration,
     outcomes: learningConfiguration.trackedOutcomes.map((configuration) => ({
       configuration,
       statusBadge: getLearningStatusBadge(configuration.trackingStatus),
-      currentSignalLabel: getCurrentOutcomeSignal(configuration),
+      currentSignalLabel: getCurrentOutcomeSignal(
+        configuration,
+        replies,
+        appointments,
+        entries,
+      ),
     })),
     memoryCategories: learningConfiguration.memoryEntryCategories.map((kind) => {
       const count = entries.filter((entry) => entry.kind === kind).length;
@@ -624,9 +638,16 @@ function getIntegrationReadiness(): SettingsIntegrationReadinessView[] {
     }));
 }
 
-export function getSettingsWorkspaceView(): SettingsWorkspaceView {
-  const offerConfigurations = getOfferConfigurations();
-  const workflowConfigurations = getWorkflowConfigurations();
+export async function getSettingsWorkspaceView(): Promise<SettingsWorkspaceView> {
+  const snapshot = await getSelectorDataSnapshot();
+  const offerConfigurations = getOfferConfigurations(
+    snapshot.campaigns,
+    snapshot.sequences,
+  );
+  const workflowConfigurations = getWorkflowConfigurations(
+    snapshot.campaigns,
+    snapshot.sequences,
+  );
   const integrationReadiness = getIntegrationReadiness();
 
   return {
@@ -639,7 +660,11 @@ export function getSettingsWorkspaceView(): SettingsWorkspaceView {
     offerConfigurations,
     scoringConfigurations: getScoringConfigurations(),
     workflowConfigurations,
-    learning: getLearningView(),
+    learning: getLearningView(
+      snapshot.memoryEntries,
+      snapshot.replies,
+      snapshot.appointments,
+    ),
     integrationReadiness,
   };
 }

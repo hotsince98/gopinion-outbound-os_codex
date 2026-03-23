@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -9,8 +10,10 @@ export const metadata = {
   title: "Dashboard",
 };
 
-export default function DashboardPage() {
-  const dashboard = getDashboardView();
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const dashboard = await getDashboardView();
 
   const priorityRows = dashboard.priorityLeads.map((lead) => ({
     id: lead.companyId,
@@ -58,7 +61,7 @@ export default function DashboardPage() {
       <PageHeader
         eyebrow="Operations Dashboard"
         title="Dealer-first outbound command deck"
-        description="Track execution across lead qualification, campaigns, reply flow, and booking readiness. This shell now reads from typed domain entities and mock repositories while real persistence comes next."
+        description="Track execution across lead qualification, campaigns, reply flow, and booking readiness. This shell now reads from typed domain entities through the shared repository boundary, whether the backend is mock or Supabase-backed."
         actions={
           <div className="flex items-center gap-3">
             <Link
@@ -92,6 +95,8 @@ export default function DashboardPage() {
           <TableShell
             columns={["Company", "Offer", "Decision-maker hypothesis", "Next step"]}
             rows={priorityRows}
+            emptyTitle="No priority companies yet"
+            emptyDescription="The current backend has no qualified or campaign-ready companies. Seed the supported Postgres tables or switch back to mock mode if you want demo data."
           />
         </SectionCard>
 
@@ -99,20 +104,28 @@ export default function DashboardPage() {
           title="Learning signals"
           description="Outcome notes the system should eventually capture as structured insights."
         >
-          <div className="space-y-3">
-            {dashboard.learningSignals.map((signal) => (
-              <div
-                key={signal.id}
-                className="surface-muted p-4 transition hover:border-white/12 hover:bg-white/[0.05]"
-              >
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium text-copy">{signal.title}</p>
-                  <span className="micro-label">{signal.tag}</span>
+          {dashboard.learningSignals.length > 0 ? (
+            <div className="space-y-3">
+              {dashboard.learningSignals.map((signal) => (
+                <div
+                  key={signal.id}
+                  className="surface-muted p-4 transition hover:border-white/12 hover:bg-white/[0.05]"
+                >
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-copy">{signal.title}</p>
+                    <span className="micro-label">{signal.tag}</span>
+                  </div>
+                  <p className="text-sm leading-6 text-muted">{signal.summary}</p>
                 </div>
-                <p className="text-sm leading-6 text-muted">{signal.summary}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              eyebrow="Learning"
+              title="No learning signals yet"
+              description="Replies, appointments, and insight records have not generated any structured learning signals in the current backend."
+            />
+          )}
         </SectionCard>
       </div>
 
@@ -124,6 +137,8 @@ export default function DashboardPage() {
           <TableShell
             columns={["Sequence", "Enrolled", "Reply rate", "Booked"]}
             rows={sequenceRows}
+            emptyTitle="No sequence activity yet"
+            emptyDescription="No active sequence health records are available for the current backend snapshot."
           />
         </SectionCard>
 
@@ -131,17 +146,25 @@ export default function DashboardPage() {
           title="Pipeline blockers"
           description="Operational friction points that still need data or workflow coverage."
         >
-          <div className="space-y-3">
-            {dashboard.blockers.map((blocker) => (
-              <div key={blocker.id} className="surface-muted p-4">
-                <div className="mb-2 flex items-center gap-3">
-                  <span className="h-2.5 w-2.5 rounded-full bg-warning/80" />
-                  <p className="text-sm font-medium text-copy">{blocker.title}</p>
+          {dashboard.blockers.length > 0 ? (
+            <div className="space-y-3">
+              {dashboard.blockers.map((blocker) => (
+                <div key={blocker.id} className="surface-muted p-4">
+                  <div className="mb-2 flex items-center gap-3">
+                    <span className="h-2.5 w-2.5 rounded-full bg-warning/80" />
+                    <p className="text-sm font-medium text-copy">{blocker.title}</p>
+                  </div>
+                  <p className="text-sm leading-6 text-muted">{blocker.summary}</p>
                 </div>
-                <p className="text-sm leading-6 text-muted">{blocker.summary}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              eyebrow="Blockers"
+              title="No active blockers recorded"
+              description="The current data snapshot has no stored constraint notes to surface here."
+            />
+          )}
         </SectionCard>
       </div>
     </div>

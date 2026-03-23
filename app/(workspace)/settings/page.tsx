@@ -11,6 +11,8 @@ export const metadata = {
   title: "Settings",
 };
 
+export const dynamic = "force-dynamic";
+
 function InlinePill({ label }: Readonly<{ label: string }>) {
   return (
     <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-medium text-muted">
@@ -53,15 +55,15 @@ function BulletList({
   );
 }
 
-export default function SettingsPage() {
-  const view = getSettingsWorkspaceView();
+export default async function SettingsPage() {
+  const view = await getSettingsWorkspaceView();
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Settings / Control Plane"
         title="System configuration workspace"
-        description="Review the current outbound operating system configuration before persistence, provider adapters, and external secrets are added. This workspace reads from typed config, typed mock repositories, and selector-backed control-plane view models."
+        description="Review the current outbound operating system configuration before live operator editing and external provider adapters are added. This workspace reads from typed config, the shared repository layer, and selector-backed control-plane view models."
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link

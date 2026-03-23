@@ -15,12 +15,14 @@ export const metadata = {
   title: "Campaigns",
 };
 
+export const dynamic = "force-dynamic";
+
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function CampaignsPage({ searchParams }: PageProps) {
-  const view = getCampaignsWorkspaceView(await searchParams);
+  const view = await getCampaignsWorkspaceView(await searchParams);
 
   const rows = view.rows.map((row) => ({
     id: row.campaignId,
