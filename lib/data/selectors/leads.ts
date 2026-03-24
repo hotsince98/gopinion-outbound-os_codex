@@ -174,7 +174,7 @@ export async function getLeadsWorkspaceView(
       (filters.status === "all" || bundle.company.status === filters.status) &&
       matchesQueue(filters.queue, workflowState)
     );
-  });
+  }).sort((left, right) => right.company.createdAt.localeCompare(left.company.createdAt));
 
   const rows = filteredBundles.map((bundle) => ({
     companyId: bundle.company.id,

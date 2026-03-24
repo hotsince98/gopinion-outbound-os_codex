@@ -56,6 +56,7 @@ export interface Company extends AuditFields {
   name: string;
   legalName?: string;
   industryKey: "independent_used_car_dealer";
+  subindustry?: string;
   icpProfileId: IcpProfileId;
   status: CompanyStatus;
   priorityTier: PriorityTier;
@@ -68,6 +69,7 @@ export interface Company extends AuditFields {
   buyingStage: CompanyBuyingStage;
   painSignals: string[];
   disqualifierSignals: string[];
+  notes?: string[];
   recommendedOfferIds: OfferId[];
   primaryContactId?: ContactId;
   activeCampaignIds: CampaignId[];

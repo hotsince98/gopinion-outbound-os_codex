@@ -77,6 +77,12 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link
+              href="/leads/intake"
+              className="rounded-full border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15"
+            >
+              Create or import leads
+            </Link>
+            <Link
               href="/leads"
               className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
             >

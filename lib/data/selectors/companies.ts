@@ -141,7 +141,7 @@ export async function getCompaniesWorkspaceView(
       (filters.tier === "all" || bundle.company.priorityTier === filters.tier) &&
       (filters.readiness === "all" || deriveWorkflowState(bundle) === filters.readiness)
     );
-  });
+  }).sort((left, right) => right.company.createdAt.localeCompare(left.company.createdAt));
 
   const selectedBundle =
     filteredBundles.find((bundle) => bundle.company.id === filters.companyId) ??
@@ -236,6 +236,7 @@ export async function getCompaniesWorkspaceView(
         ],
         pains: selectedBundle.company.painSignals,
         notes: [
+          ...(selectedBundle.company.notes ?? []),
           ...selectedBundle.company.scoring.reasons,
           ...(selectedBundle.primaryContact?.notes ?? []),
         ],

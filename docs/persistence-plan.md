@@ -63,6 +63,7 @@ The app can now run in either mode:
     - `Campaign`
     - `Reply`
     - `Appointment`
+  - Live lead intake now writes new companies and contacts through that same repository boundary
   - Mock/config-backed repositories still power:
     - `Offer`
     - `Sequence`
@@ -111,6 +112,77 @@ The first seed path reuses the existing typed mock store:
 
 The seed runner uses `upsert` on `id`, so it is additive and repeatable.
 It does not wipe tables or silently reset anything.
+
+## Live Lead Intake
+
+### Operator workflow
+
+The first real ingestion workflow now lives at:
+
+- `/leads/intake`
+
+It supports:
+
+- Manual lead creation for a single company
+- CSV upload, preview, and import
+- Duplicate checks against persisted companies by normalized company name and normalized website
+- Server-side validation before writes are attempted
+
+Both paths write through `getDataAccess()` and therefore honor the active backend:
+
+- `DATA_BACKEND=mock`
+  - Writes stay in the in-memory repository for local/demo use
+- `DATA_BACKEND=postgres`
+  - Writes persist to Supabase/Postgres through `CompanyRepository.create()` and `ContactRepository.create()`
+
+### Captured fields
+
+The first-pass intake workflow captures:
+
+- company name
+- website
+- industry and subindustry
+- market location
+- Google rating
+- review count
+- primary contact name
+- contact title
+- contact email
+- operator notes
+
+The intake service converts those fields into an initial company/contact record, scoring snapshot, source reference, and recommended first offer without placing shaping logic in the page component.
+
+### CSV foundation
+
+The CSV workflow is intentionally modest:
+
+1. Upload a CSV file in the intake workspace.
+2. Preview detected columns, mapped fields, valid row count, and validation issues.
+3. Import only valid, non-duplicate rows.
+
+Supported columns currently include:
+
+- `company name`
+- `website`
+- `industry`
+- `subindustry`
+- `city`
+- `state`
+- `country`
+- `google rating`
+- `review count`
+- `primary contact name`
+- `contact title`
+- `contact email`
+- `notes`
+
+### Empty and duplicate behavior
+
+When `DATA_BACKEND=postgres`:
+
+- Empty tables still render clean empty states on `/leads`, `/companies`, and summary surfaces instead of crashing.
+- The app does not silently fall back to mock companies for intake writes or reads.
+- Duplicate rows are rejected with operator-visible notices instead of being auto-merged.
 
 ### How to run the seed
 
@@ -187,7 +259,7 @@ The canonical storage sketch lives in `db/schema/entities.ts`.
 
 | Domain entity | Planned table | Notes |
 | --- | --- | --- |
-| `Company` | `companies` | Keep complex sub-objects like `location`, `presence`, `scoring`, and `source` as JSON initially. |
+| `Company` | `companies` | Keep complex sub-objects like `location`, `presence`, `scoring`, and `source` as JSON initially. `subindustry` and operator `notes` now have first-pass live persistence support. |
 | `Contact` | `contacts` | Direct FK to `companies`. Confidence and source remain JSON-friendly. |
 | `Offer` | `offers` | File-backed seed data today; ready for a future managed table if operators need persistence. |
 | `Campaign` | `campaigns` | Core operational entity; should stay relational. |
@@ -220,6 +292,7 @@ Recommended approach:
 The first SQL migration now lives at:
 
 - `db/migrations/20260323_001_supabase_core_operational_entities.sql`
+- `db/migrations/20260324_002_lead_intake_company_metadata.sql`
 
 ### What the migration covers
 
@@ -234,6 +307,7 @@ The first SQL migration now lives at:
   - `contacts.source`
 - Uses `text[]` for lightweight list fields
 - Adds practical indexes for the first repository filters and operational views
+- Adds `companies.subindustry` and `companies.notes` for the live lead intake workflow
 
 ### Intentional v1 compromises
 

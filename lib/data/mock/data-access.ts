@@ -70,12 +70,22 @@ class InMemoryRepository<TEntity extends { id: string }, TId extends string> {
   protected filter(predicate: (item: TEntity) => boolean): TEntity[] {
     return this.items.filter(predicate);
   }
+
+  protected insert(item: TEntity): TEntity {
+    this.items.push(item);
+
+    return item;
+  }
 }
 
 class InMemoryCompanyRepository
   extends InMemoryRepository<Company, CompanyId>
   implements CompanyRepository
 {
+  create(company: Company): Company {
+    return this.insert(company);
+  }
+
   listByPriorityTier(tier: PriorityTier): Company[] {
     return this.filter((company) => company.priorityTier === tier);
   }
@@ -85,6 +95,10 @@ class InMemoryContactRepository
   extends InMemoryRepository<Contact, ContactId>
   implements ContactRepository
 {
+  create(contact: Contact): Contact {
+    return this.insert(contact);
+  }
+
   listByCompanyId(companyId: CompanyId): Contact[] {
     return this.filter((contact) => contact.companyId === companyId);
   }

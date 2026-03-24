@@ -25,7 +25,9 @@ import type {
 import {
   mapAppointmentRowToDomain,
   mapCampaignRowToDomain,
+  mapCompanyDomainToRow,
   mapCompanyRowToDomain,
+  mapContactDomainToRow,
   mapContactRowToDomain,
   mapReplyRowToDomain,
 } from "@/lib/data/postgres/mappers";
@@ -114,6 +116,26 @@ abstract class SupabaseTableRepository<
       `${this.table}.listWhere(${column})`,
     ).map((row) => this.mapRow(row as TableRow<TTable>));
   }
+
+  protected async insertRow(row: TableRow<TTable>): Promise<TEntity> {
+    const { data, error } = await this.client
+      .from(this.table)
+      .insert(row as never)
+      .select("*")
+      .single();
+
+    const insertedRow = assertSupabaseRow(
+      data as unknown | null,
+      error,
+      `${this.table}.insert`,
+    );
+
+    if (!insertedRow) {
+      throw new Error(`Supabase ${this.table}.insert failed: no row returned`);
+    }
+
+    return this.mapRow(insertedRow as TableRow<TTable>);
+  }
 }
 
 class SupabaseCompanyRepository
@@ -122,6 +144,10 @@ class SupabaseCompanyRepository
 {
   constructor(client: SupabaseClient) {
     super(client, "companies", mapCompanyRowToDomain);
+  }
+
+  create(company: Company): Promise<Company> {
+    return this.insertRow(mapCompanyDomainToRow(company));
   }
 
   listByPriorityTier(tier: PriorityTier): Promise<Company[]> {
@@ -135,6 +161,10 @@ class SupabaseContactRepository
 {
   constructor(client: SupabaseClient) {
     super(client, "contacts", mapContactRowToDomain);
+  }
+
+  create(contact: Contact): Promise<Contact> {
+    return this.insertRow(mapContactDomainToRow(contact));
   }
 
   listByCompanyId(companyId: CompanyId): Promise<Contact[]> {

@@ -16,6 +16,7 @@ export interface CompanyRow {
   name: string;
   legal_name: string | null;
   industry_key: Company["industryKey"];
+  subindustry: string | null;
   icp_profile_id: Company["icpProfileId"];
   status: Company["status"];
   priority_tier: Company["priorityTier"];
@@ -28,6 +29,7 @@ export interface CompanyRow {
   buying_stage: Company["buyingStage"];
   pain_signals: string[] | null;
   disqualifier_signals: string[] | null;
+  notes: string[] | null;
   recommended_offer_ids: Company["recommendedOfferIds"] | null;
   primary_contact_id: Company["primaryContactId"] | null;
   active_campaign_ids: Company["activeCampaignIds"] | null;

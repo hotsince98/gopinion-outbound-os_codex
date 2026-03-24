@@ -12,3 +12,4 @@ export * from "@/lib/domain/insight";
 export * from "@/lib/domain/memory-entry";
 export * from "@/lib/domain/icp";
 export * from "@/lib/domain/settings";
+export * from "@/lib/domain/lead-intake";

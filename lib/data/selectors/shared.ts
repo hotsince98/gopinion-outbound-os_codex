@@ -188,6 +188,10 @@ export function getWorkflowBadge(state: WorkflowState): SelectorBadge {
 }
 
 export function getIndustryLabel(company: Company) {
+  if (company.subindustry) {
+    return company.subindustry;
+  }
+
   return company.isIndependent
     ? "Independent used car dealer"
     : "Dealer group / out of scope";
@@ -364,11 +368,16 @@ export function matchesSearch(bundle: CompanyBundle, search: string) {
     bundle.company.name,
     bundle.company.location.city,
     bundle.company.location.state,
+    bundle.company.location.country,
     getIndustryLabel(bundle.company),
+    bundle.company.subindustry ?? "",
     getIcpLabel(bundle.company),
+    bundle.company.presence.websiteUrl ?? "",
+    (bundle.company.notes ?? []).join(" "),
     bundle.recommendedOffer?.name ?? "",
     bundle.primaryContact?.fullName ?? "",
     bundle.primaryContact?.title ?? "",
+    bundle.primaryContact?.email ?? "",
   ]
     .join(" ")
     .toLowerCase();
