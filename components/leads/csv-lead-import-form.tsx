@@ -2,7 +2,8 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { buildLeadCsvPreview, parseLeadCsvText } from "@/lib/data/intake/csv";
-import { importLeadCsvAction, initialCsvLeadImportActionState } from "@/app/(workspace)/leads/intake/actions";
+import { importLeadCsvAction } from "@/app/(workspace)/leads/intake/actions";
+import { initialCsvLeadImportActionState } from "@/app/(workspace)/leads/intake/action-state";
 
 const inputClassName =
   "w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.05]";

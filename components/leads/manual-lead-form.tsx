@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useRef } from "react";
-import { createManualLeadAction, initialManualLeadActionState } from "@/app/(workspace)/leads/intake/actions";
+import { createManualLeadAction } from "@/app/(workspace)/leads/intake/actions";
+import { initialManualLeadActionState } from "@/app/(workspace)/leads/intake/action-state";
 import { supportedLeadIndustryOptions } from "@/lib/domain";
 
 const inputClassName =
