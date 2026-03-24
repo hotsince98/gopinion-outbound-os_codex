@@ -2,6 +2,7 @@ import type {
   Appointment,
   Campaign,
   Company,
+  CompanyEnrichmentSnapshot,
   CompanyPresence,
   CompanyScoringSnapshot,
   Contact,
@@ -35,6 +36,7 @@ export interface CompanyRow {
   active_campaign_ids: Company["activeCampaignIds"] | null;
   appointment_ids: Company["appointmentIds"] | null;
   scoring: CompanyScoringSnapshot;
+  enrichment: CompanyEnrichmentSnapshot | null;
   source: SourceReference;
   created_at: string;
   updated_at: string;

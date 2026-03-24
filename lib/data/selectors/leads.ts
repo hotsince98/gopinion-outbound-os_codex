@@ -7,9 +7,13 @@ import {
   getDecisionMakerConfidenceLabel,
   getDecisionMakerLabel,
   getEnrichmentBadge,
+  getEnrichmentConfidenceBadge,
+  getEnrichmentSummary,
   getIcpFilterOptions,
   getIcpLabel,
   getIndustryLabel,
+  getLastEnrichedLabel,
+  getMissingFieldsLabel,
   getPriorityBadge,
   getRecommendedOfferName,
   getSuggestedNextAction,
@@ -52,12 +56,16 @@ export interface LeadRowView {
   icpLabel: string;
   priorityBadge: SelectorBadge;
   enrichmentBadge: SelectorBadge;
+  confidenceBadge: SelectorBadge;
   statusBadge: SelectorBadge;
   queueBadge: SelectorBadge;
   recommendedOffer: string;
   decisionMaker: string;
   decisionMakerConfidence: string;
   contactCoverage: string;
+  enrichmentSummary: string;
+  missingFieldsLabel: string;
+  lastEnrichedLabel: string;
   nextAction: string;
 }
 
@@ -184,12 +192,16 @@ export async function getLeadsWorkspaceView(
     icpLabel: getIcpLabel(bundle.company),
     priorityBadge: getPriorityBadge(bundle.company.priorityTier),
     enrichmentBadge: getEnrichmentBadge(deriveEnrichmentState(bundle.company)),
+    confidenceBadge: getEnrichmentConfidenceBadge(bundle.company),
     statusBadge: getCompanyStatusBadge(bundle.company.status),
     queueBadge: getWorkflowBadge(deriveWorkflowState(bundle)),
     recommendedOffer: getRecommendedOfferName(bundle),
     decisionMaker: getDecisionMakerLabel(bundle),
     decisionMakerConfidence: getDecisionMakerConfidenceLabel(bundle),
     contactCoverage: getContactCoverageLabel(bundle),
+    enrichmentSummary: getEnrichmentSummary(bundle.company),
+    missingFieldsLabel: getMissingFieldsLabel(bundle.company),
+    lastEnrichedLabel: getLastEnrichedLabel(bundle.company),
     nextAction: getSuggestedNextAction(bundle),
   }));
 

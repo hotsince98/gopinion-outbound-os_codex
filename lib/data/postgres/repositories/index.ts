@@ -136,6 +136,27 @@ abstract class SupabaseTableRepository<
 
     return this.mapRow(insertedRow as TableRow<TTable>);
   }
+
+  protected async updateRow(id: TId, row: TableRow<TTable>): Promise<TEntity> {
+    const { data, error } = await this.client
+      .from(this.table)
+      .update(row as never)
+      .eq("id", id as never)
+      .select("*")
+      .single();
+
+    const updatedRow = assertSupabaseRow(
+      data as unknown | null,
+      error,
+      `${this.table}.update`,
+    );
+
+    if (!updatedRow) {
+      throw new Error(`Supabase ${this.table}.update failed: no row returned`);
+    }
+
+    return this.mapRow(updatedRow as TableRow<TTable>);
+  }
 }
 
 class SupabaseCompanyRepository
@@ -148,6 +169,10 @@ class SupabaseCompanyRepository
 
   create(company: Company): Promise<Company> {
     return this.insertRow(mapCompanyDomainToRow(company));
+  }
+
+  update(company: Company): Promise<Company> {
+    return this.updateRow(company.id, mapCompanyDomainToRow(company));
   }
 
   listByPriorityTier(tier: PriorityTier): Promise<Company[]> {
@@ -165,6 +190,10 @@ class SupabaseContactRepository
 
   create(contact: Contact): Promise<Contact> {
     return this.insertRow(mapContactDomainToRow(contact));
+  }
+
+  update(contact: Contact): Promise<Contact> {
+    return this.updateRow(contact.id, mapContactDomainToRow(contact));
   }
 
   listByCompanyId(companyId: CompanyId): Promise<Contact[]> {

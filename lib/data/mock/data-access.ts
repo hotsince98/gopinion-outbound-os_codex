@@ -76,6 +76,18 @@ class InMemoryRepository<TEntity extends { id: string }, TId extends string> {
 
     return item;
   }
+
+  protected replace(item: TEntity): TEntity {
+    const index = this.items.findIndex((currentItem) => currentItem.id === item.id);
+
+    if (index === -1) {
+      throw new Error(`In-memory repository could not find ${item.id} to update.`);
+    }
+
+    this.items[index] = item;
+
+    return item;
+  }
 }
 
 class InMemoryCompanyRepository
@@ -84,6 +96,10 @@ class InMemoryCompanyRepository
 {
   create(company: Company): Company {
     return this.insert(company);
+  }
+
+  update(company: Company): Company {
+    return this.replace(company);
   }
 
   listByPriorityTier(tier: PriorityTier): Company[] {
@@ -97,6 +113,10 @@ class InMemoryContactRepository
 {
   create(contact: Contact): Contact {
     return this.insert(contact);
+  }
+
+  update(contact: Contact): Contact {
+    return this.replace(contact);
   }
 
   listByCompanyId(companyId: CompanyId): Contact[] {

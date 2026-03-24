@@ -38,11 +38,13 @@ export interface Repository<TEntity, TId extends string> {
 
 export interface CompanyRepository extends Repository<Company, CompanyId> {
   create(company: Company): RepositoryResult<Company>;
+  update(company: Company): RepositoryResult<Company>;
   listByPriorityTier(tier: PriorityTier): RepositoryResult<Company[]>;
 }
 
 export interface ContactRepository extends Repository<Contact, ContactId> {
   create(contact: Contact): RepositoryResult<Contact>;
+  update(contact: Contact): RepositoryResult<Contact>;
   listByCompanyId(companyId: CompanyId): RepositoryResult<Contact[]>;
 }
 

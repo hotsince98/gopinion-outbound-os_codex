@@ -53,6 +53,7 @@ export const entitySchemas: EntitySchemaDefinition[] = [
       { name: "activeCampaignIds", type: "id", list: true, references: "campaigns.id" },
       { name: "appointmentIds", type: "id", list: true, references: "appointments.id" },
       { name: "scoring", type: "json" },
+      { name: "enrichment", type: "json", nullable: true },
       { name: "source", type: "json" },
       { name: "createdAt", type: "datetime" },
       { name: "updatedAt", type: "datetime" },

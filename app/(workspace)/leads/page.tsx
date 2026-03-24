@@ -78,13 +78,32 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         <p className="text-sm text-muted">{row.contactCoverage}</p>
       </div>,
       <div key={`${row.companyId}-action`} className="space-y-2">
+        <StatusBadge
+          label={row.confidenceBadge.label}
+          tone={row.confidenceBadge.tone}
+        />
+        <p className="text-sm text-muted">{row.enrichmentSummary}</p>
+        <p className="text-sm text-muted">{row.missingFieldsLabel}</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-muted">
+          {row.lastEnrichedLabel}
+        </p>
         <p className="text-sm leading-6 text-copy">{row.nextAction}</p>
-        <Link
-          href={`/companies?companyId=${row.companyId}`}
-          className="text-sm font-medium text-accent transition hover:text-copy"
-        >
-          Open company profile
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href={`/companies?companyId=${row.companyId}`}
+            className="text-sm font-medium text-accent transition hover:text-copy"
+          >
+            Open company profile
+          </Link>
+          {row.queueBadge.label === "Needs enrichment" ? (
+            <Link
+              href="/leads/enrichment"
+              className="text-sm font-medium text-warning transition hover:text-copy"
+            >
+              Open enrichment queue
+            </Link>
+          ) : null}
+        </div>
       </div>,
     ],
   }));
@@ -102,6 +121,12 @@ export default async function LeadsPage({ searchParams }: PageProps) {
               className="rounded-full border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15"
             >
               Create or import leads
+            </Link>
+            <Link
+              href="/leads/enrichment"
+              className="rounded-full border border-warning/30 bg-warning/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-warning/50 hover:bg-warning/15"
+            >
+              Run enrichment
             </Link>
             <Link
               href="/companies"

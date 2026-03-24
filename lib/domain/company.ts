@@ -6,6 +6,7 @@ import type {
   CompanyStatus,
   ContactId,
   IcpProfileId,
+  IsoDateString,
   Location,
   NumericRange,
   OfferId,
@@ -32,6 +33,50 @@ export type CompanyBuyingStage = (typeof companyBuyingStages)[number];
 
 export const leadScoreBuckets = ["high", "medium", "low"] as const;
 export type LeadScoreBucket = (typeof leadScoreBuckets)[number];
+
+export const enrichmentConfidenceLevels = [
+  "none",
+  "low",
+  "medium",
+  "high",
+] as const;
+export type EnrichmentConfidenceLevel =
+  (typeof enrichmentConfidenceLevels)[number];
+
+export const enrichmentContactPaths = [
+  "none",
+  "phone_only",
+  "role_inbox",
+  "named_contact",
+] as const;
+export type EnrichmentContactPath = (typeof enrichmentContactPaths)[number];
+
+export const enrichmentSources = [
+  "record_only",
+  "public_website",
+  "public_website_and_record",
+] as const;
+export type EnrichmentSource = (typeof enrichmentSources)[number];
+
+export interface CompanyEnrichmentSnapshot {
+  confidenceLevel: EnrichmentConfidenceLevel;
+  confidenceScore: number;
+  contactPath: EnrichmentContactPath;
+  enrichmentSource: EnrichmentSource;
+  sourceUrls: string[];
+  pagesChecked: string[];
+  foundEmails: string[];
+  foundPhones: string[];
+  foundNames: string[];
+  descriptionSnippet?: string;
+  missingFields: string[];
+  manualReviewRequired: boolean;
+  linkedinVerificationNeeded: boolean;
+  linkedinVerified: boolean;
+  lastEnrichedAt?: IsoDateString;
+  lastAttemptedAt?: IsoDateString;
+  lastError?: string;
+}
 
 export interface CompanyPresence {
   hasWebsite: boolean;
@@ -75,5 +120,6 @@ export interface Company extends AuditFields {
   activeCampaignIds: CampaignId[];
   appointmentIds: AppointmentId[];
   scoring: CompanyScoringSnapshot;
+  enrichment?: CompanyEnrichmentSnapshot;
   source: SourceReference;
 }

@@ -149,6 +149,67 @@ export function getEnrichmentBadge(state: EnrichmentState): SelectorBadge {
   }
 }
 
+export function getEnrichmentConfidenceBadge(company: Company): SelectorBadge {
+  switch (company.enrichment?.confidenceLevel ?? "none") {
+    case "high":
+      return { label: "High confidence", tone: "success" };
+    case "medium":
+      return { label: "Medium confidence", tone: "accent" };
+    case "low":
+      return { label: "Low confidence", tone: "warning" };
+    case "none":
+      return { label: "Confidence pending", tone: "muted" };
+  }
+}
+
+export function getEnrichmentSummary(company: Company) {
+  if (company.enrichment?.lastError) {
+    return `Fetch issue: ${company.enrichment.lastError}`;
+  }
+
+  if (company.enrichment?.foundEmails.length) {
+    return `${company.enrichment.foundEmails.length} email path${
+      company.enrichment.foundEmails.length === 1 ? "" : "s"
+    } found`;
+  }
+
+  if (company.enrichment?.foundPhones.length) {
+    return `${company.enrichment.foundPhones.length} phone path${
+      company.enrichment.foundPhones.length === 1 ? "" : "s"
+    } found`;
+  }
+
+  if (company.enrichment?.sourceUrls.length) {
+    return `${company.enrichment.sourceUrls.length} public page${
+      company.enrichment.sourceUrls.length === 1 ? "" : "s"
+    } scanned`;
+  }
+
+  return "No enrichment run yet";
+}
+
+export function getMissingFieldsLabel(company: Company) {
+  if (!company.enrichment?.missingFields.length) {
+    return "Nothing critical missing";
+  }
+
+  return `Missing: ${company.enrichment.missingFields.slice(0, 3).join(", ")}`;
+}
+
+export function getLastEnrichedLabel(company: Company) {
+  if (!company.enrichment?.lastEnrichedAt) {
+    return "Not enriched yet";
+  }
+
+  return `Last enriched ${new Date(company.enrichment.lastEnrichedAt).toLocaleDateString(
+    "en-US",
+    {
+      month: "short",
+      day: "numeric",
+    },
+  )}`;
+}
+
 export function deriveWorkflowState(bundle: CompanyBundle): WorkflowState {
   if (
     bundle.company.status === "disqualified" ||
@@ -221,11 +282,19 @@ export function getContactCoverageLabel(bundle: CompanyBundle) {
   const count = bundle.contacts.length;
 
   if (count === 0) {
+    if (bundle.company.enrichment?.contactPath === "role_inbox") {
+      return "Role inbox detected • contact record pending";
+    }
+
     return "0 contacts";
   }
 
   if (!bundle.primaryContact) {
     return `${count} contact${count === 1 ? "" : "s"} • no primary`;
+  }
+
+  if (bundle.primaryContact.email && !bundle.primaryContact.fullName) {
+    return `${count} contact${count === 1 ? "" : "s"} • role inbox ready`;
   }
 
   return `${count} contact${count === 1 ? "" : "s"} • ${formatRoleLabel(
@@ -235,16 +304,27 @@ export function getContactCoverageLabel(bundle: CompanyBundle) {
 
 export function getDecisionMakerLabel(bundle: CompanyBundle) {
   if (!bundle.primaryContact) {
+    if (bundle.company.enrichment?.foundEmails[0]) {
+      return `${bundle.company.enrichment.foundEmails[0]} • role inbox`;
+    }
+
     return "No likely decision-maker yet";
   }
 
-  const name = bundle.primaryContact.fullName ?? "Primary contact";
+  const name =
+    bundle.primaryContact.fullName ??
+    bundle.primaryContact.email ??
+    "Primary contact";
 
   return `${name} • ${formatRoleLabel(bundle.primaryContact)}`;
 }
 
 export function getDecisionMakerConfidenceLabel(bundle: CompanyBundle) {
   if (!bundle.primaryContact) {
+    if (bundle.company.enrichment?.confidenceLevel) {
+      return `${formatLabel(bundle.company.enrichment.confidenceLevel)} confidence`;
+    }
+
     return "Confidence pending";
   }
 
@@ -274,6 +354,10 @@ export function getSuggestedNextAction(bundle: CompanyBundle) {
 
   if (workflowState === "needs_enrichment") {
     return "Run enrichment and source an initial decision-maker hypothesis";
+  }
+
+  if (bundle.company.enrichment?.manualReviewRequired) {
+    return "Review the enrichment findings and verify the contact path";
   }
 
   if (bundle.company.status === "enriched") {
