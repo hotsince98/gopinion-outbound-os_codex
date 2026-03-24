@@ -139,7 +139,8 @@ export function CsvLeadImportForm() {
         <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
           <p className="micro-label">Expected columns</p>
           <p className="mt-3 text-sm leading-6 text-muted">
-            `company name`, `website`, `industry`, `subindustry`, `city`,
+            `company name`, `company`, `business name`, `business`, `name`,
+            `address`, `website`, `phone`, `emails`, `category`, `city`,
             `state`, `country`, `google rating`, `review count`, `primary
             contact name`, `contact title`, `contact email`, `notes`
           </p>
@@ -148,6 +149,19 @@ export function CsvLeadImportForm() {
         {clientError ? (
           <div className="rounded-2xl border border-warning/25 bg-warning/10 px-4 py-4">
             <p className="text-sm font-medium text-copy">{clientError}</p>
+          </div>
+        ) : null}
+
+        {preview?.warnings.length ? (
+          <div className="rounded-2xl border border-warning/25 bg-warning/10 px-4 py-4">
+            <p className="micro-label">Mapping warnings</p>
+            <div className="mt-3 space-y-2">
+              {preview.warnings.map((warning) => (
+                <p key={warning} className="text-sm text-copy">
+                  {warning}
+                </p>
+              ))}
+            </div>
           </div>
         ) : null}
 
@@ -174,10 +188,41 @@ export function CsvLeadImportForm() {
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="micro-label">Mapped fields</p>
-                <p className="mt-3 text-sm leading-6 text-muted">
-                  {preview.mappedColumns.join(" • ") || "No supported columns mapped"}
-                </p>
+                <p className="micro-label">Detected mapping</p>
+                <div className="mt-3 space-y-2">
+                  {preview.columnMappings.length ? (
+                    preview.columnMappings.map((mapping) => (
+                      <div
+                        key={`${mapping.header}-${mapping.mappedField}`}
+                        className="flex flex-wrap items-start justify-between gap-3 text-sm"
+                      >
+                        <div>
+                          <p className="text-copy">{mapping.header}</p>
+                          {mapping.note ? (
+                            <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted">
+                              {mapping.note}
+                            </p>
+                          ) : null}
+                        </div>
+                        <p
+                          className={
+                            mapping.strategy === "unmapped"
+                              ? "text-warning"
+                              : mapping.strategy === "inferred"
+                                ? "text-accent"
+                                : "text-muted"
+                          }
+                        >
+                          {mapping.mappedField}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm leading-6 text-muted">
+                      No supported columns mapped
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 

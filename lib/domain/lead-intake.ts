@@ -64,12 +64,21 @@ export interface CsvLeadPreviewRow {
   issues: string[];
 }
 
+export interface CsvLeadColumnMapping {
+  header: string;
+  mappedField: string;
+  strategy: "direct" | "inferred" | "unmapped";
+  note?: string;
+}
+
 export interface CsvLeadPreview {
   totalRows: number;
   validRows: number;
   invalidRows: number;
   detectedColumns: string[];
   mappedColumns: string[];
+  columnMappings: CsvLeadColumnMapping[];
+  warnings: string[];
   rows: CsvLeadPreviewRow[];
 }
 
