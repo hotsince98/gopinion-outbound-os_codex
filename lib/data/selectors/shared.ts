@@ -158,15 +158,35 @@ export function getEnrichmentConfidenceBadge(company: Company): SelectorBadge {
 }
 
 export function getEnrichmentSummary(company: Company) {
+  const discovery = company.enrichment?.websiteDiscovery;
+  const supportingPageCount =
+    (discovery?.staffPageUrls.length ?? 0) + (discovery?.contactPageUrls.length ?? 0);
+
   if (company.enrichment?.lastError) {
     return `Fetch issue: ${company.enrichment.lastError}`;
   }
 
+  if (discovery?.extractedEvidence.length) {
+    return discovery.extractedEvidence.slice(0, 2).join(" • ");
+  }
+
+  if (company.enrichment?.foundNames.length) {
+    return `${company.enrichment.foundNames.length} named contact clue${
+      company.enrichment.foundNames.length === 1 ? "" : "s"
+    } found`;
+  }
+
+  if (supportingPageCount > 0) {
+    return `${supportingPageCount} supporting public page${
+      supportingPageCount === 1 ? "" : "s"
+    } found`;
+  }
+
   if (
-    company.enrichment?.websiteDiscovery?.status === "discovered" &&
-    !company.enrichment.sourceUrls.length
+    discovery?.status === "discovered" &&
+    (company.enrichment?.sourceUrls.length ?? 0) === 0
   ) {
-    return `Website discovered: ${company.enrichment.websiteDiscovery.discoveredWebsite ?? "verification pending"}`;
+    return `Website discovered: ${discovery.discoveredWebsite ?? "verification pending"}`;
   }
 
   if (company.enrichment?.foundEmails.length) {
@@ -237,6 +257,17 @@ export function getImportDateLabel(company: Company) {
 
 export function getWebsiteDiscoveryLabel(company: Company) {
   const discovery = company.enrichment?.websiteDiscovery;
+  const supportingDetails = [
+    (discovery?.staffPageUrls.length ?? 0) > 0
+      ? `${discovery?.staffPageUrls.length} staff/team`
+      : undefined,
+    (discovery?.contactPageUrls.length ?? 0) > 0
+      ? `${discovery?.contactPageUrls.length} contact`
+      : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" • ");
+  const evidence = discovery?.extractedEvidence[0];
 
   if (!discovery) {
     return hasWebsiteCandidate(company)
@@ -246,9 +277,21 @@ export function getWebsiteDiscoveryLabel(company: Company) {
 
   switch (discovery.status) {
     case "record_provided":
-      return `Website on record: ${discovery.discoveredWebsite ?? company.presence.websiteUrl ?? "pending verification"}`;
+      return [
+        `Website on record: ${discovery.discoveredWebsite ?? company.presence.websiteUrl ?? "pending verification"}`,
+        supportingDetails,
+        evidence,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" • ");
     case "discovered":
-      return `Discovered website: ${discovery.discoveredWebsite ?? "verification pending"}`;
+      return [
+        `Discovered website: ${discovery.discoveredWebsite ?? "verification pending"}`,
+        supportingDetails,
+        evidence,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" • ");
     case "not_found":
       return "Discovery could not find a confident site";
     case "failed":

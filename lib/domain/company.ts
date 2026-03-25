@@ -121,6 +121,10 @@ export interface CompanyWebsiteDiscoverySnapshot {
   discoveredWebsite?: string;
   candidateUrls: string[];
   matchedSignals: string[];
+  supportingPageUrls: string[];
+  contactPageUrls: string[];
+  staffPageUrls: string[];
+  extractedEvidence: string[];
   source: SourceReference;
   lastCheckedAt?: IsoDateString;
   lastError?: string;

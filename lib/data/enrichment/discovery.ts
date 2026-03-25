@@ -1,4 +1,9 @@
 import { normalizeWebsiteUrl } from "@/lib/data/intake/validation";
+import {
+  extractLikelyInternalPageCandidates,
+  getSupportingPageUrlsByKind,
+  type SupportingPageCandidate,
+} from "@/lib/data/enrichment/site-pages";
 import type {
   Company,
   CompanyWebsiteDiscoverySnapshot,
@@ -21,11 +26,38 @@ const BLOCKED_DISCOVERY_DOMAINS = [
   "cargurus.com",
   "autotrader.com",
   "carfax.com",
-  "dealeron.com",
   "yellowpages.com",
   "mapquest.com",
   "youtube.com",
+  "superpages.com",
+  "manta.com",
+  "dealercenter.net",
+  "carsforsale.com",
+  "loc8nearme.com",
+  "findglocal.com",
 ];
+const DIRECTORY_HINT_PATTERNS = [
+  /\bdirectory\b/i,
+  /\blisting\b/i,
+  /\breviews?\b/i,
+  /\bnear me\b/i,
+  /\bclassifieds?\b/i,
+  /\bmarketplace\b/i,
+];
+
+interface SearchCandidate {
+  url: string;
+  title: string;
+  snippet: string;
+  queryLabel: string;
+}
+
+interface ScoredSearchCandidate extends SearchCandidate {
+  score: number;
+  signals: string[];
+  supportingPageCandidates: SupportingPageCandidate[];
+  extractedEvidence: string[];
+}
 
 function dedupeStrings(values: Array<string | undefined>) {
   return Array.from(
@@ -51,6 +83,10 @@ function normalizePhone(value: string | undefined) {
   return value?.replace(/[^\d]/g, "");
 }
 
+function normalizeNameForComparison(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 function createDiscoverySource(now: string, url: string | undefined): SourceReference {
   return {
     kind: "provider",
@@ -62,15 +98,15 @@ function createDiscoverySource(now: string, url: string | undefined): SourceRefe
 }
 
 function getConfidenceLevel(score: number): EnrichmentConfidenceLevel {
-  if (score >= 84) {
+  if (score >= 88) {
     return "high";
   }
 
-  if (score >= 64) {
+  if (score >= 68) {
     return "medium";
   }
 
-  if (score >= 40) {
+  if (score >= 48) {
     return "low";
   }
 
@@ -105,7 +141,21 @@ function buildCompanyTokens(company: Company) {
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
     .filter((token) => token.length > 2)
-    .filter((token) => !["auto", "autos", "motors", "cars", "car", "the", "inc", "llc", "co"].includes(token));
+    .filter(
+      (token) =>
+        ![
+          "auto",
+          "autos",
+          "motors",
+          "cars",
+          "car",
+          "the",
+          "inc",
+          "llc",
+          "co",
+          "used",
+        ].includes(token),
+    );
 
   return tokens.length > 0
     ? tokens
@@ -114,6 +164,36 @@ function buildCompanyTokens(company: Company) {
         .replace(/[^a-z0-9\s]/g, " ")
         .split(/\s+/)
         .filter((token) => token.length > 1);
+}
+
+function extractReferenceTokens(value: string | undefined) {
+  if (!value) {
+    return [];
+  }
+
+  return dedupeStrings(
+    decodeURIComponent(value)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length > 2)
+      .filter(
+        (token) =>
+          ![
+            "https",
+            "http",
+            "www",
+            "google",
+            "maps",
+            "map",
+            "place",
+            "search",
+            "reviews",
+            "review",
+            "business",
+          ].includes(token),
+      ),
+  );
 }
 
 function isBlockedDomain(url: string) {
@@ -128,8 +208,14 @@ function isBlockedDomain(url: string) {
   }
 }
 
-function extractSearchCandidates(html: string) {
-  const results: Array<{ url: string; title: string; snippet: string }> = [];
+function looksLikeDirectoryCandidate(candidate: { title: string; snippet: string; url: string }) {
+  const haystack = `${candidate.title} ${candidate.snippet} ${candidate.url}`.toLowerCase();
+
+  return DIRECTORY_HINT_PATTERNS.some((pattern) => pattern.test(haystack));
+}
+
+function extractSearchCandidates(html: string, queryLabel: string) {
+  const results: SearchCandidate[] = [];
   const anchorPattern = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
   let match: RegExpExecArray | null;
 
@@ -146,11 +232,12 @@ function extractSearchCandidates(html: string) {
       continue;
     }
 
-    const snippet = stripHtml(html.slice(match.index, match.index + 420));
+    const snippet = stripHtml(html.slice(match.index, match.index + 520));
     results.push({
       url: normalizedUrl,
       title,
       snippet,
+      queryLabel,
     });
   }
 
@@ -160,19 +247,80 @@ function extractSearchCandidates(html: string) {
   );
 }
 
-function scoreSearchCandidate(company: Company, candidate: { url: string; title: string; snippet: string }) {
+function buildDiscoveryQueries(company: Company) {
+  const profileTokens = extractReferenceTokens(
+    company.presence.googleBusinessProfileUrl,
+  ).slice(0, 3);
+  const phoneDigits = normalizePhone(company.presence.primaryPhone);
+  const queryVariants = [
+    {
+      label: "business name + location",
+      value: [
+        `"${company.name}"`,
+        company.location.city,
+        company.location.state,
+        "official site",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    },
+    {
+      label: "business name + location + phone",
+      value: [
+        `"${company.name}"`,
+        company.location.city,
+        company.location.state,
+        phoneDigits,
+        "contact",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    },
+    {
+      label: "business name + maps profile hints",
+      value: [
+        `"${company.name}"`,
+        company.location.city,
+        company.location.state,
+        ...profileTokens,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    },
+  ];
+
+  return queryVariants.filter(
+    (variant, index, collection) =>
+      variant.value.length > 0 &&
+      collection.findIndex((current) => current.value === variant.value) === index,
+  );
+}
+
+function scoreSearchCandidate(
+  company: Company,
+  candidate: SearchCandidate,
+) {
   const companyTokens = buildCompanyTokens(company);
+  const referenceTokens = extractReferenceTokens(
+    company.presence.googleBusinessProfileUrl,
+  );
   const url = new URL(candidate.url);
   const host = url.hostname.replace(/^www\./, "").toLowerCase();
   const haystack = `${candidate.title} ${candidate.snippet} ${host}`.toLowerCase();
+  const normalizedCompanyName = normalizeNameForComparison(company.name);
   const phoneDigits = normalizePhone(company.presence.primaryPhone);
   const phoneMatch =
     phoneDigits && candidate.snippet.replace(/[^\d]/g, "").includes(phoneDigits.slice(-7));
   let score = 0;
-  const signals: string[] = [];
+  const signals: string[] = [`Search query matched: ${candidate.queryLabel}`];
+
+  if (normalizeNameForComparison(haystack).includes(normalizedCompanyName)) {
+    score += 24;
+    signals.push("Candidate strongly matches the business name");
+  }
 
   const tokenMatches = companyTokens.filter((token) => haystack.includes(token));
-  score += tokenMatches.length * 12;
+  score += tokenMatches.length * 10;
 
   if (tokenMatches.length >= Math.min(2, companyTokens.length)) {
     signals.push("Candidate mentions the company name");
@@ -184,24 +332,82 @@ function scoreSearchCandidate(company: Company, candidate: { url: string; title:
   }
 
   if (haystack.includes(company.location.state.toLowerCase())) {
-    score += 6;
+    score += 8;
     signals.push("Candidate matches the company state");
   }
 
   if (phoneMatch) {
-    score += 16;
+    score += 18;
     signals.push("Candidate matches the imported phone number");
   }
 
-  if ((companyTokens[0] ?? "").length > 0 && host.includes(companyTokens[0] ?? "")) {
-    score += 10;
-    signals.push("Domain lines up with the business name");
+  const hostTokenMatches = companyTokens.filter((token) => host.includes(token));
+  score += hostTokenMatches.length * 8;
+
+  if (hostTokenMatches.length > 0) {
+    signals.push("Domain plausibly matches the business name");
+  }
+
+  if (referenceTokens.some((token) => haystack.includes(token))) {
+    score += 8;
+    signals.push("Candidate aligns with maps/business-profile reference hints");
+  }
+
+  if (/\bofficial site\b/i.test(candidate.title) || /\bofficial\b/i.test(candidate.snippet)) {
+    score += 6;
+    signals.push("Candidate presents itself as the official site");
+  }
+
+  if (host.endsWith(".com") || host.endsWith(".ca")) {
+    score += 4;
+  }
+
+  if (looksLikeDirectoryCandidate(candidate)) {
+    score -= 36;
+    signals.push("Candidate looks like a directory or third-party listing");
   }
 
   return {
-    score,
-    signals,
+    score: Math.max(0, score),
+    signals: dedupeStrings(signals),
   };
+}
+
+async function fetchSearchCandidatesForQuery(
+  company: Company,
+  query: { label: string; value: string },
+) {
+  const response = await fetch(
+    `${SEARCH_ENGINE_URL}?q=${encodeURIComponent(query.value)}`,
+    {
+      cache: "no-store",
+      redirect: "follow",
+      signal: AbortSignal.timeout(5_000),
+      headers: {
+        "user-agent":
+          "GoPinion Outbound OS discovery bot (+https://gopinion.ai)",
+        accept: "text/html,application/xhtml+xml",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const html = await response.text();
+
+  return extractSearchCandidates(html, query.label).map((candidate) => {
+    const scored = scoreSearchCandidate(company, candidate);
+
+    return {
+      ...candidate,
+      score: scored.score,
+      signals: scored.signals,
+      supportingPageCandidates: [],
+      extractedEvidence: [],
+    } satisfies ScoredSearchCandidate;
+  });
 }
 
 async function fetchCandidateHomepage(candidateUrl: string) {
@@ -221,6 +427,7 @@ async function fetchCandidateHomepage(candidateUrl: string) {
   }
 
   const contentType = response.headers.get("content-type") ?? "";
+
   if (!contentType.includes("text/html")) {
     throw new Error(`Unexpected content type ${contentType}`);
   }
@@ -228,13 +435,25 @@ async function fetchCandidateHomepage(candidateUrl: string) {
   return await response.text();
 }
 
-function verifyCandidateHomepage(company: Company, html: string) {
+function verifyCandidateHomepage(company: Company, candidateUrl: string, html: string) {
   const text = stripHtml(html).toLowerCase();
   const companyTokens = buildCompanyTokens(company);
+  const normalizedCompanyName = normalizeNameForComparison(company.name);
   const phoneDigits = normalizePhone(company.presence.primaryPhone);
   const street = company.location.streetAddress?.toLowerCase();
+  const title = stripHtml(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "");
+  const supportingPageCandidates = extractLikelyInternalPageCandidates(
+    html,
+    candidateUrl,
+    10,
+  );
   let score = 0;
   const signals: string[] = [];
+
+  if (normalizeNameForComparison(`${title} ${text}`).includes(normalizedCompanyName)) {
+    score += 24;
+    signals.push("Homepage content strongly matches the business name");
+  }
 
   const tokenMatches = companyTokens.filter((token) => text.includes(token));
   score += tokenMatches.length * 8;
@@ -249,7 +468,7 @@ function verifyCandidateHomepage(company: Company, html: string) {
   }
 
   if (text.includes(company.location.state.toLowerCase())) {
-    score += 6;
+    score += 8;
     signals.push("Homepage references the correct state");
   }
 
@@ -263,9 +482,38 @@ function verifyCandidateHomepage(company: Company, html: string) {
     signals.push("Homepage references the imported phone number");
   }
 
+  const staffPageUrls = getSupportingPageUrlsByKind(supportingPageCandidates, "staff");
+  const contactPageUrls = getSupportingPageUrlsByKind(
+    supportingPageCandidates,
+    "contact",
+  );
+
+  if (staffPageUrls.length > 0) {
+    score += 12;
+    signals.push("Homepage links to a public staff or team page");
+  }
+
+  if (contactPageUrls.length > 0) {
+    score += 8;
+    signals.push("Homepage links to a public contact page");
+  }
+
   return {
     score,
     signals,
+    supportingPageCandidates,
+    extractedEvidence: dedupeStrings([
+      staffPageUrls.length > 0
+        ? `Found ${staffPageUrls.length} staff/team page candidate${
+            staffPageUrls.length === 1 ? "" : "s"
+          } from the homepage`
+        : undefined,
+      contactPageUrls.length > 0
+        ? `Found ${contactPageUrls.length} contact page candidate${
+            contactPageUrls.length === 1 ? "" : "s"
+          } from the homepage`
+        : undefined,
+    ]),
   };
 }
 
@@ -276,6 +524,10 @@ function createDiscoverySnapshot(params: {
   discoveredWebsite?: string;
   candidateUrls?: string[];
   matchedSignals?: string[];
+  supportingPageUrls?: string[];
+  contactPageUrls?: string[];
+  staffPageUrls?: string[];
+  extractedEvidence?: string[];
   lastError?: string;
   source?: SourceReference;
 }) {
@@ -286,6 +538,10 @@ function createDiscoverySnapshot(params: {
     discoveredWebsite: params.discoveredWebsite,
     candidateUrls: params.candidateUrls ?? [],
     matchedSignals: params.matchedSignals ?? [],
+    supportingPageUrls: params.supportingPageUrls ?? [],
+    contactPageUrls: params.contactPageUrls ?? [],
+    staffPageUrls: params.staffPageUrls ?? [],
+    extractedEvidence: params.extractedEvidence ?? [],
     source: params.source ?? createDiscoverySource(params.now, params.discoveredWebsite),
     lastCheckedAt: params.now,
     lastError: params.lastError,
@@ -299,16 +555,58 @@ export function buildRecordProvidedDiscoverySnapshot(params: {
   status?: CompanyWebsiteDiscoverySnapshot["status"];
   matchedSignals?: string[];
 }) {
+  const normalizedWebsite = normalizeWebsiteUrl(params.website) ?? params.website;
+
   return createDiscoverySnapshot({
     now: params.now,
     status: params.status ?? "record_provided",
     confidenceScore: 92,
-    discoveredWebsite: normalizeWebsiteUrl(params.website) ?? params.website,
-    candidateUrls: [
-      normalizeWebsiteUrl(params.website) ?? params.website,
-    ],
-    matchedSignals: params.matchedSignals ?? ["Website was already present on the lead record"],
+    discoveredWebsite: normalizedWebsite,
+    candidateUrls: [normalizedWebsite],
+    matchedSignals:
+      params.matchedSignals ?? ["Website was already present on the lead record"],
+    supportingPageUrls: [],
+    contactPageUrls: [],
+    staffPageUrls: [],
+    extractedEvidence: [],
     source: params.source,
+  });
+}
+
+export function mergeWebsiteDiscoveryEvidence(params: {
+  snapshot: CompanyWebsiteDiscoverySnapshot;
+  now: string;
+  supportingPageUrls?: string[];
+  contactPageUrls?: string[];
+  staffPageUrls?: string[];
+  extractedEvidence?: string[];
+  lastError?: string;
+}) {
+  return createDiscoverySnapshot({
+    now: params.now,
+    status: params.snapshot.status,
+    confidenceScore: params.snapshot.confidenceScore,
+    discoveredWebsite: params.snapshot.discoveredWebsite,
+    candidateUrls: params.snapshot.candidateUrls,
+    matchedSignals: params.snapshot.matchedSignals,
+    supportingPageUrls: dedupeStrings([
+      ...params.snapshot.supportingPageUrls,
+      ...(params.supportingPageUrls ?? []),
+    ]),
+    contactPageUrls: dedupeStrings([
+      ...params.snapshot.contactPageUrls,
+      ...(params.contactPageUrls ?? []),
+    ]),
+    staffPageUrls: dedupeStrings([
+      ...params.snapshot.staffPageUrls,
+      ...(params.staffPageUrls ?? []),
+    ]),
+    extractedEvidence: dedupeStrings([
+      ...params.snapshot.extractedEvidence,
+      ...(params.extractedEvidence ?? []),
+    ]),
+    lastError: params.lastError ?? params.snapshot.lastError,
+    source: params.snapshot.source,
   });
 }
 
@@ -324,56 +622,54 @@ export async function discoverCompanyWebsite(
     });
   }
 
-  const query = [
-    `"${company.name}"`,
-    company.location.streetAddress,
-    company.location.city,
-    company.location.state,
-    company.presence.primaryPhone,
-    "official site",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const queries = buildDiscoveryQueries(company);
 
   try {
-    const response = await fetch(
-      `${SEARCH_ENGINE_URL}?q=${encodeURIComponent(query)}`,
-      {
-        cache: "no-store",
-        redirect: "follow",
-        signal: AbortSignal.timeout(5_000),
-        headers: {
-          "user-agent":
-            "GoPinion Outbound OS discovery bot (+https://gopinion.ai)",
-          accept: "text/html,application/xhtml+xml",
-        },
-      },
+    const settledSearches = await Promise.allSettled(
+      queries.map((query) => fetchSearchCandidatesForQuery(company, query)),
     );
+    const searchErrors = settledSearches.flatMap((result) =>
+      result.status === "rejected"
+        ? [result.reason instanceof Error ? result.reason.message : "Search fetch failed"]
+        : [],
+    );
+    const mergedCandidates = new Map<string, ScoredSearchCandidate>();
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    for (const result of settledSearches) {
+      if (result.status !== "fulfilled") {
+        continue;
+      }
+
+      for (const candidate of result.value) {
+        const existing = mergedCandidates.get(candidate.url);
+
+        if (!existing || candidate.score > existing.score) {
+          mergedCandidates.set(candidate.url, candidate);
+        } else {
+          mergedCandidates.set(candidate.url, {
+            ...existing,
+            signals: dedupeStrings([...existing.signals, ...candidate.signals]),
+          });
+        }
+      }
     }
 
-    const html = await response.text();
-    const candidates = extractSearchCandidates(html)
-      .map((candidate) => {
-        const scored = scoreSearchCandidate(company, candidate);
-
-        return {
-          ...candidate,
-          ...scored,
-        };
-      })
+    const candidates = [...mergedCandidates.values()]
       .filter((candidate) => candidate.score > 0)
       .sort((left, right) => right.score - left.score)
-      .slice(0, 5);
+      .slice(0, 6);
 
     if (candidates.length === 0) {
       return createDiscoverySnapshot({
         now,
-        status: "not_found",
+        status: searchErrors.length > 0 ? "failed" : "not_found",
         confidenceScore: 0,
-        matchedSignals: ["No credible website candidates were found from open-web search"],
+        matchedSignals: [
+          searchErrors.length > 0
+            ? "Open-web discovery failed before a candidate could be verified"
+            : "No credible website candidates were found from open-web search",
+        ],
+        lastError: searchErrors[0],
         source: createDiscoverySource(now, undefined),
       });
     }
@@ -382,12 +678,21 @@ export async function discoverCompanyWebsite(
       candidates.slice(0, 3).map(async (candidate) => {
         try {
           const homepageHtml = await fetchCandidateHomepage(candidate.url);
-          const homepageScore = verifyCandidateHomepage(company, homepageHtml);
+          const homepageVerification = verifyCandidateHomepage(
+            company,
+            candidate.url,
+            homepageHtml,
+          );
 
           return {
             ...candidate,
-            score: candidate.score + homepageScore.score,
-            signals: dedupeStrings([...candidate.signals, ...homepageScore.signals]),
+            score: candidate.score + homepageVerification.score,
+            signals: dedupeStrings([
+              ...candidate.signals,
+              ...homepageVerification.signals,
+            ]),
+            supportingPageCandidates: homepageVerification.supportingPageCandidates,
+            extractedEvidence: homepageVerification.extractedEvidence,
           };
         } catch {
           return candidate;
@@ -399,7 +704,7 @@ export async function discoverCompanyWebsite(
       (left, right) => right.score - left.score,
     )[0];
 
-    if (!bestCandidate || bestCandidate.score < 40) {
+    if (!bestCandidate || bestCandidate.score < 48) {
       return createDiscoverySnapshot({
         now,
         status: "not_found",
@@ -408,6 +713,7 @@ export async function discoverCompanyWebsite(
         matchedSignals: bestCandidate?.signals ?? [
           "Search produced results, but none were strong enough to auto-apply",
         ],
+        extractedEvidence: bestCandidate?.extractedEvidence ?? [],
         source: createDiscoverySource(now, undefined),
       });
     }
@@ -419,6 +725,18 @@ export async function discoverCompanyWebsite(
       discoveredWebsite: bestCandidate.url,
       candidateUrls: candidates.map((candidate) => candidate.url),
       matchedSignals: bestCandidate.signals,
+      supportingPageUrls: dedupeStrings(
+        bestCandidate.supportingPageCandidates.map((candidate) => candidate.url),
+      ),
+      contactPageUrls: getSupportingPageUrlsByKind(
+        bestCandidate.supportingPageCandidates,
+        "contact",
+      ),
+      staffPageUrls: getSupportingPageUrlsByKind(
+        bestCandidate.supportingPageCandidates,
+        "staff",
+      ),
+      extractedEvidence: bestCandidate.extractedEvidence,
       source: createDiscoverySource(now, bestCandidate.url),
     });
   } catch (error) {
@@ -427,7 +745,10 @@ export async function discoverCompanyWebsite(
       status: "failed",
       confidenceScore: 0,
       matchedSignals: ["Open-web discovery failed before a candidate could be verified"],
-      lastError: error instanceof Error ? error.message : "Website discovery failed unexpectedly.",
+      lastError:
+        error instanceof Error
+          ? error.message
+          : "Website discovery failed unexpectedly.",
       source: createDiscoverySource(now, undefined),
     });
   }

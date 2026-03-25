@@ -154,6 +154,31 @@ export function LeadEnrichmentWorkspace({
                       {result.websiteDiscoverySummary}
                     </p>
                   ) : null}
+                  {result.discoveryEvidence[0] ? (
+                    <p className="mt-2 text-sm text-copy">
+                      Discovery evidence: {result.discoveryEvidence.slice(0, 2).join(" • ")}
+                    </p>
+                  ) : null}
+                  {result.staffPageUrls[0] || result.contactPageUrls[0] ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Pages:{" "}
+                      {[
+                        result.staffPageUrls[0]
+                          ? `${result.staffPageUrls.length} staff/team`
+                          : undefined,
+                        result.contactPageUrls[0]
+                          ? `${result.contactPageUrls.length} contact`
+                          : undefined,
+                      ]
+                        .filter((value): value is string => Boolean(value))
+                        .join(" • ")}
+                    </p>
+                  ) : null}
+                  {result.foundNames[0] ? (
+                    <p className="mt-2 text-sm text-muted">
+                      People clues: {result.foundNames.slice(0, 3).join(", ")}
+                    </p>
+                  ) : null}
                   {result.noteHintSummary ? (
                     <p className="mt-2 text-sm text-muted">
                       {result.noteHintSummary}

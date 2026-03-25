@@ -41,6 +41,16 @@ function normalizeCompanyEnrichment(
           ...enrichment.websiteDiscovery,
           candidateUrls: listOrEmpty(enrichment.websiteDiscovery.candidateUrls),
           matchedSignals: listOrEmpty(enrichment.websiteDiscovery.matchedSignals),
+          supportingPageUrls: listOrEmpty(
+            enrichment.websiteDiscovery.supportingPageUrls,
+          ),
+          contactPageUrls: listOrEmpty(
+            enrichment.websiteDiscovery.contactPageUrls,
+          ),
+          staffPageUrls: listOrEmpty(enrichment.websiteDiscovery.staffPageUrls),
+          extractedEvidence: listOrEmpty(
+            enrichment.websiteDiscovery.extractedEvidence,
+          ),
         }
       : undefined,
     segment: enrichment.segment

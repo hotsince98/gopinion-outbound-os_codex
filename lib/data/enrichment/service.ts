@@ -14,6 +14,7 @@ import {
 import {
   buildRecordProvidedDiscoverySnapshot,
   discoverCompanyWebsite,
+  mergeWebsiteDiscoveryEvidence,
 } from "@/lib/data/enrichment/discovery";
 import { parseImportedNoteArtifacts } from "@/lib/data/intake/notes";
 import { deriveContactRoleFromTitle } from "@/lib/data/intake/validation";
@@ -194,6 +195,10 @@ function buildWebsiteDiscoverySummary(
   websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"],
   resolvedWebsite: string | undefined,
 ) {
+  const evidencePreview = dedupeStrings(
+    websiteDiscovery?.extractedEvidence.slice(0, 2) ?? [],
+  ).join(" • ");
+
   if (!websiteDiscovery) {
     return resolvedWebsite
       ? `Website candidate is ${resolvedWebsite}`
@@ -202,9 +207,39 @@ function buildWebsiteDiscoverySummary(
 
   switch (websiteDiscovery.status) {
     case "record_provided":
-      return `Website is already on record: ${websiteDiscovery.discoveredWebsite ?? resolvedWebsite ?? "pending verification"}`;
+      return [
+        `Website is already on record: ${websiteDiscovery.discoveredWebsite ?? resolvedWebsite ?? "pending verification"}`,
+        websiteDiscovery.staffPageUrls.length > 0
+          ? `${websiteDiscovery.staffPageUrls.length} staff/team page${
+              websiteDiscovery.staffPageUrls.length === 1 ? "" : "s"
+            } found`
+          : undefined,
+        websiteDiscovery.contactPageUrls.length > 0
+          ? `${websiteDiscovery.contactPageUrls.length} contact page${
+              websiteDiscovery.contactPageUrls.length === 1 ? "" : "s"
+            } found`
+          : undefined,
+        evidencePreview,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" • ");
     case "discovered":
-      return `Website discovery found ${websiteDiscovery.discoveredWebsite ?? "a likely public site"}`;
+      return [
+        `Website discovery found ${websiteDiscovery.discoveredWebsite ?? "a likely public site"}`,
+        websiteDiscovery.staffPageUrls.length > 0
+          ? `${websiteDiscovery.staffPageUrls.length} staff/team page${
+              websiteDiscovery.staffPageUrls.length === 1 ? "" : "s"
+            } found`
+          : undefined,
+        websiteDiscovery.contactPageUrls.length > 0
+          ? `${websiteDiscovery.contactPageUrls.length} contact page${
+              websiteDiscovery.contactPageUrls.length === 1 ? "" : "s"
+            } found`
+          : undefined,
+        evidencePreview,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" • ");
     case "not_found":
       return "Website discovery could not find a confident public site";
     case "failed":
@@ -732,6 +767,15 @@ function updateCompanyReadiness(params: {
     params.websiteDiscovery?.status === "discovered"
       ? `Website discovery identified ${params.websiteDiscovery.discoveredWebsite}`
       : undefined,
+    params.websiteDiscovery?.staffPageUrls.length
+      ? `Supporting staff/team pages found: ${params.websiteDiscovery.staffPageUrls.length}`
+      : undefined,
+    params.websiteDiscovery?.contactPageUrls.length
+      ? `Supporting contact pages found: ${params.websiteDiscovery.contactPageUrls.length}`
+      : undefined,
+    params.foundNames.length > 0
+      ? `Named contact clues surfaced: ${params.foundNames.slice(0, 3).join(", ")}`
+      : undefined,
     `Recommended outreach angle: ${outreachAngle.label}`,
     params.primaryContact?.email
       ? `Primary outreach path selected: ${params.primaryContact.email}`
@@ -818,7 +862,18 @@ async function enrichSingleCompany(
     company.presence.websiteUrl ??
     noteArtifacts.suggestedWebsite ??
     websiteDiscovery.discoveredWebsite;
-  const websiteScan = await scanCompanyWebsite(resolvedWebsite);
+  const websiteScan = await scanCompanyWebsite(resolvedWebsite, {
+    preferredPageUrls: websiteDiscovery.supportingPageUrls,
+  });
+  const enrichedWebsiteDiscovery = mergeWebsiteDiscoveryEvidence({
+    snapshot: websiteDiscovery,
+    now,
+    supportingPageUrls: websiteScan.supportingPageUrls,
+    contactPageUrls: websiteScan.contactPageUrls,
+    staffPageUrls: websiteScan.staffPageUrls,
+    extractedEvidence: websiteScan.evidenceSummary,
+    lastError: websiteScan.lastError,
+  });
   const normalizedWebsite = websiteScan.normalizedWebsite ?? resolvedWebsite;
   const host = getCompanyHost(normalizedWebsite);
   const drafts = buildWebsiteDrafts({
@@ -907,7 +962,7 @@ async function enrichSingleCompany(
     foundEmails,
     foundPhones,
     foundNames,
-    websiteDiscovery,
+    websiteDiscovery: enrichedWebsiteDiscovery,
     noteHints: noteArtifacts.hints,
     segment,
     lastError: websiteScan.lastError,
@@ -935,6 +990,8 @@ async function enrichSingleCompany(
       ? "ready"
       : noUsablePath &&
           ["failed", "not_found"].includes(websiteDiscovery.status)
+        && enrichedWebsiteDiscovery.staffPageUrls.length === 0
+        && enrichedWebsiteDiscovery.contactPageUrls.length === 0
         ? "blocked"
         : updatedCompany.status === "enriched"
           ? "needs_review"
@@ -971,11 +1028,15 @@ async function enrichSingleCompany(
     foundPhones,
     pagesChecked: websiteScan.pagesChecked,
     website: normalizedWebsite,
-    websiteDiscoveryStatus: websiteDiscovery.status,
+    websiteDiscoveryStatus: enrichedWebsiteDiscovery.status,
     websiteDiscoverySummary: buildWebsiteDiscoverySummary(
-      websiteDiscovery,
+      enrichedWebsiteDiscovery,
       normalizedWebsite,
     ),
+    discoveryEvidence: enrichedWebsiteDiscovery.extractedEvidence,
+    staffPageUrls: enrichedWebsiteDiscovery.staffPageUrls,
+    contactPageUrls: enrichedWebsiteDiscovery.contactPageUrls,
+    foundNames,
     noteHintSummary: buildNoteHintSummary(noteArtifacts.hints),
     segmentLabel: segment.label,
     angleLabel: updatedCompany.enrichment?.outreachAngle?.label,
@@ -1063,7 +1124,11 @@ export async function runLeadEnrichment(params: {
         missingFields: company.enrichment?.missingFields ?? ["website enrichment"],
         foundEmails: [],
         foundPhones: [],
+        foundNames: [],
         pagesChecked: [],
+        discoveryEvidence: [],
+        staffPageUrls: [],
+        contactPageUrls: [],
         primaryContactSource: undefined,
         primaryContactQuality: undefined,
         qualityWarnings: [],

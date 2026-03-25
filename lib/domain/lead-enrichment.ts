@@ -43,12 +43,16 @@ export interface LeadEnrichmentRecordResult {
   missingFields: string[];
   foundEmails: string[];
   foundPhones: string[];
+  foundNames: string[];
   pagesChecked: string[];
   website?: string;
   websiteDiscoveryStatus?: NonNullable<
     CompanyEnrichmentSnapshot["websiteDiscovery"]
   >["status"];
   websiteDiscoverySummary?: string;
+  discoveryEvidence: string[];
+  staffPageUrls: string[];
+  contactPageUrls: string[];
   noteHintSummary?: string;
   segmentLabel?: string;
   angleLabel?: string;
