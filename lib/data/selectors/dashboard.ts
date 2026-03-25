@@ -5,6 +5,7 @@ import type {
   MemoryEntry,
   Sequence,
 } from "@/lib/domain";
+import { selectPrimaryContact } from "@/lib/data/contacts/quality";
 import { buildIdMap, getSelectorDataSnapshot } from "@/lib/data/selectors/snapshot";
 
 export interface DashboardStat {
@@ -99,9 +100,18 @@ function getNextStep(company: Company) {
 
 function getPriorityLeads(
   companies: Company[],
-  contactById: Map<string, Contact>,
+  contacts: Contact[],
   offerById: Map<string, { name: string }>,
 ): PriorityLeadRow[] {
+  const contactsByCompanyId = new Map<string, Contact[]>();
+
+  for (const contact of contacts) {
+    const existing = contactsByCompanyId.get(contact.companyId) ?? [];
+
+    existing.push(contact);
+    contactsByCompanyId.set(contact.companyId, existing);
+  }
+
   return companies
     .filter((company) => company.status !== "disqualified" && company.status !== "customer")
     .sort((left, right) => {
@@ -117,9 +127,12 @@ function getPriorityLeads(
     const offer = company.recommendedOfferIds
       .map((offerId) => offerById.get(offerId))
       .find(Boolean);
-    const contact = company.primaryContactId
-      ? contactById.get(company.primaryContactId)
-      : undefined;
+    const contact = selectPrimaryContact(
+      contactsByCompanyId.get(company.id) ?? [],
+      {
+        preferredContactId: company.primaryContactId,
+      },
+    );
 
     return {
       companyId: company.id,
@@ -240,7 +253,6 @@ function getStats(
 
 export async function getDashboardView(): Promise<DashboardView> {
   const snapshot = await getSelectorDataSnapshot();
-  const contactById = buildIdMap(snapshot.contacts);
   const offerById = buildIdMap(snapshot.offers);
 
   return {
@@ -251,7 +263,7 @@ export async function getDashboardView(): Promise<DashboardView> {
       snapshot.appointments,
       snapshot.enrollments.length,
     ),
-    priorityLeads: getPriorityLeads(snapshot.companies, contactById, offerById),
+    priorityLeads: getPriorityLeads(snapshot.companies, snapshot.contacts, offerById),
     sequenceHealth: getSequenceHealth(
       snapshot.sequences,
       snapshot.enrollments,

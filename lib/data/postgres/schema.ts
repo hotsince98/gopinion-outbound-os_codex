@@ -6,6 +6,7 @@ import type {
   CompanyPresence,
   CompanyScoringSnapshot,
   Contact,
+  ContactQualitySnapshot,
   ConfidenceIndicator,
   NumericRange,
   Reply,
@@ -56,6 +57,7 @@ export interface ContactRow {
   is_primary: boolean;
   outreach_ready: boolean;
   confidence: ConfidenceIndicator;
+  quality: ContactQualitySnapshot | null;
   notes: string[] | null;
   source: SourceReference;
   created_at: string;

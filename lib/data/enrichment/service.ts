@@ -1,5 +1,11 @@
 import { getDataAccess } from "@/lib/data/access";
-import { normalizeWebsiteUrl } from "@/lib/data/intake/validation";
+import {
+  applyPrimaryContactSelection,
+  assessContactPath,
+  buildContactQualitySnapshot,
+  getCompanyHost,
+  getContactSourceLabel,
+} from "@/lib/data/contacts/quality";
 import { deriveContactRoleFromTitle } from "@/lib/data/intake/validation";
 import { scanCompanyWebsite } from "@/lib/data/enrichment/web";
 import type {
@@ -8,6 +14,8 @@ import type {
   CompanyId,
   Contact,
   ContactId,
+  ContactPathKind,
+  ContactQualityTier,
   EnrichmentConfidenceLevel,
   EnrichmentContactPath,
   LeadEnrichmentRecordResult,
@@ -29,115 +37,68 @@ function dedupeStrings(values: Array<string | undefined>) {
   );
 }
 
-function getCompanyHost(website: string | undefined) {
-  const normalized = normalizeWebsiteUrl(website);
-
-  if (!normalized) {
-    return undefined;
-  }
-
-  return new URL(normalized).hostname.replace(/^www\./, "").toLowerCase();
+function normalizeEmail(email: string | undefined) {
+  return email?.trim().toLowerCase();
 }
 
-function isRoleInbox(email: string) {
-  const localPart = email.split("@")[0]?.toLowerCase() ?? "";
-
-  return [
-    "info",
-    "sales",
-    "contact",
-    "hello",
-    "team",
-    "office",
-    "support",
-    "service",
-  ].includes(localPart);
+function normalizePhone(phone: string | undefined) {
+  return phone?.replace(/[^\d+]/g, "");
 }
 
-function isSameCompanyDomain(email: string, host: string | undefined) {
-  if (!host) {
+function emailLikelyMatchesName(email: string | undefined, fullName: string | undefined) {
+  const localPart = normalizeEmail(email)?.split("@")[0] ?? "";
+  const tokens = fullName
+    ?.toLowerCase()
+    .split(/\s+/)
+    .map((token) => token.replace(/[^a-z]/g, ""))
+    .filter(Boolean) ?? [];
+  const [firstName] = tokens;
+  const lastName = tokens.at(-1);
+
+  if (!firstName) {
     return false;
   }
 
-  const emailHost = email.split("@")[1]?.replace(/^www\./, "").toLowerCase();
-
-  return emailHost === host || emailHost?.endsWith(`.${host}`) || host.endsWith(`.${emailHost}`);
+  return (
+    localPart.includes(firstName) ||
+    Boolean(lastName && localPart.includes(lastName))
+  );
 }
 
-function scoreEmail(email: string, host: string | undefined) {
-  const localPart = email.split("@")[0]?.toLowerCase() ?? "";
-  const emailHost = email.split("@")[1]?.toLowerCase() ?? "";
-  const sameDomain = isSameCompanyDomain(email, host);
-  const roleInbox = isRoleInbox(email);
-
-  let score = 10;
-
-  if (sameDomain) {
-    score += 50;
+function getContactPath(contact: Contact | undefined): EnrichmentContactPath {
+  switch (contact?.quality?.pathKind) {
+    case "named_email":
+      return "named_contact";
+    case "role_inbox":
+    case "general_business_email":
+      return "role_inbox";
+    case "phone_only":
+      return "phone_only";
+    case "unknown":
+    default:
+      return "none";
   }
-
-  if (roleInbox) {
-    score += 16;
-  } else {
-    score += 24;
-  }
-
-  if (["gmail.com", "yahoo.com", "outlook.com", "hotmail.com"].includes(emailHost)) {
-    score -= 24;
-  }
-
-  if (["noreply", "no-reply", "donotreply", "admin"].includes(localPart)) {
-    score -= 40;
-  }
-
-  return score;
-}
-
-function chooseBestEmail(emails: string[], host: string | undefined) {
-  return [...emails].sort((left, right) => scoreEmail(right, host) - scoreEmail(left, host))[0];
-}
-
-function getContactPath(
-  namedContact: string | undefined,
-  email: string | undefined,
-  phone: string | undefined,
-): EnrichmentContactPath {
-  if (namedContact && email) {
-    return "named_contact";
-  }
-
-  if (email) {
-    return isRoleInbox(email) ? "role_inbox" : "named_contact";
-  }
-
-  if (phone) {
-    return "phone_only";
-  }
-
-  return "none";
 }
 
 function getConfidenceLevel(
-  namedContact: string | undefined,
-  email: string | undefined,
-  host: string | undefined,
+  contact: Contact | undefined,
   hasWebsiteEvidence: boolean,
 ): EnrichmentConfidenceLevel {
-  if (
-    namedContact &&
-    email &&
-    isSameCompanyDomain(email, host) &&
-    hasWebsiteEvidence &&
-    !isRoleInbox(email)
-  ) {
+  const tier = contact?.quality?.qualityTier;
+
+  if (hasWebsiteEvidence && tier === "strong") {
     return "high";
   }
 
-  if (email && isSameCompanyDomain(email, host) && hasWebsiteEvidence) {
+  if (hasWebsiteEvidence && tier === "usable") {
     return "medium";
   }
 
-  if (email || namedContact || hasWebsiteEvidence) {
+  if (
+    hasWebsiteEvidence ||
+    tier === "weak" ||
+    Boolean(contact?.email || contact?.phone || contact?.fullName)
+  ) {
     return "low";
   }
 
@@ -159,9 +120,8 @@ function getConfidenceScore(level: EnrichmentConfidenceLevel) {
 
 function buildMissingFields(params: {
   website: string | undefined;
-  email: string | undefined;
+  primaryContact: Contact | undefined;
   phone: string | undefined;
-  fullName: string | undefined;
   subindustry: string | undefined;
   linkedinVerificationNeeded: boolean;
 }) {
@@ -171,15 +131,15 @@ function buildMissingFields(params: {
     missingFields.push("website");
   }
 
-  if (!params.email) {
-    missingFields.push("contact email");
+  if (!params.primaryContact?.quality?.campaignEligible) {
+    missingFields.push("verified outreach email");
   }
 
   if (!params.phone) {
     missingFields.push("phone");
   }
 
-  if (!params.fullName) {
+  if (!params.primaryContact?.fullName) {
     missingFields.push("named contact");
   }
 
@@ -204,70 +164,288 @@ function createEnrichmentSource(now: string, url: string | undefined) {
   };
 }
 
-function choosePrimaryContact(existingContacts: Contact[], company: Company) {
-  return (
-    existingContacts.find((contact) => contact.id === company.primaryContactId) ??
-    existingContacts.find((contact) => contact.isPrimary) ??
-    existingContacts[0]
-  );
+interface ContactDraft {
+  id: ContactId;
+  isNew: boolean;
+  wasPrimary: boolean;
+  fullName?: string;
+  title?: string;
+  role: Contact["role"];
+  email?: string;
+  phone?: string;
+  linkedinUrl?: string;
+  sourceKind: Contact["sourceKind"];
+  source: Contact["source"];
+  notes: string[];
+  createdAt: string;
 }
 
-function buildUpdatedContact(params: {
+interface RankedContactDraft {
+  draft: ContactDraft;
+  rankScore: number;
+  qualityTier: ContactQualityTier;
+  campaignEligible: boolean;
+  warnings: string[];
+  selectionReasons: string[];
+  status: Contact["status"];
+  confidenceScore: number;
+  pathKind: ContactPathKind;
+}
+
+function findDraftByEmail(drafts: ContactDraft[], email: string | undefined) {
+  const normalized = normalizeEmail(email);
+
+  return drafts.find((draft) => normalizeEmail(draft.email) === normalized);
+}
+
+function findDraftByName(drafts: ContactDraft[], fullName: string | undefined) {
+  const normalized = fullName?.trim().toLowerCase();
+
+  return normalized
+    ? drafts.find((draft) => draft.fullName?.trim().toLowerCase() === normalized)
+    : undefined;
+}
+
+function findDraftByPhone(drafts: ContactDraft[], phone: string | undefined) {
+  const normalized = normalizePhone(phone);
+
+  return normalized
+    ? drafts.find((draft) => normalizePhone(draft.phone) === normalized)
+    : undefined;
+}
+
+function buildBaseDrafts(existingContacts: Contact[]): ContactDraft[] {
+  return existingContacts.map((contact) => ({
+    id: contact.id,
+    isNew: false,
+    wasPrimary: contact.isPrimary,
+    fullName: contact.fullName,
+    title: contact.title,
+    role: contact.role,
+    email: contact.email,
+    phone: contact.phone,
+    linkedinUrl: contact.linkedinUrl,
+    sourceKind: contact.sourceKind,
+    source: contact.source,
+    notes: [...contact.notes],
+    createdAt: contact.createdAt,
+  }));
+}
+
+function buildWebsiteDrafts(params: {
   company: Company;
-  existingPrimaryContact?: Contact;
-  bestEmail?: string;
-  bestPhone?: string;
-  bestName?: string;
-  bestTitle?: string;
-  confidenceLevel: EnrichmentConfidenceLevel;
-  confidenceSignals: string[];
-  sourceUrl?: string;
+  existingContacts: Contact[];
+  now: string;
+  normalizedWebsite?: string;
+  sourceUrls: string[];
+  websiteEmails: string[];
+  websitePhones: string[];
+  namedContacts: Array<{ fullName: string; title?: string; sourceUrl: string }>;
+}) {
+  const drafts = buildBaseDrafts(params.existingContacts);
+  const primarySourceUrl = params.sourceUrls[0] ?? params.normalizedWebsite;
+  const bestPhone = params.websitePhones[0];
+
+  for (const email of params.websiteEmails) {
+    const matchingName = params.namedContacts.find((candidate) =>
+      emailLikelyMatchesName(email, candidate.fullName),
+    );
+    const existingDraft =
+      findDraftByEmail(drafts, email) ??
+      (matchingName ? findDraftByName(drafts, matchingName.fullName) : undefined);
+
+    if (existingDraft) {
+      existingDraft.email = existingDraft.email ?? email;
+      existingDraft.fullName = existingDraft.fullName ?? matchingName?.fullName;
+      existingDraft.title = existingDraft.title ?? matchingName?.title;
+      existingDraft.role = existingDraft.title
+        ? deriveContactRoleFromTitle(existingDraft.title)
+        : existingDraft.role;
+      existingDraft.notes = dedupeStrings([
+        ...existingDraft.notes,
+        `Website enrichment confirmed contact path: ${email}`,
+        matchingName?.title ? `Website enrichment found title: ${matchingName.title}` : undefined,
+      ]);
+      continue;
+    }
+
+    drafts.push({
+      id: createContactId(),
+      isNew: true,
+      wasPrimary: false,
+      fullName: matchingName?.fullName,
+      title: matchingName?.title,
+      role: matchingName?.title
+        ? deriveContactRoleFromTitle(matchingName.title)
+        : "unknown",
+      email,
+      phone: undefined,
+      linkedinUrl: undefined,
+      sourceKind: "observed",
+      source: createEnrichmentSource(params.now, matchingName?.sourceUrl ?? primarySourceUrl),
+      notes: dedupeStrings([
+        `Website enrichment discovered contact path: ${email}`,
+        matchingName?.fullName
+          ? `Website enrichment associated this inbox with ${matchingName.fullName}`
+          : undefined,
+      ]),
+      createdAt: params.now,
+    });
+  }
+
+  for (const namedContact of params.namedContacts) {
+    const existingDraft =
+      findDraftByName(drafts, namedContact.fullName) ??
+      drafts.find((draft) => emailLikelyMatchesName(draft.email, namedContact.fullName));
+
+    if (existingDraft) {
+      existingDraft.fullName = existingDraft.fullName ?? namedContact.fullName;
+      existingDraft.title = existingDraft.title ?? namedContact.title;
+      existingDraft.role = existingDraft.title
+        ? deriveContactRoleFromTitle(existingDraft.title)
+        : existingDraft.role;
+
+      if (!existingDraft.phone && !existingDraft.email && bestPhone) {
+        existingDraft.phone = bestPhone;
+      }
+
+      existingDraft.notes = dedupeStrings([
+        ...existingDraft.notes,
+        `Website enrichment found named contact: ${namedContact.fullName}`,
+        namedContact.title ? `Website enrichment found title: ${namedContact.title}` : undefined,
+      ]);
+      continue;
+    }
+
+    if (!bestPhone) {
+      continue;
+    }
+
+    drafts.push({
+      id: createContactId(),
+      isNew: true,
+      wasPrimary: false,
+      fullName: namedContact.fullName,
+      title: namedContact.title,
+      role: namedContact.title
+        ? deriveContactRoleFromTitle(namedContact.title)
+        : "unknown",
+      email: undefined,
+      phone: bestPhone,
+      linkedinUrl: undefined,
+      sourceKind: "observed",
+      source: createEnrichmentSource(params.now, namedContact.sourceUrl),
+      notes: [
+        `Website enrichment found a phone fallback for ${namedContact.fullName}.`,
+      ],
+      createdAt: params.now,
+    });
+  }
+
+  if (bestPhone && !findDraftByPhone(drafts, bestPhone)) {
+    drafts.push({
+      id: createContactId(),
+      isNew: true,
+      wasPrimary: false,
+      fullName: undefined,
+      title: "Main line",
+      role: "unknown",
+      email: undefined,
+      phone: bestPhone,
+      linkedinUrl: undefined,
+      sourceKind: "observed",
+      source: createEnrichmentSource(params.now, primarySourceUrl),
+      notes: ["Website enrichment found the main business phone line."],
+      createdAt: params.now,
+    });
+  }
+
+  return drafts;
+}
+
+function rankContactDrafts(params: {
+  drafts: ContactDraft[];
+  company: Company;
+  hasWebsiteEvidence: boolean;
+  host: string | undefined;
   now: string;
 }) {
-  const { existingPrimaryContact, company } = params;
-  const role = params.bestTitle
-    ? deriveContactRoleFromTitle(params.bestTitle)
-    : params.bestEmail && isRoleInbox(params.bestEmail)
-      ? "unknown"
-      : existingPrimaryContact?.role ?? "unknown";
-  const status =
-    params.bestEmail && scoreEmail(params.bestEmail, getCompanyHost(company.presence.websiteUrl)) >= 40
-      ? "verified"
-      : "candidate";
-  const notes = dedupeStrings([
-    ...(existingPrimaryContact?.notes ?? []),
-    params.bestEmail ? `Website enrichment confirmed contact path: ${params.bestEmail}` : undefined,
-    params.bestPhone ? `Website enrichment found phone: ${params.bestPhone}` : undefined,
-    params.bestTitle ? `Website enrichment found title: ${params.bestTitle}` : undefined,
-  ]);
+  const ranked = params.drafts.map((draft) => {
+    const assessment = assessContactPath({
+      email: draft.email,
+      phone: draft.phone,
+      fullName: draft.fullName,
+      title: draft.title,
+      companyHost: params.host,
+      source: draft.source,
+      hasWebsiteEvidence: params.hasWebsiteEvidence,
+      preferCurrentPrimary:
+        draft.wasPrimary || params.company.primaryContactId === draft.id,
+    });
 
-  const baseContact: Contact = {
-    id: existingPrimaryContact?.id ?? createContactId(),
-    companyId: company.id,
-    fullName: params.bestName ?? existingPrimaryContact?.fullName,
-    title: params.bestTitle ?? existingPrimaryContact?.title,
-    role,
-    email: params.bestEmail ?? existingPrimaryContact?.email,
-    phone: params.bestPhone ?? existingPrimaryContact?.phone,
-    linkedinUrl: existingPrimaryContact?.linkedinUrl,
-    sourceKind: "observed",
-    status,
-    isPrimary: true,
-    outreachReady: Boolean(params.bestEmail ?? existingPrimaryContact?.email),
-    confidence: {
-      score: getConfidenceScore(params.confidenceLevel) / 100,
-      signals: params.confidenceSignals,
-    },
-    notes,
-    source: createEnrichmentSource(params.now, params.sourceUrl),
-    createdAt: existingPrimaryContact?.createdAt ?? params.now,
-    updatedAt: params.now,
-  };
+    return {
+      draft,
+      rankScore: assessment.rankScore,
+      qualityTier: assessment.qualityTier,
+      campaignEligible: assessment.campaignEligible,
+      warnings: assessment.warnings,
+      selectionReasons: assessment.selectionReasons,
+      status: assessment.status,
+      confidenceScore: assessment.confidenceScore,
+      pathKind: assessment.pathKind,
+    } satisfies RankedContactDraft;
+  });
 
-  return {
-    contact: baseContact,
-    isNew: !existingPrimaryContact,
-  };
+  const persistedContacts = ranked.map((candidate) => {
+    const quality = buildContactQualitySnapshot(
+      {
+        rankScore: candidate.rankScore,
+        qualityTier: candidate.qualityTier,
+        pathKind: candidate.pathKind,
+        campaignEligible: candidate.campaignEligible,
+        warnings: candidate.warnings,
+        selectionReasons: candidate.selectionReasons,
+      },
+      params.now,
+    );
+
+    return {
+      id: candidate.draft.id,
+      companyId: params.company.id,
+      fullName: candidate.draft.fullName,
+      title: candidate.draft.title,
+      role: candidate.draft.title
+        ? deriveContactRoleFromTitle(candidate.draft.title)
+        : candidate.draft.role,
+      email: candidate.draft.email,
+      phone: candidate.draft.phone,
+      linkedinUrl: candidate.draft.linkedinUrl,
+      sourceKind: candidate.draft.sourceKind,
+      status: candidate.status,
+      isPrimary: false,
+      outreachReady: quality.campaignEligible,
+      confidence: {
+        score: candidate.confidenceScore,
+        signals: dedupeStrings([
+          ...candidate.selectionReasons,
+          ...quality.warnings,
+        ]),
+      },
+      quality,
+      notes: dedupeStrings([
+        ...candidate.draft.notes,
+      ]),
+      source: candidate.draft.source,
+      createdAt: candidate.draft.createdAt,
+      updatedAt: params.now,
+    } satisfies Contact;
+  });
+
+  return applyPrimaryContactSelection({
+    contacts: persistedContacts,
+    preferredContactId: params.company.primaryContactId,
+    now: params.now,
+  });
 }
 
 function updateCompanyReadiness(params: {
@@ -288,7 +466,7 @@ function updateCompanyReadiness(params: {
   now: string;
 }) {
   const hasWebsiteEvidence = params.sourceUrls.length > 0;
-  const hasUsableContactPath = Boolean(params.primaryContact?.email);
+  const hasCampaignEligiblePath = Boolean(params.primaryContact?.quality?.campaignEligible);
   const enrichmentSource =
     hasWebsiteEvidence && params.primaryContact
       ? "public_website_and_record"
@@ -298,18 +476,16 @@ function updateCompanyReadiness(params: {
   const linkedinVerificationNeeded =
     Boolean(params.primaryContact?.fullName) && !params.primaryContact?.linkedinUrl;
   const manualReviewRequired =
-    params.confidenceLevel !== "high" ||
+    !hasCampaignEligiblePath ||
+    params.primaryContact?.quality?.qualityTier === "weak" ||
+    params.primaryContact?.quality?.qualityTier === "junk" ||
     linkedinVerificationNeeded ||
     params.missingFields.length > 2;
 
   const enrichment: CompanyEnrichmentSnapshot = {
     confidenceLevel: params.confidenceLevel,
     confidenceScore: getConfidenceScore(params.confidenceLevel),
-    contactPath: getContactPath(
-      params.primaryContact?.fullName,
-      params.primaryContact?.email,
-      params.primaryContact?.phone ?? params.bestPhone,
-    ),
+    contactPath: getContactPath(params.primaryContact),
     enrichmentSource,
     sourceUrls: params.sourceUrls,
     pagesChecked: params.pagesChecked,
@@ -326,9 +502,12 @@ function updateCompanyReadiness(params: {
     lastError: params.lastError,
   };
 
-  const nextStatus: Company["status"] = hasUsableContactPath
+  const nextStatus: Company["status"] = hasCampaignEligiblePath
     ? "campaign_ready"
-    : hasWebsiteEvidence || params.bestSubindustry || params.bestPhone
+    : hasWebsiteEvidence ||
+        params.bestSubindustry ||
+        params.bestPhone ||
+        params.primaryContact
       ? "enriched"
       : "new";
   const painSignals = dedupeStrings([
@@ -337,8 +516,10 @@ function updateCompanyReadiness(params: {
         signal !== "Website still needs verification" &&
         signal !== "New lead intake still needs enrichment and qualification",
     ),
-    !params.primaryContact?.email ? "No usable email path was found during enrichment" : undefined,
-    !params.primaryContact?.fullName && params.primaryContact?.email
+    !hasCampaignEligiblePath
+      ? "No campaign-eligible contact path was confirmed during enrichment"
+      : undefined,
+    !params.primaryContact?.fullName && hasCampaignEligiblePath
       ? "Campaign can start from a role inbox, but a named owner still needs review"
       : undefined,
     nextStatus === "new" ? "Website enrichment still needs operator follow-up" : undefined,
@@ -349,15 +530,20 @@ function updateCompanyReadiness(params: {
       ? `Website enrichment scanned ${params.sourceUrls.length} page${params.sourceUrls.length === 1 ? "" : "s"}`
       : "Website enrichment could not verify the public site",
     params.primaryContact?.email
-      ? `Usable contact path found: ${params.primaryContact.email}`
-      : "No usable contact email found during enrichment",
+      ? `Primary outreach path selected: ${params.primaryContact.email}`
+      : params.primaryContact?.phone
+        ? `Primary outreach path selected: ${params.primaryContact.phone}`
+        : "No usable contact email found during enrichment",
+    params.primaryContact?.quality?.qualityTier
+      ? `Primary contact quality: ${params.primaryContact.quality.qualityTier}`
+      : undefined,
     params.bestSubindustry
       ? `Subindustry inferred as ${params.bestSubindustry}`
       : undefined,
   ]);
   const outreachReadinessScore = clampScore(
     params.company.scoring.outreachReadinessScore +
-      (params.primaryContact?.email ? 18 : 0) +
+      (hasCampaignEligiblePath ? 18 : 0) +
       (hasWebsiteEvidence ? 10 : 0) +
       (params.primaryContact?.fullName ? 8 : 0),
   );
@@ -396,62 +582,42 @@ async function enrichSingleCompany(
   const now = new Date().toISOString();
   const websiteScan = await scanCompanyWebsite(company.presence.websiteUrl);
   const host = getCompanyHost(websiteScan.normalizedWebsite ?? company.presence.websiteUrl);
-  const primaryContact = choosePrimaryContact(companyContacts, company);
-  const combinedEmails = dedupeStrings([
-    primaryContact?.email,
-    ...companyContacts.map((contact) => contact.email),
-    ...websiteScan.emails,
-  ]);
-  const bestEmail = chooseBestEmail(combinedEmails, host);
-  const bestPhone = primaryContact?.phone ?? websiteScan.phones[0];
-  const namedCandidate = websiteScan.namedContacts[0];
-  const bestName = primaryContact?.fullName ?? namedCandidate?.fullName;
-  const bestTitle = primaryContact?.title ?? namedCandidate?.title;
+  const drafts = buildWebsiteDrafts({
+    company,
+    existingContacts: companyContacts,
+    now,
+    normalizedWebsite: websiteScan.normalizedWebsite,
+    sourceUrls: websiteScan.sourceUrls,
+    websiteEmails: websiteScan.emails,
+    websitePhones: websiteScan.phones,
+    namedContacts: websiteScan.namedContacts,
+  });
   const hasWebsiteEvidence = websiteScan.sourceUrls.length > 0;
-  const confidenceLevel = getConfidenceLevel(
-    bestName,
-    bestEmail,
+  const rankedContacts = rankContactDrafts({
+    drafts,
+    company,
+    hasWebsiteEvidence,
     host,
+    now,
+  });
+  const confidenceLevel = getConfidenceLevel(
+    rankedContacts.primaryContact,
     hasWebsiteEvidence,
   );
-  const confidenceSignals = dedupeStrings([
-    hasWebsiteEvidence
-      ? `Scanned ${websiteScan.sourceUrls.length} public page${websiteScan.sourceUrls.length === 1 ? "" : "s"}`
-      : undefined,
-    bestEmail ? `Best contact email: ${bestEmail}` : undefined,
-    bestPhone ? `Phone available: ${bestPhone}` : undefined,
-    bestName ? `Named contact identified: ${bestName}` : undefined,
-  ]);
-  const contactPayload =
-    bestEmail || bestPhone || bestName
-      ? buildUpdatedContact({
-          company,
-          existingPrimaryContact: primaryContact,
-          bestEmail,
-          bestPhone,
-          bestName,
-          bestTitle,
-          confidenceLevel,
-          confidenceSignals,
-          sourceUrl: websiteScan.sourceUrls[0] ?? websiteScan.normalizedWebsite,
-          now,
-        })
-      : undefined;
   const missingFields = buildMissingFields({
     website: websiteScan.normalizedWebsite ?? company.presence.websiteUrl,
-    email: contactPayload?.contact.email ?? primaryContact?.email,
-    phone: contactPayload?.contact.phone ?? primaryContact?.phone,
-    fullName: contactPayload?.contact.fullName ?? primaryContact?.fullName,
+    primaryContact: rankedContacts.primaryContact,
+    phone: rankedContacts.primaryContact?.phone ?? websiteScan.phones[0],
     subindustry: company.subindustry ?? websiteScan.categoryClues[0],
     linkedinVerificationNeeded:
-      Boolean(contactPayload?.contact.fullName ?? primaryContact?.fullName) &&
-      !(contactPayload?.contact.linkedinUrl ?? primaryContact?.linkedinUrl),
+      Boolean(rankedContacts.primaryContact?.fullName) &&
+      !rankedContacts.primaryContact?.linkedinUrl,
   });
   const updatedCompany = updateCompanyReadiness({
     company,
-    primaryContact: contactPayload?.contact ?? primaryContact,
+    primaryContact: rankedContacts.primaryContact,
     normalizedWebsite: websiteScan.normalizedWebsite,
-    bestPhone,
+    bestPhone: rankedContacts.primaryContact?.phone ?? websiteScan.phones[0],
     bestSubindustry: company.subindustry ?? websiteScan.categoryClues[0],
     descriptionSnippet: websiteScan.descriptionSnippet,
     confidenceLevel,
@@ -466,11 +632,13 @@ async function enrichSingleCompany(
   });
   const dataAccess = getDataAccess();
 
-  if (contactPayload?.isNew) {
-    await dataAccess.contacts.create(contactPayload.contact);
-  } else if (contactPayload?.contact) {
-    await dataAccess.contacts.update(contactPayload.contact);
-  }
+  await Promise.all(
+    rankedContacts.contacts.map((contact) =>
+      drafts.find((draft) => draft.id === contact.id)?.isNew
+        ? dataAccess.contacts.create(contact)
+        : dataAccess.contacts.update(contact),
+    ),
+  );
 
   await dataAccess.companies.update(updatedCompany);
 
@@ -482,6 +650,12 @@ async function enrichSingleCompany(
         : websiteScan.lastError
           ? "failed"
           : "needs_enrichment";
+  const readinessReason = rankedContacts.primaryContact?.quality?.campaignEligible
+    ? rankedContacts.primaryContact.fullName
+      ? "Named company-domain contact is ready for outreach"
+      : "Exact-domain business inbox is ready for outreach"
+    : rankedContacts.primaryContact?.quality?.warnings[0] ??
+      "No strong contact path is ready for outreach yet";
 
   return {
     companyId: company.id,
@@ -500,12 +674,17 @@ async function enrichSingleCompany(
     foundEmails: websiteScan.emails,
     foundPhones: websiteScan.phones,
     pagesChecked: websiteScan.sourceUrls,
-    primaryContactId: contactPayload?.contact.id ?? primaryContact?.id,
+    primaryContactId: rankedContacts.primaryContact?.id,
     primaryContactLabel:
-      contactPayload?.contact.fullName ??
-      contactPayload?.contact.email ??
-      primaryContact?.fullName ??
-      primaryContact?.email,
+      rankedContacts.primaryContact?.fullName ??
+      rankedContacts.primaryContact?.email ??
+      rankedContacts.primaryContact?.phone,
+    primaryContactSource: rankedContacts.primaryContact
+      ? getContactSourceLabel(rankedContacts.primaryContact)
+      : undefined,
+    primaryContactQuality: rankedContacts.primaryContact?.quality?.qualityTier,
+    qualityWarnings: rankedContacts.primaryContact?.quality?.warnings ?? [],
+    readinessReason,
   };
 }
 
@@ -567,6 +746,10 @@ export async function runLeadEnrichment(params: {
         foundEmails: [],
         foundPhones: [],
         pagesChecked: [],
+        primaryContactSource: undefined,
+        primaryContactQuality: undefined,
+        qualityWarnings: [],
+        readinessReason: "The enrichment run failed before a contact path could be evaluated.",
       });
     });
   }

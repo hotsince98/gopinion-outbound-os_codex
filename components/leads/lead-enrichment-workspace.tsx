@@ -142,6 +142,22 @@ export function LeadEnrichmentWorkspace({
                     {result.primaryContactLabel ?? "No contact path yet"} •{" "}
                     {result.confidenceLevel} confidence
                   </p>
+                  {result.primaryContactSource ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Source: {result.primaryContactSource}
+                    </p>
+                  ) : null}
+                  {result.primaryContactQuality ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Quality: {result.primaryContactQuality}
+                    </p>
+                  ) : null}
+                  <p className="mt-2 text-sm text-copy">{result.readinessReason}</p>
+                  {result.qualityWarnings[0] ? (
+                    <p className="mt-2 text-sm text-warning">
+                      Warning: {result.qualityWarnings[0]}
+                    </p>
+                  ) : null}
                   <p className="mt-2 text-sm text-muted">
                     Missing: {result.missingFields.join(", ") || "nothing critical"}
                   </p>
@@ -256,10 +272,16 @@ export function LeadEnrichmentWorkspace({
                       </div>
                     </td>
                     <td className="px-4 py-4 align-top">
-                      <StatusBadge
-                        label={row.confidenceBadge.label}
-                        tone={row.confidenceBadge.tone}
-                      />
+                      <div className="space-y-2">
+                        <StatusBadge
+                          label={row.confidenceBadge.label}
+                          tone={row.confidenceBadge.tone}
+                        />
+                        <StatusBadge
+                          label={row.readinessBadge.label}
+                          tone={row.readinessBadge.tone}
+                        />
+                      </div>
                     </td>
                     <td className="px-4 py-4 align-top">
                       <p className="text-sm leading-6 text-muted">
@@ -270,6 +292,13 @@ export function LeadEnrichmentWorkspace({
                       <div className="space-y-1">
                         <p className="text-sm text-copy">{row.decisionMaker}</p>
                         <p className="text-sm text-muted">{row.contactCoverage}</p>
+                        <p className="text-sm text-muted">{row.primaryContactSource}</p>
+                        <p className="text-sm text-copy">{row.readinessReason}</p>
+                        {row.primaryContactWarnings[0] ? (
+                          <p className="text-sm text-warning">
+                            {row.primaryContactWarnings[0]}
+                          </p>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-4 py-4 align-top">

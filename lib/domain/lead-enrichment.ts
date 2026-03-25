@@ -5,6 +5,7 @@ import type {
   CompanyId,
   ContactId,
 } from "@/lib/domain/shared";
+import type { ContactQualityTier } from "@/lib/domain/contact";
 
 export const leadEnrichmentQueueStates = [
   "ready",
@@ -43,6 +44,10 @@ export interface LeadEnrichmentRecordResult {
   pagesChecked: string[];
   primaryContactId?: ContactId;
   primaryContactLabel?: string;
+  primaryContactSource?: string;
+  primaryContactQuality?: ContactQualityTier;
+  qualityWarnings: string[];
+  readinessReason: string;
 }
 
 export interface LeadEnrichmentRunSummary {

@@ -1,12 +1,16 @@
 import {
   deriveWorkflowState,
   getContactCoverageLabel,
+  getContactSourceLabel,
+  getContactWarnings,
   getDecisionMakerLabel,
   getEnrichmentConfidenceBadge,
   getEnrichmentSummary,
   getIndustryLabel,
   getLastEnrichedLabel,
   getMissingFieldsLabel,
+  getPrimaryContactReadinessReason,
+  getWorkflowBadge,
   listCompanyBundles,
   type SelectorBadge,
   type WorkspaceStat,
@@ -24,6 +28,10 @@ export interface LeadEnrichmentQueueRowView {
   missingFieldsLabel: string;
   contactCoverage: string;
   decisionMaker: string;
+  primaryContactSource: string;
+  primaryContactWarnings: string[];
+  readinessBadge: SelectorBadge;
+  readinessReason: string;
   lastEnrichedLabel: string;
 }
 
@@ -39,15 +47,19 @@ export interface LeadEnrichmentWorkspaceView {
 export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWorkspaceView> {
   const snapshot = await getSelectorDataSnapshot();
   const rows = listCompanyBundles(snapshot)
-    .filter((bundle) => deriveWorkflowState(bundle) === "needs_enrichment")
+    .filter((bundle) => {
+      const workflowState = deriveWorkflowState(bundle);
+
+      return workflowState === "needs_enrichment" || workflowState === "needs_review";
+    })
     .sort((left, right) => right.company.createdAt.localeCompare(left.company.createdAt));
 
   return {
     stats: [
       {
-        label: "Needs enrichment",
+        label: "Open queue",
         value: String(rows.length),
-        detail: "Companies still blocked on public web research or contact-path discovery.",
+        detail: "Companies still blocked on public web research or contact-path review.",
         tone: "warning",
       },
       {
@@ -84,6 +96,10 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
       missingFieldsLabel: getMissingFieldsLabel(bundle.company),
       contactCoverage: getContactCoverageLabel(bundle),
       decisionMaker: getDecisionMakerLabel(bundle),
+      primaryContactSource: getContactSourceLabel(bundle.primaryContact),
+      primaryContactWarnings: getContactWarnings(bundle.primaryContact),
+      readinessBadge: getWorkflowBadge(deriveWorkflowState(bundle)),
+      readinessReason: getPrimaryContactReadinessReason(bundle),
       lastEnrichedLabel: getLastEnrichedLabel(bundle.company),
     })),
     emptyState: {

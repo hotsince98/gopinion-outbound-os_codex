@@ -4,12 +4,15 @@ import {
   getCampaignStatusLabel,
   getCompanyStatusBadge,
   getContactCoverageLabel,
+  getContactSourceLabel,
+  getContactWarnings,
   getDecisionMakerConfidenceLabel,
   getDecisionMakerLabel,
   getIcpFilterOptions,
   getIcpLabel,
   getIndustryLabel,
   getPriorityBadge,
+  getPrimaryContactReadinessReason,
   getRecommendedOfferName,
   getReviewSnapshot,
   getSuggestedNextAction,
@@ -53,9 +56,20 @@ export interface CompanyContactDetail {
   id: string;
   name: string;
   role: string;
+  email?: string;
+  phone?: string;
   confidence: string;
   status: string;
   source: string;
+  isPrimary: boolean;
+  selectionLabel: string;
+  selectionScore: string;
+  selectionReasons: string[];
+  demotionReasons: string[];
+  quality: string;
+  campaignEligibility: string;
+  warnings: string[];
+  readinessReason?: string;
   notes: string[];
 }
 
@@ -252,15 +266,38 @@ export async function getCompaniesWorkspaceView(
             selectedBundle.recommendedOffer?.primaryCta ??
             "CTA is still pending.",
         },
-        contacts: selectedBundle.contacts.map((contact) => ({
-          id: contact.id,
-          name: contact.fullName ?? "Unnamed contact",
-          role: contact.title ?? contact.role.replaceAll("_", " "),
-          confidence: `Confidence ${contact.confidence.score.toFixed(2)}`,
-          status: contact.status.replaceAll("_", " "),
-          source: `${contact.source.provider} • ${contact.source.label ?? contact.source.kind}`,
-          notes: contact.notes,
-        })),
+        contacts: selectedBundle.rankedContacts.map((selection) => {
+          const contact = selection.contact;
+
+          return {
+            id: contact.id,
+            name: contact.fullName ?? "Unnamed contact",
+            role: contact.title ?? contact.role.replaceAll("_", " "),
+            email: contact.email,
+            phone: contact.phone,
+            confidence: `Confidence ${contact.confidence.score.toFixed(2)}`,
+            status: contact.status.replaceAll("_", " "),
+            source: getContactSourceLabel(contact),
+            isPrimary: selection.isPrimary,
+            selectionLabel: selection.isPrimary
+              ? `Primary • Rank #${selection.selectionRank}`
+              : `Backup • Rank #${selection.selectionRank}`,
+            selectionScore: `Selection score ${selection.selectionScore}`,
+            selectionReasons: selection.selectionReasons.slice(0, 2),
+            demotionReasons: selection.demotionReasons.slice(0, 2),
+            quality:
+              contact.quality?.qualityTier.replaceAll("_", " ") ??
+              `Confidence ${contact.confidence.score.toFixed(2)}`,
+            campaignEligibility: contact.quality?.campaignEligible
+              ? "Campaign-eligible"
+              : "Needs review",
+            warnings: getContactWarnings(contact),
+            readinessReason: selection.isPrimary
+              ? getPrimaryContactReadinessReason(selectedBundle)
+              : undefined,
+            notes: contact.notes,
+          };
+        }),
         campaignSummary:
           selectedBundle.activeCampaigns.length > 0
             ? selectedBundle.activeCampaigns.map(

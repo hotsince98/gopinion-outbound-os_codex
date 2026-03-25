@@ -294,17 +294,54 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                       >
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-medium text-copy">{contact.name}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-medium text-copy">{contact.name}</p>
+                              {contact.isPrimary ? (
+                                <StatusBadge label="Primary" tone="success" />
+                              ) : null}
+                            </div>
                             <p className="mt-1 text-sm text-muted">{contact.role}</p>
+                            {contact.email ? (
+                              <p className="mt-1 text-sm text-copy">{contact.email}</p>
+                            ) : null}
+                            {contact.phone ? (
+                              <p className="mt-1 text-sm text-muted">{contact.phone}</p>
+                            ) : null}
                           </div>
                           <div className="text-right">
                             <p className="text-xs uppercase tracking-[0.18em] text-muted">
                               {contact.confidence}
                             </p>
-                            <p className="mt-1 text-sm text-copy">{contact.status}</p>
+                            <p className="mt-1 text-sm text-copy">
+                              {contact.quality} • {contact.campaignEligibility}
+                            </p>
+                            <p className="mt-1 text-sm text-muted">
+                              {contact.selectionLabel} • {contact.selectionScore}
+                            </p>
+                            <p className="mt-1 text-sm text-muted">{contact.status}</p>
                           </div>
                         </div>
                         <p className="mt-3 text-sm leading-6 text-muted">{contact.source}</p>
+                        {contact.readinessReason ? (
+                          <p className="mt-2 text-sm leading-6 text-copy">
+                            {contact.readinessReason}
+                          </p>
+                        ) : null}
+                        {contact.selectionReasons.map((reason) => (
+                          <p key={reason} className="mt-2 text-sm leading-6 text-muted">
+                            {reason}
+                          </p>
+                        ))}
+                        {contact.demotionReasons.map((reason) => (
+                          <p key={reason} className="mt-2 text-sm leading-6 text-muted">
+                            {reason}
+                          </p>
+                        ))}
+                        {contact.warnings.map((warning) => (
+                          <p key={warning} className="mt-2 text-sm leading-6 text-warning">
+                            {warning}
+                          </p>
+                        ))}
                         {contact.notes.map((note) => (
                           <p key={note} className="mt-2 text-sm leading-6 text-muted">
                             {note}

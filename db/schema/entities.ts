@@ -77,6 +77,7 @@ export const entitySchemas: EntitySchemaDefinition[] = [
       { name: "isPrimary", type: "boolean" },
       { name: "outreachReady", type: "boolean" },
       { name: "confidence", type: "json" },
+      { name: "quality", type: "json", nullable: true },
       { name: "notes", type: "text", list: true },
       { name: "source", type: "json" },
       { name: "createdAt", type: "datetime" },

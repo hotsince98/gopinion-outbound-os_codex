@@ -1,5 +1,9 @@
 import { initialIcpProfiles } from "@/lib/data/config/icp";
 import { priorityTierDefinitions } from "@/lib/data/config/priority-tiers";
+import {
+  rankContactsForPrimarySelection,
+  type RankedContactSelection,
+} from "@/lib/data/contacts/quality";
 import type {
   Appointment,
   Campaign,
@@ -52,6 +56,7 @@ export interface CompanyBundle {
   company: Company;
   icpProfile?: IcpProfile;
   contacts: Contact[];
+  rankedContacts: RankedContactSelection[];
   primaryContact?: Contact;
   recommendedOffer?: Offer;
   activeCampaigns: Campaign[];
@@ -226,7 +231,7 @@ export function deriveWorkflowState(bundle: CompanyBundle): WorkflowState {
   if (
     bundle.company.status === "enriched" ||
     !bundle.primaryContact ||
-    !bundle.primaryContact.outreachReady ||
+    !isContactCampaignEligible(bundle.primaryContact) ||
     bundle.primaryContact.status === "candidate"
   ) {
     return "needs_review";
@@ -278,6 +283,41 @@ export function formatRoleLabel(contact: Contact) {
   return contact.title ?? formatLabel(contact.role);
 }
 
+export function isContactCampaignEligible(contact: Contact | undefined) {
+  return contact?.quality?.campaignEligible ?? contact?.outreachReady ?? false;
+}
+
+export function getContactQualityLabel(contact: Contact | undefined) {
+  if (!contact) {
+    return "Quality pending";
+  }
+
+  switch (contact.quality?.qualityTier) {
+    case "strong":
+      return "Strong contact path";
+    case "usable":
+      return "Usable contact path";
+    case "weak":
+      return "Weak contact path";
+    case "junk":
+      return "Low-quality contact path";
+    default:
+      return `Confidence ${contact.confidence.score.toFixed(2)}`;
+  }
+}
+
+export function getContactSourceLabel(contact: Contact | undefined) {
+  if (!contact) {
+    return "Source pending";
+  }
+
+  return `${contact.source.label ?? contact.source.provider} • ${contact.source.kind}`;
+}
+
+export function getContactWarnings(contact: Contact | undefined) {
+  return contact?.quality?.warnings ?? [];
+}
+
 export function getContactCoverageLabel(bundle: CompanyBundle) {
   const count = bundle.contacts.length;
 
@@ -293,8 +333,16 @@ export function getContactCoverageLabel(bundle: CompanyBundle) {
     return `${count} contact${count === 1 ? "" : "s"} • no primary`;
   }
 
-  if (bundle.primaryContact.email && !bundle.primaryContact.fullName) {
-    return `${count} contact${count === 1 ? "" : "s"} • role inbox ready`;
+  if (bundle.primaryContact.quality?.pathKind === "phone_only") {
+    return `${count} contact${count === 1 ? "" : "s"} • phone fallback only`;
+  }
+
+  if (isContactCampaignEligible(bundle.primaryContact) && !bundle.primaryContact.fullName) {
+    return `${count} contact${count === 1 ? "" : "s"} • exact-domain inbox ready`;
+  }
+
+  if (!isContactCampaignEligible(bundle.primaryContact)) {
+    return `${count} contact${count === 1 ? "" : "s"} • review contact quality`;
   }
 
   return `${count} contact${count === 1 ? "" : "s"} • ${formatRoleLabel(
@@ -314,6 +362,7 @@ export function getDecisionMakerLabel(bundle: CompanyBundle) {
   const name =
     bundle.primaryContact.fullName ??
     bundle.primaryContact.email ??
+    bundle.primaryContact.phone ??
     "Primary contact";
 
   return `${name} • ${formatRoleLabel(bundle.primaryContact)}`;
@@ -328,7 +377,25 @@ export function getDecisionMakerConfidenceLabel(bundle: CompanyBundle) {
     return "Confidence pending";
   }
 
-  return `Confidence ${bundle.primaryContact.confidence.score.toFixed(2)}`;
+  return getContactQualityLabel(bundle.primaryContact);
+}
+
+export function getPrimaryContactReadinessReason(bundle: CompanyBundle) {
+  if (!bundle.primaryContact) {
+    return "No primary outreach contact has been selected yet";
+  }
+
+  if (isContactCampaignEligible(bundle.primaryContact)) {
+    return bundle.primaryContact.fullName
+      ? "Ready because a named company-domain contact was selected"
+      : "Ready because an exact-domain business inbox was selected";
+  }
+
+  return (
+    bundle.primaryContact.quality?.warnings[0] ??
+    bundle.company.enrichment?.lastError ??
+    "Needs review because the best available contact path is still weak"
+  );
 }
 
 export function getCampaignStatusLabel(bundle: CompanyBundle) {
@@ -368,7 +435,7 @@ export function getSuggestedNextAction(bundle: CompanyBundle) {
     return "Identify the most likely owner or GM";
   }
 
-  if (bundle.primaryContact.status === "candidate") {
+  if (!isContactCampaignEligible(bundle.primaryContact)) {
     return "Verify the contact before enrolling into outreach";
   }
 
@@ -405,6 +472,9 @@ export function getCompanyBundle(
   lookups = createSnapshotLookups(snapshot),
 ): CompanyBundle {
   const contacts = snapshot.contacts.filter((contact) => contact.companyId === company.id);
+  const rankedContacts = rankContactsForPrimarySelection(contacts, {
+    preferredContactId: company.primaryContactId,
+  });
   const recommendedOffer = company.recommendedOfferIds
     .map((offerId) => lookups.offerById.get(offerId))
     .find(Boolean);
@@ -424,10 +494,9 @@ export function getCompanyBundle(
   return {
     company,
     icpProfile: icpById.get(company.icpProfileId),
-    contacts,
-    primaryContact: company.primaryContactId
-      ? contacts.find((contact) => contact.id === company.primaryContactId)
-      : contacts.find((contact) => contact.isPrimary),
+    contacts: rankedContacts.map((selection) => selection.contact),
+    rankedContacts,
+    primaryContact: rankedContacts.find((selection) => selection.isPrimary)?.contact,
     recommendedOffer,
     activeCampaigns,
     enrollments,

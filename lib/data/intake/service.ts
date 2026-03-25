@@ -1,4 +1,10 @@
 import { getDataAccess } from "@/lib/data/access";
+import {
+  applyPrimaryContactSelection,
+  assessContactPath,
+  buildContactQualitySnapshot,
+  getCompanyHost,
+} from "@/lib/data/contacts/quality";
 import { initialIcpProfiles } from "@/lib/data/config/icp";
 import { initialOffers } from "@/lib/data/config/offers";
 import { priorityTierDefinitions, scoringBuckets } from "@/lib/data/config/priority-tiers";
@@ -244,6 +250,16 @@ function buildContactRecord(
   companyId: Company["id"],
 ): Contact {
   const now = new Date().toISOString();
+  const normalizedWebsite = normalizeWebsiteUrl(input.website);
+  const qualityAssessment = assessContactPath({
+    email: input.contactEmail,
+    phone: undefined,
+    fullName: input.primaryContactName,
+    title: input.contactTitle,
+    companyHost: getCompanyHost(normalizedWebsite),
+    source: buildSourceReference(input, now),
+    hasWebsiteEvidence: Boolean(normalizedWebsite),
+  });
   const signals = ["Operator-entered during lead intake"];
 
   if (input.contactTitle) {
@@ -254,11 +270,7 @@ function buildContactRecord(
     signals.push("Direct contact email captured");
   }
 
-  const confidenceScore = clampScore(
-    input.contactEmail ? 84 : input.contactTitle ? 70 : 58,
-  );
-
-  return {
+  const contact: Contact = {
     id: createEntityId("contact") as Contact["id"],
     companyId,
     fullName: input.primaryContactName,
@@ -266,18 +278,25 @@ function buildContactRecord(
     role: deriveContactRoleFromTitle(input.contactTitle),
     email: input.contactEmail,
     sourceKind: "observed",
-    status: input.contactEmail ? "verified" : "candidate",
+    status: qualityAssessment.status,
     isPrimary: true,
-    outreachReady: Boolean(input.contactEmail),
+    outreachReady: qualityAssessment.campaignEligible,
     confidence: {
-      score: confidenceScore / 100,
-      signals,
+      score: qualityAssessment.confidenceScore,
+      signals: [...signals, ...qualityAssessment.selectionReasons],
     },
+    quality: buildContactQualitySnapshot(qualityAssessment, now),
     notes: [],
     source: buildSourceReference(input, now),
     createdAt: now,
     updatedAt: now,
   };
+
+  return applyPrimaryContactSelection({
+    contacts: [contact],
+    preferredContactId: contact.id,
+    now,
+  }).contacts[0]!;
 }
 
 function findDuplicateCompany(
@@ -345,13 +364,18 @@ export async function createLeadFromInput(
     ? buildContactRecord(input, "company_placeholder" as Company["id"])
     : undefined;
   const company = buildCompanyRecord(input, undefined);
-  const createdCompany = await dataAccess.companies.create(company);
+  let createdCompany = await dataAccess.companies.create(company);
 
   let createdContact: Contact | undefined;
   if (provisionalContact) {
     createdContact = await dataAccess.contacts.create({
       ...provisionalContact,
       companyId: createdCompany.id,
+    });
+    createdCompany = await dataAccess.companies.update({
+      ...createdCompany,
+      primaryContactId: createdContact.id,
+      updatedAt: new Date().toISOString(),
     });
   }
 

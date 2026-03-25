@@ -76,6 +76,10 @@ export default async function LeadsPage({ searchParams }: PageProps) {
           {row.decisionMakerConfidence}
         </p>
         <p className="text-sm text-muted">{row.contactCoverage}</p>
+        <p className="text-sm text-muted">{row.primaryContactSource}</p>
+        {row.primaryContactWarnings[0] ? (
+          <p className="text-sm text-warning">{row.primaryContactWarnings[0]}</p>
+        ) : null}
       </div>,
       <div key={`${row.companyId}-action`} className="space-y-2">
         <StatusBadge
@@ -87,6 +91,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         <p className="text-xs uppercase tracking-[0.18em] text-muted">
           {row.lastEnrichedLabel}
         </p>
+        <p className="text-sm leading-6 text-copy">{row.readinessReason}</p>
         <p className="text-sm leading-6 text-copy">{row.nextAction}</p>
         <div className="flex flex-wrap gap-3">
           <Link

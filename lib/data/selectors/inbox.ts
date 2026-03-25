@@ -1,4 +1,5 @@
 import { initialIcpProfiles } from "@/lib/data/config/icp";
+import { selectPrimaryContact } from "@/lib/data/contacts/quality";
 import {
   cleanQuery,
   makeCountedOptions,
@@ -283,6 +284,7 @@ function getHandlingBadge(path: ReplyHandlingPath): SelectorBadge {
 function listInboxReplyRecords(snapshot: SelectorDataSnapshot): InboxReplyRecord[] {
   const companyById = buildIdMap(snapshot.companies);
   const contactById = buildIdMap(snapshot.contacts);
+  const contactsByCompanyId = new Map<string, Contact[]>();
   const campaignById = buildIdMap(snapshot.campaigns);
   const offerById = buildIdMap(snapshot.offers);
   const sequenceById = buildIdMap(snapshot.sequences);
@@ -290,6 +292,13 @@ function listInboxReplyRecords(snapshot: SelectorDataSnapshot): InboxReplyRecord
   const appointmentByReplyId = new Map(
     snapshot.appointments.map((appointment) => [appointment.replyId, appointment] as const),
   );
+
+  for (const contact of snapshot.contacts) {
+    const existing = contactsByCompanyId.get(contact.companyId) ?? [];
+
+    existing.push(contact);
+    contactsByCompanyId.set(contact.companyId, existing);
+  }
 
   return snapshot.replies
     .map((reply) => {
@@ -306,8 +315,10 @@ function listInboxReplyRecords(snapshot: SelectorDataSnapshot): InboxReplyRecord
               (candidate) => candidate.id === enrollment.appointmentId,
             )
           : undefined);
-      const primaryContact = company?.primaryContactId
-        ? contactById.get(company.primaryContactId)
+      const primaryContact = company
+        ? selectPrimaryContact(contactsByCompanyId.get(company.id) ?? [], {
+            preferredContactId: company.primaryContactId,
+          })
         : undefined;
       const relatedEntityIds = new Set<string | undefined>([
         reply.id,

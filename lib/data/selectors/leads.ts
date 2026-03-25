@@ -4,6 +4,7 @@ import {
   deriveWorkflowState,
   getCompanyStatusBadge,
   getContactCoverageLabel,
+  getContactWarnings,
   getDecisionMakerConfidenceLabel,
   getDecisionMakerLabel,
   getEnrichmentBadge,
@@ -15,6 +16,8 @@ import {
   getLastEnrichedLabel,
   getMissingFieldsLabel,
   getPriorityBadge,
+  getPrimaryContactReadinessReason,
+  getContactSourceLabel,
   getRecommendedOfferName,
   getSuggestedNextAction,
   getTierFilterOptions,
@@ -63,9 +66,12 @@ export interface LeadRowView {
   decisionMaker: string;
   decisionMakerConfidence: string;
   contactCoverage: string;
+  primaryContactSource: string;
+  primaryContactWarnings: string[];
   enrichmentSummary: string;
   missingFieldsLabel: string;
   lastEnrichedLabel: string;
+  readinessReason: string;
   nextAction: string;
 }
 
@@ -199,9 +205,12 @@ export async function getLeadsWorkspaceView(
     decisionMaker: getDecisionMakerLabel(bundle),
     decisionMakerConfidence: getDecisionMakerConfidenceLabel(bundle),
     contactCoverage: getContactCoverageLabel(bundle),
+    primaryContactSource: getContactSourceLabel(bundle.primaryContact),
+    primaryContactWarnings: getContactWarnings(bundle.primaryContact),
     enrichmentSummary: getEnrichmentSummary(bundle.company),
     missingFieldsLabel: getMissingFieldsLabel(bundle.company),
     lastEnrichedLabel: getLastEnrichedLabel(bundle.company),
+    readinessReason: getPrimaryContactReadinessReason(bundle),
     nextAction: getSuggestedNextAction(bundle),
   }));
 
