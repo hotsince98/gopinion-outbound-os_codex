@@ -14,7 +14,8 @@ type CsvFieldKey =
   | keyof Omit<LeadIntakeInput, "industryKey" | "sourceKind">
   | "industry"
   | "address"
-  | "phone";
+  | "phone"
+  | "postalCode";
 
 interface CsvFieldDefinition {
   key: CsvFieldKey;
@@ -63,7 +64,7 @@ const csvFieldDefinitions: CsvFieldDefinition[] = [
   {
     key: "phone",
     label: "Phone",
-    aliases: ["phone", "phonenumber", "telephone", "mobile"],
+    aliases: ["phone", "phonenumber", "telephone", "mobile", "phoneno"],
   },
   {
     key: "industry",
@@ -86,6 +87,11 @@ const csvFieldDefinitions: CsvFieldDefinition[] = [
     aliases: ["state", "province", "region"],
   },
   {
+    key: "postalCode",
+    label: "ZIP / postal code",
+    aliases: ["zip", "zipcode", "postalcode", "postcode"],
+  },
+  {
     key: "country",
     label: "Country",
     aliases: ["country"],
@@ -98,7 +104,7 @@ const csvFieldDefinitions: CsvFieldDefinition[] = [
   {
     key: "reviewCount",
     label: "Review count",
-    aliases: ["reviewcount", "reviews", "google_reviews"],
+    aliases: ["reviewcount", "reviews", "google_reviews", "numberofreviews"],
   },
   {
     key: "primaryContactName",
@@ -123,7 +129,25 @@ const csvFieldDefinitions: CsvFieldDefinition[] = [
 ];
 
 function normalizeCsvHeader(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return value
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function trimToUndefined(value: string | undefined) {
+  const trimmed = value?.trim();
+
+  return trimmed ? trimmed : undefined;
+}
+
+function readCell(row: string[], index: number | undefined) {
+  if (index == null || index < 0) {
+    return undefined;
+  }
+
+  return trimToUndefined(row[index]);
 }
 
 function parseCsvCells(text: string) {
@@ -224,7 +248,7 @@ function extractEmails(value: string | undefined) {
 }
 
 function extractStateOrRegion(value: string | undefined) {
-  const trimmed = value?.trim();
+  const trimmed = trimToUndefined(value);
   if (!trimmed) {
     return undefined;
   }
@@ -253,7 +277,7 @@ function normalizeCountry(value: string | undefined) {
 }
 
 function parseAddressParts(address: string | undefined) {
-  const trimmed = address?.trim();
+  const trimmed = trimToUndefined(address);
 
   if (!trimmed) {
     return {};
@@ -261,13 +285,7 @@ function parseAddressParts(address: string | undefined) {
 
   const parts = trimmed.split(",").map((part) => part.trim()).filter(Boolean);
   if (parts.length < 2) {
-    return {
-      city: "Unknown",
-      state: "Unknown",
-      country: "US",
-      warning:
-        "Address column was detected, but the city/state could not be parsed automatically.",
-    };
+    return {};
   }
 
   let country = normalizeCountry(parts[parts.length - 1]);
@@ -291,11 +309,9 @@ function parseAddressParts(address: string | undefined) {
   }
 
   return {
-    city: city ?? "Unknown",
-    state: state ?? "Unknown",
+    city,
+    state,
     country,
-    warning:
-      "Address column was detected, but part of the city/state mapping is still ambiguous.",
   };
 }
 
@@ -304,9 +320,50 @@ function appendNoteLines(...values: Array<string | undefined>) {
 }
 
 function normalizeBusinessCategory(value: string | undefined) {
-  const trimmed = value?.trim();
+  const trimmed = trimToUndefined(value);
 
   return trimmed ? trimmed : undefined;
+}
+
+function buildLocationFields(params: {
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postalCode?: string;
+}) {
+  const explicitCity = trimToUndefined(params.city);
+  const explicitState = trimToUndefined(params.state);
+  const explicitCountry =
+    normalizeCountry(params.country) ?? trimToUndefined(params.country);
+  const shouldParseAddress =
+    Boolean(params.address) &&
+    (!explicitCity || !explicitState || !explicitCountry);
+  const parsedAddress = shouldParseAddress
+    ? parseAddressParts(params.address)
+    : {};
+  const city = explicitCity ?? parsedAddress.city;
+  const state = explicitState ?? parsedAddress.state;
+  const country = explicitCountry ?? parsedAddress.country ?? "US";
+  const marketLabel = [
+    city,
+    [state, trimToUndefined(params.postalCode)].filter(Boolean).join(" "),
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return {
+    city,
+    state,
+    country,
+    locationLine: [trimToUndefined(params.address), marketLabel]
+      .filter(Boolean)
+      .join(", "),
+    warning:
+      !explicitCity && !explicitState && params.address && (!city || !state)
+        ? "Address column was detected, but the city/state could not be parsed automatically."
+        : undefined,
+  };
 }
 
 function countHeaders(
@@ -445,43 +502,47 @@ export function parseLeadCsvText(text: string): ParsedLeadCsv {
     columnMappings,
     warnings: collectedWarnings,
     rows: dataRows.map((row, rowIndex) => {
-      const rawAddress = row[fieldMatches.address?.index ?? -1];
-      const rawPhone = row[fieldMatches.phone?.index ?? -1];
-      const rawEmails = row[fieldMatches.contactEmail?.index ?? -1];
-      const rawIndustry = row[fieldMatches.industry?.index ?? -1];
-      const rawSubindustry = row[fieldMatches.subindustry?.index ?? -1];
-      const addressParts = parseAddressParts(rawAddress);
+      const rawAddress = readCell(row, fieldMatches.address?.index);
+      const rawCity = readCell(row, fieldMatches.city?.index);
+      const rawState = readCell(row, fieldMatches.state?.index);
+      const rawPostalCode = readCell(row, fieldMatches.postalCode?.index);
+      const rawCountry = readCell(row, fieldMatches.country?.index);
+      const rawPhone = readCell(row, fieldMatches.phone?.index);
+      const rawEmails = readCell(row, fieldMatches.contactEmail?.index);
+      const rawIndustry = readCell(row, fieldMatches.industry?.index);
+      const rawSubindustry = readCell(row, fieldMatches.subindustry?.index);
+      const locationFields = buildLocationFields({
+        address: rawAddress,
+        city: rawCity,
+        state: rawState,
+        country: rawCountry,
+        postalCode: rawPostalCode,
+      });
       const parsedEmails = extractEmails(rawEmails);
       const preservedNotes = appendNoteLines(
-        row[fieldMatches.notes?.index ?? -1],
+        readCell(row, fieldMatches.notes?.index),
         rawAddress ? `Address: ${rawAddress}` : undefined,
+        locationFields.locationLine
+          ? `Location: ${locationFields.locationLine}`
+          : undefined,
         rawPhone ? `Phone: ${rawPhone}` : undefined,
         parsedEmails.length > 1 ? `Emails: ${parsedEmails.join(", ")}` : undefined,
       );
-      if (addressParts.warning) {
-        collectedWarnings.push(`Row ${rowIndex + 2}: ${addressParts.warning}`);
+      if (locationFields.warning) {
+        collectedWarnings.push(`Row ${rowIndex + 2}: ${locationFields.warning}`);
       }
       const input = normalizeLeadIntakeInput(
         {
-          companyName:
-            row[fieldMatches.companyName?.index ?? -1],
-          website:
-            row[fieldMatches.website?.index ?? -1],
+          companyName: readCell(row, fieldMatches.companyName?.index),
+          website: readCell(row, fieldMatches.website?.index),
           subindustry: normalizeBusinessCategory(rawSubindustry || rawIndustry),
-          city:
-            row[fieldMatches.city?.index ?? -1] || addressParts.city,
-          state:
-            row[fieldMatches.state?.index ?? -1] || addressParts.state,
-          country:
-            row[fieldMatches.country?.index ?? -1] || addressParts.country,
-          googleRating:
-            row[fieldMatches.googleRating?.index ?? -1],
-          reviewCount:
-            row[fieldMatches.reviewCount?.index ?? -1],
-          primaryContactName:
-            row[fieldMatches.primaryContactName?.index ?? -1],
-          contactTitle:
-            row[fieldMatches.contactTitle?.index ?? -1],
+          city: locationFields.city,
+          state: locationFields.state,
+          country: locationFields.country,
+          googleRating: readCell(row, fieldMatches.googleRating?.index),
+          reviewCount: readCell(row, fieldMatches.reviewCount?.index),
+          primaryContactName: readCell(row, fieldMatches.primaryContactName?.index),
+          contactTitle: readCell(row, fieldMatches.contactTitle?.index),
           contactEmail: parsedEmails[0],
           notes: preservedNotes,
         },

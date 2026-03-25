@@ -142,8 +142,9 @@ export function CsvLeadImportForm() {
           <p className="mt-3 text-sm leading-6 text-muted">
             `company name`, `company`, `business name`, `business`, `name`,
             `address`, `website`, `phone`, `emails`, `category`, `city`,
-            `state`, `country`, `google rating`, `review count`, `primary
-            contact name`, `contact title`, `contact email`, `notes`
+            `state`, `zip`, `country`, `google rating`, `review count`,
+            `number of reviews`, `primary contact name`, `contact title`,
+            `contact email`, `notes`
           </p>
         </div>
 
