@@ -62,6 +62,10 @@ export interface SequenceRepository extends Repository<Sequence, SequenceId> {
 
 export interface EnrollmentRepository
   extends Repository<Enrollment, EnrollmentId> {
+  create(enrollment: Enrollment): RepositoryResult<Enrollment>;
+  update(enrollment: Enrollment): RepositoryResult<Enrollment>;
+  listByCompanyId(companyId: CompanyId): RepositoryResult<Enrollment[]>;
+  listByCampaignId(campaignId: CampaignId): RepositoryResult<Enrollment[]>;
   listBySequenceId(sequenceId: SequenceId): RepositoryResult<Enrollment[]>;
   listByState(state: EnrollmentState): RepositoryResult<Enrollment[]>;
 }

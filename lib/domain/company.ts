@@ -58,6 +58,105 @@ export const enrichmentSources = [
 ] as const;
 export type EnrichmentSource = (typeof enrichmentSources)[number];
 
+export const websiteDiscoveryStatuses = [
+  "not_checked",
+  "record_provided",
+  "discovered",
+  "not_found",
+  "failed",
+] as const;
+export type WebsiteDiscoveryStatus =
+  (typeof websiteDiscoveryStatuses)[number];
+
+export const companyNoteHintKinds = [
+  "website",
+  "email",
+  "phone",
+  "contact_name",
+  "contact_title",
+  "observation",
+] as const;
+export type CompanyNoteHintKind = (typeof companyNoteHintKinds)[number];
+
+export const companySegmentKeys = [
+  "core_reviews_pain",
+  "strong_review_profile",
+  "provider_replacement",
+  "naps_listing",
+  "control_reporting",
+] as const;
+export type CompanySegmentKey = (typeof companySegmentKeys)[number];
+
+export const companyOutreachAngleKeys = [
+  "review_growth_opportunity",
+  "review_response_routing_issue",
+  "strong_review_optimization_opportunity",
+  "provider_replacement_opportunity",
+  "naps_listing_consistency_opportunity",
+  "control_reporting_opportunity",
+  "generic_manual_review",
+] as const;
+export type CompanyOutreachAngleKey =
+  (typeof companyOutreachAngleKeys)[number];
+
+export const companyOutreachAngleUrgencies = [
+  "low",
+  "medium",
+  "high",
+] as const;
+export type CompanyOutreachAngleUrgency =
+  (typeof companyOutreachAngleUrgencies)[number];
+
+export const companyOutreachAngleReviewPaths = [
+  "campaign_review",
+  "manual_review",
+] as const;
+export type CompanyOutreachAngleReviewPath =
+  (typeof companyOutreachAngleReviewPaths)[number];
+
+export interface CompanyWebsiteDiscoverySnapshot {
+  status: WebsiteDiscoveryStatus;
+  confidenceLevel: EnrichmentConfidenceLevel;
+  confidenceScore: number;
+  discoveredWebsite?: string;
+  candidateUrls: string[];
+  matchedSignals: string[];
+  source: SourceReference;
+  lastCheckedAt?: IsoDateString;
+  lastError?: string;
+}
+
+export interface CompanyNoteHint {
+  kind: CompanyNoteHintKind;
+  value: string;
+  relatedValue?: string;
+  confidenceScore: number;
+  requiresReview: boolean;
+  source: SourceReference;
+}
+
+export interface CompanySegmentSnapshot {
+  key: CompanySegmentKey;
+  label: string;
+  angle: string;
+  reasons: string[];
+  confidenceLevel: EnrichmentConfidenceLevel;
+  updatedAt?: IsoDateString;
+}
+
+export interface CompanyOutreachAngleSnapshot {
+  key: CompanyOutreachAngleKey;
+  label: string;
+  shortReason: string;
+  recommendedFirstOfferId: OfferId;
+  urgency: CompanyOutreachAngleUrgency;
+  confidenceLevel: EnrichmentConfidenceLevel;
+  confidenceScore: number;
+  reviewPath: CompanyOutreachAngleReviewPath;
+  reasons: string[];
+  updatedAt?: IsoDateString;
+}
+
 export interface CompanyEnrichmentSnapshot {
   confidenceLevel: EnrichmentConfidenceLevel;
   confidenceScore: number;
@@ -68,6 +167,10 @@ export interface CompanyEnrichmentSnapshot {
   foundEmails: string[];
   foundPhones: string[];
   foundNames: string[];
+  websiteDiscovery?: CompanyWebsiteDiscoverySnapshot;
+  noteHints: CompanyNoteHint[];
+  segment?: CompanySegmentSnapshot;
+  outreachAngle?: CompanyOutreachAngleSnapshot;
   descriptionSnippet?: string;
   missingFields: string[];
   manualReviewRequired: boolean;
@@ -81,6 +184,7 @@ export interface CompanyEnrichmentSnapshot {
 export interface CompanyPresence {
   hasWebsite: boolean;
   websiteUrl?: string;
+  primaryPhone?: string;
   hasClaimedGoogleBusinessProfile: boolean;
   googleBusinessProfileUrl?: string;
   googleRating?: number;

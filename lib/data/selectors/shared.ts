@@ -1,22 +1,21 @@
 import { initialIcpProfiles } from "@/lib/data/config/icp";
 import { priorityTierDefinitions } from "@/lib/data/config/priority-tiers";
 import {
-  rankContactsForPrimarySelection,
-  type RankedContactSelection,
-} from "@/lib/data/contacts/quality";
+  deriveWorkflowState,
+  getCompanyBundle,
+  hasAnyContactPath,
+  hasWebsiteCandidate,
+  isContactCampaignEligible,
+  listCompanyBundles,
+  type CompanyBundle,
+  type WorkflowState,
+} from "@/lib/data/company/workflow";
 import type {
-  Appointment,
-  Campaign,
   Company,
   Contact,
-  Enrollment,
-  IcpProfile,
-  Offer,
   PriorityTier,
-  Reply,
 } from "@/lib/domain";
 import type { Tone } from "@/lib/presentation";
-import { buildIdMap, type SelectorDataSnapshot } from "@/lib/data/selectors/snapshot";
 
 export type SearchParamValue = string | string[] | undefined;
 export type SearchParamsInput = Record<string, SearchParamValue>;
@@ -25,12 +24,6 @@ export type EnrichmentState =
   | "needs_enrichment"
   | "enriched"
   | "ready"
-  | "blocked";
-
-export type WorkflowState =
-  | "ready"
-  | "needs_enrichment"
-  | "needs_review"
   | "blocked";
 
 export interface WorkspaceStat {
@@ -52,18 +45,15 @@ export interface SelectorBadge {
   tone: Tone;
 }
 
-export interface CompanyBundle {
-  company: Company;
-  icpProfile?: IcpProfile;
-  contacts: Contact[];
-  rankedContacts: RankedContactSelection[];
-  primaryContact?: Contact;
-  recommendedOffer?: Offer;
-  activeCampaigns: Campaign[];
-  enrollments: Enrollment[];
-  latestReply?: Reply;
-  appointments: Appointment[];
-}
+export {
+  deriveWorkflowState,
+  getCompanyBundle,
+  hasAnyContactPath,
+  hasWebsiteCandidate,
+  isContactCampaignEligible,
+  listCompanyBundles,
+};
+export type { CompanyBundle, WorkflowState };
 
 const icpById = new Map(initialIcpProfiles.map((profile) => [profile.id, profile]));
 
@@ -172,6 +162,13 @@ export function getEnrichmentSummary(company: Company) {
     return `Fetch issue: ${company.enrichment.lastError}`;
   }
 
+  if (
+    company.enrichment?.websiteDiscovery?.status === "discovered" &&
+    !company.enrichment.sourceUrls.length
+  ) {
+    return `Website discovered: ${company.enrichment.websiteDiscovery.discoveredWebsite ?? "verification pending"}`;
+  }
+
   if (company.enrichment?.foundEmails.length) {
     return `${company.enrichment.foundEmails.length} email path${
       company.enrichment.foundEmails.length === 1 ? "" : "s"
@@ -190,6 +187,12 @@ export function getEnrichmentSummary(company: Company) {
     } scanned`;
   }
 
+  if (company.enrichment?.noteHints.length) {
+    return `${company.enrichment.noteHints.length} structured note hint${
+      company.enrichment.noteHints.length === 1 ? "" : "s"
+    } parsed`;
+  }
+
   return "No enrichment run yet";
 }
 
@@ -203,6 +206,16 @@ export function getMissingFieldsLabel(company: Company) {
 
 export function getLastEnrichedLabel(company: Company) {
   if (!company.enrichment?.lastEnrichedAt) {
+    if (company.enrichment?.lastAttemptedAt) {
+      return `Last attempted ${new Date(company.enrichment.lastAttemptedAt).toLocaleDateString(
+        "en-US",
+        {
+          month: "short",
+          day: "numeric",
+        },
+      )}`;
+    }
+
     return "Not enriched yet";
   }
 
@@ -215,29 +228,129 @@ export function getLastEnrichedLabel(company: Company) {
   )}`;
 }
 
-export function deriveWorkflowState(bundle: CompanyBundle): WorkflowState {
-  if (
-    bundle.company.status === "disqualified" ||
-    bundle.company.disqualifierSignals.length > 0 ||
-    bundle.company.priorityTier === "tier_3"
-  ) {
-    return "blocked";
+export function getImportDateLabel(company: Company) {
+  return `Imported ${new Date(company.createdAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })}`;
+}
+
+export function getWebsiteDiscoveryLabel(company: Company) {
+  const discovery = company.enrichment?.websiteDiscovery;
+
+  if (!discovery) {
+    return hasWebsiteCandidate(company)
+      ? `Website on record: ${company.presence.websiteUrl ?? company.enrichment?.websiteDiscovery?.discoveredWebsite ?? "pending verification"}`
+      : "Website discovery not started";
   }
 
-  if (bundle.company.status === "new") {
-    return "needs_enrichment";
+  switch (discovery.status) {
+    case "record_provided":
+      return `Website on record: ${discovery.discoveredWebsite ?? company.presence.websiteUrl ?? "pending verification"}`;
+    case "discovered":
+      return `Discovered website: ${discovery.discoveredWebsite ?? "verification pending"}`;
+    case "not_found":
+      return "Discovery could not find a confident site";
+    case "failed":
+      return discovery.lastError
+        ? `Discovery failed: ${discovery.lastError}`
+        : "Discovery failed";
+    case "not_checked":
+    default:
+      return "Website discovery not started";
+  }
+}
+
+export function getNoteHintSummary(company: Company) {
+  const noteHints = company.enrichment?.noteHints ?? [];
+
+  if (noteHints.length === 0) {
+    return "No parsed note hints";
   }
 
-  if (
-    bundle.company.status === "enriched" ||
-    !bundle.primaryContact ||
-    !isContactCampaignEligible(bundle.primaryContact) ||
-    bundle.primaryContact.status === "candidate"
-  ) {
-    return "needs_review";
-  }
+  const contacts = noteHints.filter((hint) => hint.kind === "contact_name").length;
+  const emails = noteHints.filter((hint) => hint.kind === "email").length;
+  const phones = noteHints.filter((hint) => hint.kind === "phone").length;
+  const observations = noteHints.filter((hint) => hint.kind === "observation").length;
 
-  return "ready";
+  return [
+    contacts > 0 ? `${contacts} contact hint${contacts === 1 ? "" : "s"}` : undefined,
+    emails > 0 ? `${emails} email hint${emails === 1 ? "" : "s"}` : undefined,
+    phones > 0 ? `${phones} phone hint${phones === 1 ? "" : "s"}` : undefined,
+    observations > 0
+      ? `${observations} operator note${observations === 1 ? "" : "s"}`
+      : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" • ");
+}
+
+export function getSegmentLabel(company: Company) {
+  return company.enrichment?.segment?.label ?? "Segment pending";
+}
+
+export function getSegmentAngle(company: Company) {
+  return (
+    company.enrichment?.segment?.angle ??
+    "Angle will sharpen after discovery, enrichment, and operator review."
+  );
+}
+
+export function getOutreachAngleLabel(company: Company) {
+  return company.enrichment?.outreachAngle?.label ?? "Angle pending";
+}
+
+export function getOutreachAngleReason(company: Company) {
+  return (
+    company.enrichment?.outreachAngle?.shortReason ??
+    "Angle will sharpen after website discovery, enrichment, and operator review."
+  );
+}
+
+export function getOutreachAngleUrgencyBadge(company: Company): SelectorBadge {
+  switch (company.enrichment?.outreachAngle?.urgency) {
+    case "high":
+      return { label: "High urgency", tone: "warning" };
+    case "medium":
+      return { label: "Medium urgency", tone: "accent" };
+    case "low":
+      return { label: "Low urgency", tone: "muted" };
+    default:
+      return { label: "Urgency pending", tone: "muted" };
+  }
+}
+
+export function getOutreachAngleConfidenceBadge(company: Company): SelectorBadge {
+  switch (company.enrichment?.outreachAngle?.confidenceLevel) {
+    case "high":
+      return { label: "High angle confidence", tone: "success" };
+    case "medium":
+      return { label: "Medium angle confidence", tone: "accent" };
+    case "low":
+      return { label: "Low angle confidence", tone: "warning" };
+    case "none":
+    default:
+      return { label: "Angle confidence pending", tone: "muted" };
+  }
+}
+
+export function getOutreachAngleReviewPathBadge(company: Company): SelectorBadge {
+  switch (company.enrichment?.outreachAngle?.reviewPath) {
+    case "campaign_review":
+      return { label: "Campaign review", tone: "success" };
+    case "manual_review":
+      return { label: "Manual review", tone: "warning" };
+    default:
+      return { label: "Review path pending", tone: "muted" };
+  }
+}
+
+export function getOutreachAngleOfferId(company: Company) {
+  return company.enrichment?.outreachAngle?.recommendedFirstOfferId;
+}
+
+export function getSourceLabel(company: Company) {
+  return `${company.source.label ?? formatLabel(company.source.kind)} • ${formatLabel(company.source.provider)}`;
 }
 
 export function getWorkflowBadge(state: WorkflowState): SelectorBadge {
@@ -283,10 +396,6 @@ export function formatRoleLabel(contact: Contact) {
   return contact.title ?? formatLabel(contact.role);
 }
 
-export function isContactCampaignEligible(contact: Contact | undefined) {
-  return contact?.quality?.campaignEligible ?? contact?.outreachReady ?? false;
-}
-
 export function getContactQualityLabel(contact: Contact | undefined) {
   if (!contact) {
     return "Quality pending";
@@ -326,6 +435,10 @@ export function getContactCoverageLabel(bundle: CompanyBundle) {
       return "Role inbox detected • contact record pending";
     }
 
+    if (bundle.company.enrichment?.foundPhones[0] || bundle.company.presence.primaryPhone) {
+      return "Phone path detected • contact record pending";
+    }
+
     return "0 contacts";
   }
 
@@ -354,6 +467,10 @@ export function getDecisionMakerLabel(bundle: CompanyBundle) {
   if (!bundle.primaryContact) {
     if (bundle.company.enrichment?.foundEmails[0]) {
       return `${bundle.company.enrichment.foundEmails[0]} • role inbox`;
+    }
+
+    if (bundle.company.enrichment?.foundPhones[0] || bundle.company.presence.primaryPhone) {
+      return `${bundle.company.enrichment?.foundPhones[0] ?? bundle.company.presence.primaryPhone} • phone fallback`;
     }
 
     return "No likely decision-maker yet";
@@ -398,6 +515,51 @@ export function getPrimaryContactReadinessReason(bundle: CompanyBundle) {
   );
 }
 
+export function getWorkflowReason(bundle: CompanyBundle) {
+  const workflowState = deriveWorkflowState(bundle);
+
+  if (workflowState === "blocked") {
+    if (
+      bundle.company.status === "disqualified" ||
+      bundle.company.disqualifierSignals.length > 0
+    ) {
+      return (
+        bundle.company.disqualifierSignals[0] ??
+        "This lead is blocked by an explicit disqualifier signal."
+      );
+    }
+
+    return "Still blocked because no website, phone, or primary outreach path has been verified yet.";
+  }
+
+  if (workflowState === "needs_enrichment") {
+    if (!hasWebsiteCandidate(bundle.company)) {
+      return "Needs enrichment because no verified website is on record yet.";
+    }
+
+    return "Needs enrichment because the record still needs stronger public-web coverage.";
+  }
+
+  if (workflowState === "needs_review") {
+    if (!bundle.primaryContact) {
+      return "Needs review because a primary outreach contact has not been selected yet.";
+    }
+
+    if (!isContactCampaignEligible(bundle.primaryContact)) {
+      return (
+        bundle.primaryContact.quality?.warnings[0] ??
+        "Needs review because the best available contact path is still weak."
+      );
+    }
+
+    if (bundle.company.enrichment?.manualReviewRequired) {
+      return "Needs review because enrichment found a path forward, but operator verification is still recommended.";
+    }
+  }
+
+  return getPrimaryContactReadinessReason(bundle);
+}
+
 export function getCampaignStatusLabel(bundle: CompanyBundle) {
   if (bundle.activeCampaigns.length === 0) {
     return "No active campaign";
@@ -414,17 +576,33 @@ export function getRecommendedOfferName(bundle: CompanyBundle) {
 
 export function getSuggestedNextAction(bundle: CompanyBundle) {
   const workflowState = deriveWorkflowState(bundle);
+  const outreachAngle = bundle.company.enrichment?.outreachAngle;
 
-  if (workflowState === "blocked") {
+  if (
+    bundle.company.status === "disqualified" ||
+    bundle.company.disqualifierSignals.length > 0
+  ) {
     return "Suppress for now or revisit if better signals appear";
   }
 
+  if (workflowState === "blocked") {
+    return outreachAngle
+      ? `Manually verify the website, phone, or source record before using the ${outreachAngle.label.toLowerCase()} angle`
+      : "Manually verify the website, phone, or source record before campaign review";
+  }
+
   if (workflowState === "needs_enrichment") {
-    return "Run enrichment and source an initial decision-maker hypothesis";
+    return hasWebsiteCandidate(bundle.company)
+      ? outreachAngle
+        ? `Run enrichment and confirm the ${outreachAngle.label.toLowerCase()} angle from the public site`
+        : "Run enrichment and confirm the best outreach path from the public site"
+      : "Run website discovery, then enrich the company profile";
   }
 
   if (bundle.company.enrichment?.manualReviewRequired) {
-    return "Review the enrichment findings and verify the contact path";
+    return outreachAngle
+      ? `Review the ${outreachAngle.label.toLowerCase()} angle and verify the contact path`
+      : "Review the enrichment findings and verify the contact path";
   }
 
   if (bundle.company.status === "enriched") {
@@ -448,7 +626,9 @@ export function getSuggestedNextAction(bundle: CompanyBundle) {
   }
 
   if (bundle.company.status === "campaign_ready" && bundle.activeCampaigns.length === 0) {
-    return "Enroll into the best-fit campaign";
+    return outreachAngle
+      ? `Move into campaign review using the ${outreachAngle.label.toLowerCase()} angle`
+      : "Enroll into the best-fit campaign";
   }
 
   if (bundle.company.status === "qualified") {
@@ -456,59 +636,6 @@ export function getSuggestedNextAction(bundle: CompanyBundle) {
   }
 
   return "Monitor the account and keep progression visible";
-}
-
-function createSnapshotLookups(snapshot: SelectorDataSnapshot) {
-  return {
-    offerById: buildIdMap(snapshot.offers),
-    campaignById: buildIdMap(snapshot.campaigns),
-    appointmentById: buildIdMap(snapshot.appointments),
-  };
-}
-
-export function getCompanyBundle(
-  company: Company,
-  snapshot: SelectorDataSnapshot,
-  lookups = createSnapshotLookups(snapshot),
-): CompanyBundle {
-  const contacts = snapshot.contacts.filter((contact) => contact.companyId === company.id);
-  const rankedContacts = rankContactsForPrimarySelection(contacts, {
-    preferredContactId: company.primaryContactId,
-  });
-  const recommendedOffer = company.recommendedOfferIds
-    .map((offerId) => lookups.offerById.get(offerId))
-    .find(Boolean);
-  const activeCampaigns = company.activeCampaignIds
-    .map((campaignId) => lookups.campaignById.get(campaignId))
-    .filter((campaign): campaign is Campaign => Boolean(campaign));
-  const enrollments = snapshot.enrollments.filter(
-    (enrollment) => enrollment.companyId === company.id,
-  );
-  const latestReply = snapshot.replies
-    .filter((reply) => reply.companyId === company.id)
-    .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt))[0];
-  const appointments = company.appointmentIds
-    .map((appointmentId) => lookups.appointmentById.get(appointmentId))
-    .filter((appointment): appointment is Appointment => Boolean(appointment));
-
-  return {
-    company,
-    icpProfile: icpById.get(company.icpProfileId),
-    contacts: rankedContacts.map((selection) => selection.contact),
-    rankedContacts,
-    primaryContact: rankedContacts.find((selection) => selection.isPrimary)?.contact,
-    recommendedOffer,
-    activeCampaigns,
-    enrollments,
-    latestReply,
-    appointments,
-  };
-}
-
-export function listCompanyBundles(snapshot: SelectorDataSnapshot) {
-  const lookups = createSnapshotLookups(snapshot);
-
-  return snapshot.companies.map((company) => getCompanyBundle(company, snapshot, lookups));
 }
 
 export function matchesSearch(bundle: CompanyBundle, search: string) {
@@ -526,7 +653,15 @@ export function matchesSearch(bundle: CompanyBundle, search: string) {
     bundle.company.subindustry ?? "",
     getIcpLabel(bundle.company),
     bundle.company.presence.websiteUrl ?? "",
+    bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite ?? "",
     (bundle.company.notes ?? []).join(" "),
+    (bundle.company.enrichment?.noteHints ?? []).map((hint) => hint.value).join(" "),
+    bundle.company.enrichment?.segment?.label ?? "",
+    bundle.company.enrichment?.segment?.angle ?? "",
+    bundle.company.enrichment?.outreachAngle?.label ?? "",
+    bundle.company.enrichment?.outreachAngle?.shortReason ?? "",
+    (bundle.company.enrichment?.outreachAngle?.reasons ?? []).join(" "),
+    getSourceLabel(bundle.company),
     bundle.recommendedOffer?.name ?? "",
     bundle.primaryContact?.fullName ?? "",
     bundle.primaryContact?.title ?? "",

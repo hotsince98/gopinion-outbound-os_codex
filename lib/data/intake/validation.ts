@@ -98,9 +98,12 @@ export function normalizeLeadIntakeInput(
       | "website"
       | "industryKey"
       | "subindustry"
+      | "streetAddress"
       | "city"
       | "state"
+      | "postalCode"
       | "country"
+      | "phone"
       | "googleRating"
       | "reviewCount"
       | "primaryContactName"
@@ -117,9 +120,12 @@ export function normalizeLeadIntakeInput(
     website: trimToUndefined(values.website?.toString()),
     industryKey: "independent_used_car_dealer",
     subindustry: trimToUndefined(values.subindustry?.toString()),
+    streetAddress: trimToUndefined(values.streetAddress?.toString()),
     city: values.city?.toString().trim() ?? "",
     state: values.state?.toString().trim() ?? "",
+    postalCode: trimToUndefined(values.postalCode?.toString()),
     country: values.country?.toString().trim() || "US",
+    phone: trimToUndefined(values.phone?.toString()),
     googleRating: parseOptionalNumber(values.googleRating),
     reviewCount: parseOptionalNumber(values.reviewCount),
     primaryContactName: trimToUndefined(values.primaryContactName?.toString()),

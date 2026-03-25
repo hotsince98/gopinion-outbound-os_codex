@@ -9,7 +9,9 @@ import type {
   CompanyId,
   Contact,
   ContactId,
+  Enrollment,
   EnrollmentId,
+  EnrollmentState,
   PriorityTier,
   Reply,
   ReplyClassification,
@@ -20,6 +22,7 @@ import type {
   CampaignRepository,
   CompanyRepository,
   ContactRepository,
+  EnrollmentRepository,
   ReplyRepository,
 } from "@/lib/data/core/contracts";
 import {
@@ -29,6 +32,8 @@ import {
   mapCompanyRowToDomain,
   mapContactDomainToRow,
   mapContactRowToDomain,
+  mapEnrollmentDomainToRow,
+  mapEnrollmentRowToDomain,
   mapReplyRowToDomain,
 } from "@/lib/data/postgres/mappers";
 import type {
@@ -233,6 +238,39 @@ class SupabaseReplyRepository
   }
 }
 
+class SupabaseEnrollmentRepository
+  extends SupabaseTableRepository<"enrollments", Enrollment, EnrollmentId>
+  implements EnrollmentRepository
+{
+  constructor(client: SupabaseClient) {
+    super(client, "enrollments", mapEnrollmentRowToDomain);
+  }
+
+  create(enrollment: Enrollment): Promise<Enrollment> {
+    return this.insertRow(mapEnrollmentDomainToRow(enrollment));
+  }
+
+  update(enrollment: Enrollment): Promise<Enrollment> {
+    return this.updateRow(enrollment.id, mapEnrollmentDomainToRow(enrollment));
+  }
+
+  listByCompanyId(companyId: CompanyId): Promise<Enrollment[]> {
+    return this.listWhere("company_id", companyId);
+  }
+
+  listByCampaignId(campaignId: CampaignId): Promise<Enrollment[]> {
+    return this.listWhere("campaign_id", campaignId);
+  }
+
+  listBySequenceId(sequenceId: Enrollment["sequenceId"]): Promise<Enrollment[]> {
+    return this.listWhere("sequence_id", sequenceId);
+  }
+
+  listByState(state: EnrollmentState): Promise<Enrollment[]> {
+    return this.listWhere("state", state);
+  }
+}
+
 class SupabaseAppointmentRepository
   extends SupabaseTableRepository<"appointments", Appointment, AppointmentId>
   implements AppointmentRepository
@@ -268,6 +306,12 @@ export function createPostgresReplyRepository(
   client: SupabaseClient,
 ): ReplyRepository {
   return new SupabaseReplyRepository(client);
+}
+
+export function createPostgresEnrollmentRepository(
+  client: SupabaseClient,
+): EnrollmentRepository {
+  return new SupabaseEnrollmentRepository(client);
 }
 
 export function createPostgresAppointmentRepository(

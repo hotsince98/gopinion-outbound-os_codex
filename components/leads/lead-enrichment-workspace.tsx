@@ -2,17 +2,16 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
+import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
 import { runLeadEnrichmentAction } from "@/app/(workspace)/leads/enrichment/actions";
 import { initialLeadEnrichmentActionState } from "@/app/(workspace)/leads/enrichment/action-state";
 import { StatusBadge } from "@/components/ui/status-badge";
-import type {
-  LeadEnrichmentWorkspaceView,
-} from "@/lib/data/selectors/lead-enrichment";
+import type { LeadEnrichmentWorkspaceView } from "@/lib/data/selectors/lead-enrichment";
 
 function ResultTone({
   status,
 }: Readonly<{
-  status: "ready" | "needs_review" | "needs_enrichment" | "failed";
+  status: "ready" | "needs_review" | "needs_enrichment" | "blocked" | "failed";
 }>) {
   switch (status) {
     case "ready":
@@ -21,6 +20,8 @@ function ResultTone({
       return <StatusBadge label="Needs review" tone="accent" />;
     case "needs_enrichment":
       return <StatusBadge label="Needs enrichment" tone="warning" />;
+    case "blocked":
+      return <StatusBadge label="Still blocked" tone="danger" />;
     case "failed":
       return <StatusBadge label="Failed" tone="danger" />;
   }
@@ -98,7 +99,7 @@ export function LeadEnrichmentWorkspace({
         >
           <p className="text-sm font-medium text-copy">{state.message}</p>
           {state.summary ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <div className="mt-4 grid gap-3 md:grid-cols-5">
               <div className="surface-muted p-4">
                 <p className="micro-label">Ready</p>
                 <p className="mt-2 text-2xl font-semibold text-copy">
@@ -112,9 +113,15 @@ export function LeadEnrichmentWorkspace({
                 </p>
               </div>
               <div className="surface-muted p-4">
-                <p className="micro-label">Still blocked</p>
+                <p className="micro-label">Needs enrichment</p>
                 <p className="mt-2 text-2xl font-semibold text-copy">
                   {state.summary.stillNeedsEnrichmentCount}
+                </p>
+              </div>
+              <div className="surface-muted p-4">
+                <p className="micro-label">Still blocked</p>
+                <p className="mt-2 text-2xl font-semibold text-copy">
+                  {state.summary.blockedCount}
                 </p>
               </div>
               <div className="surface-muted p-4">
@@ -142,6 +149,32 @@ export function LeadEnrichmentWorkspace({
                     {result.primaryContactLabel ?? "No contact path yet"} •{" "}
                     {result.confidenceLevel} confidence
                   </p>
+                  {result.websiteDiscoverySummary ? (
+                    <p className="mt-2 text-sm text-muted">
+                      {result.websiteDiscoverySummary}
+                    </p>
+                  ) : null}
+                  {result.noteHintSummary ? (
+                    <p className="mt-2 text-sm text-muted">
+                      {result.noteHintSummary}
+                    </p>
+                  ) : null}
+                  {result.segmentLabel ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Segment: {result.segmentLabel}
+                    </p>
+                  ) : null}
+                  {result.angleLabel ? (
+                    <p className="mt-2 text-sm text-copy">
+                      Angle: {result.angleLabel}
+                      {result.angleReason ? ` • ${result.angleReason}` : ""}
+                    </p>
+                  ) : null}
+                  {result.angleReviewPath ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Review path: {result.angleReviewPath.replaceAll("_", " ")}
+                    </p>
+                  ) : null}
                   {result.primaryContactSource ? (
                     <p className="mt-2 text-sm text-muted">
                       Source: {result.primaryContactSource}
@@ -174,9 +207,9 @@ export function LeadEnrichmentWorkspace({
             <div className="space-y-2">
               <p className="micro-label">Bulk enrichment</p>
               <p className="text-sm leading-6 text-muted">
-                Scan company websites for emails, phones, contact clues, and
-                category signals. A role inbox can still move a lead toward
-                campaign readiness, even before a named person is verified.
+                Run website discovery when a lead has no site on record, parse
+                imported notes into structured hints, then scan the company’s
+                public web presence for emails, phones, and operator clues.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -217,10 +250,9 @@ export function LeadEnrichmentWorkspace({
                   </th>
                   {[
                     "Company",
-                    "Website",
-                    "Confidence",
-                    "Missing",
-                    "Coverage",
+                    "Website / discovery",
+                    "Angle / evidence",
+                    "Contact path",
                     "Action",
                   ].map((column) => (
                     <th
@@ -256,11 +288,17 @@ export function LeadEnrichmentWorkspace({
                           >
                             {row.companyName}
                           </Link>
+                          <StatusBadge
+                            label={row.readinessBadge.label}
+                            tone={row.readinessBadge.tone}
+                          />
                         </div>
                         <p className="text-sm text-muted">
                           {row.market} • {row.subindustry}
                         </p>
-                        <p className="text-sm text-muted">{row.lastEnrichedLabel}</p>
+                        <p className="text-xs uppercase tracking-[0.18em] text-muted">
+                          {row.importedLabel} • {row.lastEnrichedLabel}
+                        </p>
                       </div>
                     </td>
                     <td className="px-4 py-4 align-top">
@@ -268,32 +306,44 @@ export function LeadEnrichmentWorkspace({
                         <p className="text-sm text-copy">
                           {row.website ?? "No website on record"}
                         </p>
+                        <p className="text-sm text-muted">{row.websiteDiscovery}</p>
+                        <StatusBadge
+                          label={row.confidenceBadge.label}
+                          tone={row.confidenceBadge.tone}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 align-top">
+                      <div className="space-y-2">
+                        <p className="text-sm text-copy">{row.angleLabel}</p>
+                        <p className="text-sm text-muted">{row.angleReason}</p>
+                        <p className="text-sm text-copy">
+                          First offer: {row.recommendedOffer}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <StatusBadge
+                            label={row.angleUrgencyBadge.label}
+                            tone={row.angleUrgencyBadge.tone}
+                          />
+                          <StatusBadge
+                            label={row.angleConfidenceBadge.label}
+                            tone={row.angleConfidenceBadge.tone}
+                          />
+                          <StatusBadge
+                            label={row.angleReviewPathBadge.label}
+                            tone={row.angleReviewPathBadge.tone}
+                          />
+                        </div>
+                        <p className="text-sm text-muted">{row.segmentLabel}</p>
+                        <p className="text-sm text-muted">{row.noteHintSummary}</p>
                         <p className="text-sm text-muted">{row.enrichmentSummary}</p>
                       </div>
                     </td>
                     <td className="px-4 py-4 align-top">
                       <div className="space-y-2">
-                        <StatusBadge
-                          label={row.confidenceBadge.label}
-                          tone={row.confidenceBadge.tone}
-                        />
-                        <StatusBadge
-                          label={row.readinessBadge.label}
-                          tone={row.readinessBadge.tone}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <p className="text-sm leading-6 text-muted">
-                        {row.missingFieldsLabel}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="space-y-1">
                         <p className="text-sm text-copy">{row.decisionMaker}</p>
                         <p className="text-sm text-muted">{row.contactCoverage}</p>
                         <p className="text-sm text-muted">{row.primaryContactSource}</p>
-                        <p className="text-sm text-copy">{row.readinessReason}</p>
                         {row.primaryContactWarnings[0] ? (
                           <p className="text-sm text-warning">
                             {row.primaryContactWarnings[0]}
@@ -302,15 +352,35 @@ export function LeadEnrichmentWorkspace({
                       </div>
                     </td>
                     <td className="px-4 py-4 align-top">
-                      <button
-                        type="submit"
-                        name="singleCompanyId"
-                        value={row.companyId}
-                        disabled={isPending}
-                        className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Enrich now
-                      </button>
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          <StatusBadge
+                            label={row.recommendedCampaignStatusBadge.label}
+                            tone={row.recommendedCampaignStatusBadge.tone}
+                          />
+                          <StatusBadge
+                            label={row.assignmentDecisionBadge.label}
+                            tone={row.assignmentDecisionBadge.tone}
+                          />
+                        </div>
+                        <p className="text-sm text-copy">
+                          {row.recommendedCampaignName}
+                        </p>
+                        <p className="text-sm text-copy">{row.readinessReason}</p>
+                        <p className="text-sm text-muted">
+                          {row.assignmentDecisionReason}
+                        </p>
+                        <p className="text-sm text-muted">{row.missingFieldsLabel}</p>
+                        <button
+                          type="submit"
+                          name="singleCompanyId"
+                          value={row.companyId}
+                          disabled={isPending}
+                          className="rounded-full border border-warning/30 bg-warning/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-warning/50 hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Enrich this lead
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -319,6 +389,12 @@ export function LeadEnrichmentWorkspace({
           </div>
         </div>
       </form>
+
+      <CampaignEnrollmentPanel
+        title="Campaign assignment and enrollment"
+        description="Once enrichment sharpens the angle and contact path, move leads into the best-fit campaign, enroll the strong ones now, and push weaker paths into review instead of forcing them into outreach."
+        panel={view.campaignAssignment}
+      />
     </div>
   );
 }

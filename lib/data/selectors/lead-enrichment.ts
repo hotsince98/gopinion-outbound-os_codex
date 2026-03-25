@@ -1,3 +1,4 @@
+import { buildCampaignAssignmentPanelView } from "@/lib/data/selectors/campaign-assignment";
 import {
   deriveWorkflowState,
   getContactCoverageLabel,
@@ -6,11 +7,22 @@ import {
   getDecisionMakerLabel,
   getEnrichmentConfidenceBadge,
   getEnrichmentSummary,
+  getImportDateLabel,
   getIndustryLabel,
   getLastEnrichedLabel,
   getMissingFieldsLabel,
-  getPrimaryContactReadinessReason,
+  getNoteHintSummary,
+  getOutreachAngleConfidenceBadge,
+  getOutreachAngleLabel,
+  getOutreachAngleReason,
+  getOutreachAngleReviewPathBadge,
+  getOutreachAngleUrgencyBadge,
+  getRecommendedOfferName,
+  getSegmentLabel,
+  getWebsiteDiscoveryLabel,
   getWorkflowBadge,
+  getWorkflowReason,
+  hasWebsiteCandidate,
   listCompanyBundles,
   type SelectorBadge,
   type WorkspaceStat,
@@ -22,7 +34,18 @@ export interface LeadEnrichmentQueueRowView {
   companyName: string;
   market: string;
   website?: string;
+  websiteDiscovery: string;
+  noteHintSummary: string;
+  importedLabel: string;
+  lastEnrichedLabel: string;
   subindustry: string;
+  angleLabel: string;
+  angleReason: string;
+  angleUrgencyBadge: SelectorBadge;
+  angleConfidenceBadge: SelectorBadge;
+  angleReviewPathBadge: SelectorBadge;
+  segmentLabel: string;
+  recommendedOffer: string;
   confidenceBadge: SelectorBadge;
   enrichmentSummary: string;
   missingFieldsLabel: string;
@@ -32,11 +55,15 @@ export interface LeadEnrichmentQueueRowView {
   primaryContactWarnings: string[];
   readinessBadge: SelectorBadge;
   readinessReason: string;
-  lastEnrichedLabel: string;
+  recommendedCampaignName: string;
+  recommendedCampaignStatusBadge: SelectorBadge;
+  assignmentDecisionBadge: SelectorBadge;
+  assignmentDecisionReason: string;
 }
 
 export interface LeadEnrichmentWorkspaceView {
   stats: WorkspaceStat[];
+  campaignAssignment: ReturnType<typeof buildCampaignAssignmentPanelView>;
   rows: LeadEnrichmentQueueRowView[];
   emptyState: {
     title: string;
@@ -50,62 +77,104 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
     .filter((bundle) => {
       const workflowState = deriveWorkflowState(bundle);
 
-      return workflowState === "needs_enrichment" || workflowState === "needs_review";
+      return (
+        workflowState === "needs_enrichment" ||
+        workflowState === "needs_review" ||
+        workflowState === "blocked"
+      );
     })
     .sort((left, right) => right.company.createdAt.localeCompare(left.company.createdAt));
+  const campaignAssignment = buildCampaignAssignmentPanelView({
+    bundles: rows,
+    snapshot,
+  });
+  const assignmentByCompanyId = new Map(
+    campaignAssignment.rows.map((row) => [row.companyId, row] as const),
+  );
 
   return {
     stats: [
       {
         label: "Open queue",
         value: String(rows.length),
-        detail: "Companies still blocked on public web research or contact-path review.",
+        detail: "Companies still waiting on website discovery, enrichment review, or a minimum usable contact path.",
         tone: "warning",
       },
       {
-        label: "Website available",
-        value: String(rows.filter((bundle) => bundle.company.presence.websiteUrl).length),
-        detail: "Records with a website the enrichment runner can inspect directly.",
+        label: "Website candidate",
+        value: String(rows.filter((bundle) => hasWebsiteCandidate(bundle.company)).length),
+        detail: "Records with a discovered or recorded website that the queue can work from.",
         tone: "positive",
       },
       {
-        label: "Contact path found",
+        label: "Parsed note hints",
         value: String(
-          rows.filter((bundle) => bundle.company.enrichment?.foundEmails.length).length,
+          rows.filter((bundle) => (bundle.company.enrichment?.noteHints ?? []).length > 0)
+            .length,
         ),
-        detail: "Queue records where a usable email path is already visible from prior runs.",
+        detail: "Leads where imported notes already surfaced structured hints for enrichment.",
         tone: "neutral",
       },
       {
-        label: "Manual review flagged",
+        label: "Still blocked",
         value: String(
-          rows.filter((bundle) => bundle.company.enrichment?.manualReviewRequired).length,
+          rows.filter((bundle) => deriveWorkflowState(bundle) === "blocked").length,
         ),
-        detail: "Accounts that still need operator judgment after website enrichment.",
+        detail: "Records that still lack a verified website, phone, or usable primary contact path.",
         tone: "warning",
       },
     ],
-    rows: rows.map((bundle) => ({
-      companyId: bundle.company.id,
-      companyName: bundle.company.name,
-      market: `${bundle.company.location.city}, ${bundle.company.location.state}`,
-      website: bundle.company.presence.websiteUrl,
-      subindustry: getIndustryLabel(bundle.company),
-      confidenceBadge: getEnrichmentConfidenceBadge(bundle.company),
-      enrichmentSummary: getEnrichmentSummary(bundle.company),
-      missingFieldsLabel: getMissingFieldsLabel(bundle.company),
-      contactCoverage: getContactCoverageLabel(bundle),
-      decisionMaker: getDecisionMakerLabel(bundle),
-      primaryContactSource: getContactSourceLabel(bundle.primaryContact),
-      primaryContactWarnings: getContactWarnings(bundle.primaryContact),
-      readinessBadge: getWorkflowBadge(deriveWorkflowState(bundle)),
-      readinessReason: getPrimaryContactReadinessReason(bundle),
-      lastEnrichedLabel: getLastEnrichedLabel(bundle.company),
-    })),
+    campaignAssignment,
+    rows: rows.map((bundle) => {
+      const assignment = assignmentByCompanyId.get(bundle.company.id);
+
+      return {
+        companyId: bundle.company.id,
+        companyName: bundle.company.name,
+        market: `${bundle.company.location.city}, ${bundle.company.location.state}`,
+        website:
+          bundle.company.presence.websiteUrl ??
+          bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite,
+        websiteDiscovery: getWebsiteDiscoveryLabel(bundle.company),
+        noteHintSummary: getNoteHintSummary(bundle.company),
+        importedLabel: getImportDateLabel(bundle.company),
+        lastEnrichedLabel: getLastEnrichedLabel(bundle.company),
+        subindustry: getIndustryLabel(bundle.company),
+        angleLabel: getOutreachAngleLabel(bundle.company),
+        angleReason: getOutreachAngleReason(bundle.company),
+        angleUrgencyBadge: getOutreachAngleUrgencyBadge(bundle.company),
+        angleConfidenceBadge: getOutreachAngleConfidenceBadge(bundle.company),
+        angleReviewPathBadge: getOutreachAngleReviewPathBadge(bundle.company),
+        segmentLabel: getSegmentLabel(bundle.company),
+        recommendedOffer: getRecommendedOfferName(bundle),
+        confidenceBadge: getEnrichmentConfidenceBadge(bundle.company),
+        enrichmentSummary: getEnrichmentSummary(bundle.company),
+        missingFieldsLabel: getMissingFieldsLabel(bundle.company),
+        contactCoverage: getContactCoverageLabel(bundle),
+        decisionMaker: getDecisionMakerLabel(bundle),
+        primaryContactSource: getContactSourceLabel(bundle.primaryContact),
+        primaryContactWarnings: getContactWarnings(bundle.primaryContact),
+        readinessBadge: getWorkflowBadge(deriveWorkflowState(bundle)),
+        readinessReason: getWorkflowReason(bundle),
+        recommendedCampaignName:
+          assignment?.recommendedCampaignName ?? "Campaign pending",
+        recommendedCampaignStatusBadge:
+          assignment?.recommendedCampaignStatusBadge ?? {
+            label: "Campaign pending",
+            tone: "muted",
+          },
+        assignmentDecisionBadge: assignment?.decisionBadge ?? {
+          label: "Review first",
+          tone: "muted",
+        },
+        assignmentDecisionReason:
+          assignment?.decisionReason ?? "Campaign assignment guidance is pending.",
+      };
+    }),
     emptyState: {
       title: "The enrichment queue is clear",
       description:
-        "No companies currently need website enrichment. Import more leads or reopen records that still need research.",
+        "No companies currently need website discovery, enrichment, or review. Import more leads or reopen records that still need operator attention.",
     },
   };
 }

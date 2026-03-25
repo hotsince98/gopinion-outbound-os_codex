@@ -61,13 +61,15 @@ The app can now run in either mode:
     - `Company`
     - `Contact`
     - `Campaign`
+    - `Enrollment`
     - `Reply`
     - `Appointment`
   - Live lead intake now writes new companies and contacts through that same repository boundary
+  - Campaign assignment now writes campaign attachment updates back to `Company.activeCampaignIds`
+  - Campaign enrollment now persists new `Enrollment` rows through the same repository boundary
   - Mock/config-backed repositories still power:
     - `Offer`
     - `Sequence`
-    - `Enrollment`
     - `Experiment`
     - `Insight`
     - `MemoryEntry`
@@ -109,6 +111,9 @@ The first seed path reuses the existing typed mock store:
 - `campaigns`
 - `replies`
 - `appointments`
+
+`enrollments` are intentionally not seeded in this first pass.
+They are now created by the live campaign assignment and enrollment workflow so operator actions become the source of truth for sequence state.
 
 The seed runner uses `upsert` on `id`, so it is additive and repeatable.
 It does not wipe tables or silently reset anything.
@@ -203,13 +208,39 @@ When `DATA_BACKEND=postgres`:
 - If the supported tables are empty, selectors/pages return empty collections and zero-valued summaries for those entities.
 - The app does not silently swap those persisted entities back to mock records.
 
+## Campaign Assignment And Enrollment
+
+### New persistence coverage
+
+The first bridge from enriched lead to live campaign workflow now writes through Postgres for:
+
+- `Company.activeCampaignIds`
+- `Enrollment`
+
+Operators can now:
+
+- assign leads into a campaign even when they still require review before enrollment
+- enroll directly when the primary contact path is strong enough
+- keep blocked leads out of enrollment while still seeing why they were rejected
+
+### Enrollment table
+
+Migration:
+
+- `db/migrations/20260325_005_enrollments_and_campaign_assignment.sql`
+
+Notes:
+
+- `sequence_id` and `offer_id` stay as text references for now because `Sequence` and `Offer` remain config/mock-backed in this tranche
+- `company_id`, `contact_id`, and `campaign_id` are real foreign-key-backed references
+- the assignment service avoids duplicate non-terminal enrollments for the same company, contact, and campaign combination
+
 ### Intentional hybrid behavior
 
 The following entities still come from mock/config in Postgres mode by design:
 
 - `Offer`
 - `Sequence`
-- `Enrollment`
 - `Experiment`
 - `Insight`
 - `MemoryEntry`

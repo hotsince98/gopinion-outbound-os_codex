@@ -6,6 +6,7 @@ import type {
   ContactId,
 } from "@/lib/domain/shared";
 import type { ContactQualityTier } from "@/lib/domain/contact";
+import type { CompanyOutreachAngleSnapshot } from "@/lib/domain/company";
 
 export const leadEnrichmentQueueStates = [
   "ready",
@@ -27,6 +28,7 @@ export const leadEnrichmentResultStatuses = [
   "ready",
   "needs_review",
   "needs_enrichment",
+  "blocked",
   "failed",
 ] as const;
 export type LeadEnrichmentResultStatus =
@@ -42,6 +44,21 @@ export interface LeadEnrichmentRecordResult {
   foundEmails: string[];
   foundPhones: string[];
   pagesChecked: string[];
+  website?: string;
+  websiteDiscoveryStatus?: NonNullable<
+    CompanyEnrichmentSnapshot["websiteDiscovery"]
+  >["status"];
+  websiteDiscoverySummary?: string;
+  noteHintSummary?: string;
+  segmentLabel?: string;
+  angleLabel?: string;
+  angleReason?: string;
+  angleUrgency?: CompanyOutreachAngleSnapshot["urgency"];
+  angleConfidenceLevel?: CompanyOutreachAngleSnapshot["confidenceLevel"];
+  angleReviewPath?: CompanyOutreachAngleSnapshot["reviewPath"];
+  recommendedFirstOfferId?: CompanyOutreachAngleSnapshot["recommendedFirstOfferId"];
+  importedAt?: string;
+  lastEnrichedAt?: string;
   primaryContactId?: ContactId;
   primaryContactLabel?: string;
   primaryContactSource?: string;
@@ -58,5 +75,6 @@ export interface LeadEnrichmentRunSummary {
   readyCount: number;
   needsReviewCount: number;
   stillNeedsEnrichmentCount: number;
+  blockedCount: number;
   results: LeadEnrichmentRecordResult[];
 }

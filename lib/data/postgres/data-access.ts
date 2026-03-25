@@ -10,6 +10,7 @@ import {
   createPostgresCampaignRepository,
   createPostgresCompanyRepository,
   createPostgresContactRepository,
+  createPostgresEnrollmentRepository,
   createPostgresReplyRepository,
 } from "@/lib/data/postgres/repositories";
 
@@ -28,7 +29,7 @@ export function createPostgresDataAccess(
     offers: mockFallback.offers,
     campaigns: createPostgresCampaignRepository(client),
     sequences: mockFallback.sequences,
-    enrollments: mockFallback.enrollments,
+    enrollments: createPostgresEnrollmentRepository(client),
     replies: createPostgresReplyRepository(client),
     appointments: createPostgresAppointmentRepository(client),
     experiments: mockFallback.experiments,

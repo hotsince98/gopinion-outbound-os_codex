@@ -14,3 +14,4 @@ export * from "@/lib/domain/icp";
 export * from "@/lib/domain/settings";
 export * from "@/lib/domain/lead-intake";
 export * from "@/lib/domain/lead-enrichment";
+export * from "@/lib/domain/campaign-enrollment";

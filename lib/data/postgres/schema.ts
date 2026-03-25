@@ -8,6 +8,7 @@ import type {
   Contact,
   ContactQualitySnapshot,
   ConfidenceIndicator,
+  Enrollment,
   NumericRange,
   Reply,
   SourceReference,
@@ -99,6 +100,25 @@ export interface ReplyRow {
   updated_at: string;
 }
 
+export interface EnrollmentRow {
+  id: Enrollment["id"];
+  company_id: Enrollment["companyId"];
+  contact_id: Enrollment["contactId"];
+  campaign_id: Enrollment["campaignId"];
+  sequence_id: Enrollment["sequenceId"];
+  offer_id: Enrollment["offerId"];
+  priority_tier: Enrollment["priorityTier"];
+  state: Enrollment["state"];
+  current_step_index: number;
+  entered_sequence_at: string;
+  next_action_at: string | null;
+  last_contacted_at: string | null;
+  last_reply_id: Enrollment["lastReplyId"] | null;
+  appointment_id: Enrollment["appointmentId"] | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AppointmentRow {
   id: Appointment["id"];
   company_id: Appointment["companyId"];
@@ -127,6 +147,9 @@ export interface Database {
       };
       campaigns: {
         Row: CampaignRow;
+      };
+      enrollments: {
+        Row: EnrollmentRow;
       };
       replies: {
         Row: ReplyRow;

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
 import { DetailList } from "@/components/ui/detail-list";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPanel } from "@/components/ui/filter-panel";
@@ -43,15 +44,23 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         {row.reviewSnapshot}
       </span>,
       <div key={`${row.companyId}-fit`} className="space-y-2">
-        <StatusBadge
-          label={row.priorityBadge.label}
-          tone={row.priorityBadge.tone}
-        />
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge
+            label={row.priorityBadge.label}
+            tone={row.priorityBadge.tone}
+          />
+          <StatusBadge
+            label={row.angleUrgencyBadge.label}
+            tone={row.angleUrgencyBadge.tone}
+          />
+        </div>
         <p className="text-sm text-muted">{row.fitScore}</p>
       </div>,
-      <span key={`${row.companyId}-offer`} className="text-sm text-copy">
-        {row.recommendedOffer}
-      </span>,
+      <div key={`${row.companyId}-offer`} className="space-y-1">
+        <p className="text-sm text-copy">{row.recommendedOffer}</p>
+        <p className="text-sm text-copy">{row.angleLabel}</p>
+        <p className="text-sm text-muted">{row.angleReason}</p>
+      </div>,
       <div key={`${row.companyId}-contact`} className="space-y-1">
         <p className="text-sm text-copy">{row.contactCoverage}</p>
         <p className="text-xs uppercase tracking-[0.18em] text-muted">
@@ -242,6 +251,33 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
               <DetailList items={view.selectedCompany.reputation} />
 
               <div className="surface-muted p-4">
+                <p className="micro-label">Recommended angle</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <StatusBadge
+                    label={view.selectedCompany.outreachAngle.urgencyBadge.label}
+                    tone={view.selectedCompany.outreachAngle.urgencyBadge.tone}
+                  />
+                  <StatusBadge
+                    label={view.selectedCompany.outreachAngle.confidenceBadge.label}
+                    tone={view.selectedCompany.outreachAngle.confidenceBadge.tone}
+                  />
+                  <StatusBadge
+                    label={view.selectedCompany.outreachAngle.reviewPathBadge.label}
+                    tone={view.selectedCompany.outreachAngle.reviewPathBadge.tone}
+                  />
+                </div>
+                <p className="mt-3 text-base font-medium text-copy">
+                  {view.selectedCompany.outreachAngle.label}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-copy">
+                  {view.selectedCompany.outreachAngle.reason}
+                </p>
+                <p className="mt-3 text-sm leading-6 text-muted">
+                  Segment lens: {view.selectedCompany.outreachAngle.segmentLabel}
+                </p>
+              </div>
+
+              <div className="surface-muted p-4">
                 <p className="micro-label">Recommended offer</p>
                 <p className="mt-3 text-base font-medium text-copy">
                   {view.selectedCompany.recommendedOffer.name}
@@ -255,6 +291,15 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 <p className="mt-3 text-sm leading-6 text-muted">
                   {view.selectedCompany.recommendedOffer.cta}
                 </p>
+              </div>
+
+              <div className="surface-muted p-4">
+                <CampaignEnrollmentPanel
+                  title="Campaign assignment"
+                  description="Use the selected company profile to assign the best-fit campaign, enroll when the contact path is strong enough, or route it to review when the angle is strong but the path still needs operator judgment."
+                  panel={view.selectedCompany.campaignAssignment}
+                  autoSelectSingle
+                />
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">

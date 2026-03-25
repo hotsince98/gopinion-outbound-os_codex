@@ -1,16 +1,23 @@
 import { getDataAccess } from "@/lib/data/access";
 import {
+  classifyCompanyOutreachAngle,
+  prioritizeRecommendedOfferIds,
+} from "@/lib/data/company/outreach-angle";
+import { classifyCompanySegment } from "@/lib/data/company/segment";
+import {
   applyPrimaryContactSelection,
   assessContactPath,
   buildContactQualitySnapshot,
   getCompanyHost,
 } from "@/lib/data/contacts/quality";
 import { initialIcpProfiles } from "@/lib/data/config/icp";
-import { initialOffers } from "@/lib/data/config/offers";
+import { buildRecordProvidedDiscoverySnapshot } from "@/lib/data/enrichment/discovery";
+import { parseImportedNoteArtifacts } from "@/lib/data/intake/notes";
 import { priorityTierDefinitions, scoringBuckets } from "@/lib/data/config/priority-tiers";
 import type {
   Company,
   Contact,
+  CompanyEnrichmentSnapshot,
   LeadCreationResult,
   LeadDuplicateCheck,
   LeadImportSummary,
@@ -44,7 +51,6 @@ const secondaryIcpProfile =
   initialIcpProfiles.find(
     (profile) => profile.id === "icp_secondary_used_car_dealer",
   ) ?? initialIcpProfiles[0];
-const frontDoorOffer = initialOffers.find((offer) => offer.isPrimaryFrontDoor);
 
 function createEntityId(prefix: "company" | "contact") {
   return `${prefix}_${crypto.randomUUID().replaceAll("-", "").slice(0, 12)}` as
@@ -54,6 +60,12 @@ function createEntityId(prefix: "company" | "contact") {
 
 function clampScore(score: number) {
   return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function dedupeStrings(values: Array<string | undefined>) {
+  return Array.from(
+    new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))),
+  );
 }
 
 function getScoreBucket(score: number) {
@@ -136,6 +148,8 @@ function deriveIcpProfileId(
 function buildPainSignals(
   input: LeadIntakeInput,
   normalizedWebsite: string | undefined,
+  segmentLabel?: string,
+  angleLabel?: string,
 ) {
   const painSignals: string[] = [];
 
@@ -151,17 +165,38 @@ function buildPainSignals(
     painSignals.push("Review volume is still relatively light");
   }
 
+  if (
+    input.googleRating != null &&
+    input.reviewCount != null &&
+    input.googleRating >= 4.4 &&
+    input.reviewCount >= 60
+  ) {
+    painSignals.push(
+      "Strong review profile suggests an optimization or control angle rather than basic rescue",
+    );
+  }
+
+  if (segmentLabel) {
+    painSignals.push(`Initial segment: ${segmentLabel}`);
+  }
+
+  if (angleLabel) {
+    painSignals.push(`Initial outreach angle: ${angleLabel}`);
+  }
+
   if (painSignals.length === 0) {
     painSignals.push("New lead intake still needs enrichment and qualification");
   }
 
-  return painSignals;
+  return dedupeStrings(painSignals);
 }
 
 function buildScoringReasons(
   input: LeadIntakeInput,
   normalizedWebsite: string | undefined,
   fitScore: number,
+  segmentLabel?: string,
+  angleLabel?: string,
 ) {
   const reasons = [
     normalizedWebsite
@@ -176,6 +211,13 @@ function buildScoringReasons(
   ];
 
   reasons.push(`Initial intake fit score set to ${fitScore}`);
+  if (segmentLabel) {
+    reasons.push(`Initial segment assigned: ${segmentLabel}`);
+  }
+
+  if (angleLabel) {
+    reasons.push(`Initial outreach angle assigned: ${angleLabel}`);
+  }
 
   return reasons;
 }
@@ -193,13 +235,45 @@ function buildSourceReference(input: LeadIntakeInput, now: string) {
 function buildCompanyRecord(
   input: LeadIntakeInput,
   primaryContactId: Company["primaryContactId"],
+  enrichment: CompanyEnrichmentSnapshot,
 ): Company {
   const now = new Date().toISOString();
-  const normalizedWebsite = normalizeWebsiteUrl(input.website);
+  const normalizedWebsite =
+    normalizeWebsiteUrl(input.website) ??
+    enrichment.websiteDiscovery?.discoveredWebsite;
   const fitScore = calculateInitialFitScore(input, normalizedWebsite);
   const scoringBucket = getScoreBucket(fitScore);
   const priorityTier = getPriorityTier(fitScore);
   const icpProfileId = deriveIcpProfileId(input, normalizedWebsite, fitScore);
+  const segment = classifyCompanySegment({
+    presence: {
+      hasWebsite: Boolean(normalizedWebsite),
+      websiteUrl: normalizedWebsite,
+      primaryPhone: input.phone,
+      hasClaimedGoogleBusinessProfile:
+        input.googleRating != null || input.reviewCount != null,
+      googleRating: input.googleRating,
+      reviewCount: input.reviewCount,
+      reviewResponseBand: "none",
+    },
+    softwareToolCountEstimate: undefined,
+    now,
+  });
+  const outreachAngle = classifyCompanyOutreachAngle({
+    presence: {
+      hasWebsite: Boolean(normalizedWebsite),
+      websiteUrl: normalizedWebsite,
+      primaryPhone: input.phone,
+      hasClaimedGoogleBusinessProfile:
+        input.googleRating != null || input.reviewCount != null,
+      googleRating: input.googleRating,
+      reviewCount: input.reviewCount,
+      reviewResponseBand: "none",
+    },
+    segment,
+    manualReviewRequired: enrichment.manualReviewRequired,
+    now,
+  });
 
   return {
     id: createEntityId("company") as Company["id"],
@@ -211,13 +285,16 @@ function buildCompanyRecord(
     priorityTier: priorityTier.tier,
     isIndependent: true,
     location: {
+      streetAddress: input.streetAddress,
       city: input.city,
       state: input.state,
+      postalCode: input.postalCode,
       country: input.country,
     },
     presence: {
       hasWebsite: Boolean(normalizedWebsite),
       websiteUrl: normalizedWebsite,
+      primaryPhone: input.phone,
       hasClaimedGoogleBusinessProfile:
         input.googleRating != null || input.reviewCount != null,
       googleRating: input.googleRating,
@@ -225,10 +302,18 @@ function buildCompanyRecord(
       reviewResponseBand: "none",
     },
     buyingStage: "unknown",
-    painSignals: buildPainSignals(input, normalizedWebsite),
+    painSignals: buildPainSignals(
+      input,
+      normalizedWebsite,
+      segment.label,
+      outreachAngle.label,
+    ),
     disqualifierSignals: [],
     notes: splitIntakeNotes(input.notes),
-    recommendedOfferIds: frontDoorOffer ? [frontDoorOffer.id] : [],
+    recommendedOfferIds: prioritizeRecommendedOfferIds(
+      outreachAngle.recommendedFirstOfferId,
+      [],
+    ),
     primaryContactId,
     activeCampaignIds: [],
     appointmentIds: [],
@@ -237,7 +322,18 @@ function buildCompanyRecord(
       offerFitScore: fitScore,
       outreachReadinessScore: input.contactEmail ? fitScore : clampScore(fitScore - 12),
       bucket: scoringBucket.key,
-      reasons: buildScoringReasons(input, normalizedWebsite, fitScore),
+      reasons: buildScoringReasons(
+        input,
+        normalizedWebsite,
+        fitScore,
+        segment.label,
+        outreachAngle.label,
+      ),
+    },
+    enrichment: {
+      ...enrichment,
+      segment,
+      outreachAngle,
     },
     source: buildSourceReference(input, now),
     createdAt: now,
@@ -245,58 +341,197 @@ function buildCompanyRecord(
   };
 }
 
-function buildContactRecord(
+function buildInitialEnrichmentSnapshot(
   input: LeadIntakeInput,
-  companyId: Company["id"],
-): Contact {
-  const now = new Date().toISOString();
-  const normalizedWebsite = normalizeWebsiteUrl(input.website);
+  now: string,
+) {
+  const noteArtifacts = parseImportedNoteArtifacts(splitIntakeNotes(input.notes), now);
+  const normalizedWebsite =
+    normalizeWebsiteUrl(input.website) ?? noteArtifacts.suggestedWebsite;
+  const websiteDiscovery = normalizedWebsite
+    ? buildRecordProvidedDiscoverySnapshot({
+        website: normalizedWebsite,
+        now,
+        source:
+          noteArtifacts.suggestedWebsite && !normalizeWebsiteUrl(input.website)
+            ? noteArtifacts.hints.find((hint) => hint.kind === "website")?.source ?? buildSourceReference(input, now)
+            : buildSourceReference(input, now),
+        matchedSignals: noteArtifacts.suggestedWebsite && !normalizeWebsiteUrl(input.website)
+          ? ["Website surfaced from imported notes"]
+          : ["Website was present on the imported lead record"],
+      })
+    : {
+        status: "not_checked" as const,
+        confidenceLevel: "none" as const,
+        confidenceScore: 0,
+        discoveredWebsite: undefined,
+        candidateUrls: [],
+        matchedSignals: [],
+        source: buildSourceReference(input, now),
+        lastCheckedAt: now,
+        lastError: undefined,
+      };
+
+  return {
+    noteArtifacts,
+    enrichment: {
+      confidenceLevel: "none" as const,
+      confidenceScore: 24,
+      contactPath: "none" as const,
+      enrichmentSource: "record_only" as const,
+      sourceUrls: [],
+      pagesChecked: [],
+      foundEmails: noteArtifacts.hints
+        .filter((hint) => hint.kind === "email")
+        .map((hint) => hint.value),
+      foundPhones: noteArtifacts.hints
+        .filter((hint) => hint.kind === "phone")
+        .map((hint) => hint.value),
+      foundNames: noteArtifacts.hints
+        .filter((hint) => hint.kind === "contact_name")
+        .map((hint) => hint.value),
+      websiteDiscovery,
+      noteHints: noteArtifacts.hints,
+      missingFields: dedupeStrings([
+        !normalizedWebsite ? "website" : undefined,
+        !input.phone && !noteArtifacts.suggestedPhone ? "phone" : undefined,
+        !input.primaryContactName &&
+        !noteArtifacts.hints.find((hint) => hint.kind === "contact_name")
+          ? "named contact"
+          : undefined,
+        !input.subindustry ? "subindustry" : undefined,
+      ]),
+      manualReviewRequired: true,
+      linkedinVerificationNeeded: false,
+      linkedinVerified: false,
+      lastAttemptedAt: now,
+    } satisfies CompanyEnrichmentSnapshot,
+  };
+}
+
+function buildContactRecord(params: {
+  companyId: Company["id"];
+  now: string;
+  normalizedWebsite: string | undefined;
+  fullName?: string;
+  title?: string;
+  email?: string;
+  phone?: string;
+  sourceKind: Contact["sourceKind"];
+  source: Contact["source"];
+  notes?: string[];
+  forceNeedsReview?: boolean;
+}): Contact {
   const qualityAssessment = assessContactPath({
-    email: input.contactEmail,
-    phone: undefined,
-    fullName: input.primaryContactName,
-    title: input.contactTitle,
-    companyHost: getCompanyHost(normalizedWebsite),
-    source: buildSourceReference(input, now),
-    hasWebsiteEvidence: Boolean(normalizedWebsite),
+    email: params.email,
+    phone: params.phone,
+    fullName: params.fullName,
+    title: params.title,
+    companyHost: getCompanyHost(params.normalizedWebsite),
+    source: params.source,
+    hasWebsiteEvidence: Boolean(params.normalizedWebsite),
   });
-  const signals = ["Operator-entered during lead intake"];
-
-  if (input.contactTitle) {
-    signals.push(`Title captured: ${input.contactTitle}`);
-  }
-
-  if (input.contactEmail) {
-    signals.push("Direct contact email captured");
-  }
+  const signals = [
+    params.source.provider === "imported_notes"
+      ? "Imported notes surfaced this contact path"
+      : "Operator-entered during lead intake",
+    params.title ? `Title captured: ${params.title}` : undefined,
+    params.email ? "Direct contact email captured" : undefined,
+  ].filter((value): value is string => Boolean(value));
+  const status =
+    params.forceNeedsReview && qualityAssessment.status === "verified"
+      ? "candidate"
+      : qualityAssessment.status;
+  const quality = buildContactQualitySnapshot(qualityAssessment, params.now, {
+    warnings: params.forceNeedsReview
+      ? ["Imported notes should be verified before outreach"]
+      : [],
+  });
 
   const contact: Contact = {
     id: createEntityId("contact") as Contact["id"],
-    companyId,
-    fullName: input.primaryContactName,
-    title: input.contactTitle,
-    role: deriveContactRoleFromTitle(input.contactTitle),
-    email: input.contactEmail,
-    sourceKind: "observed",
-    status: qualityAssessment.status,
+    companyId: params.companyId,
+    fullName: params.fullName,
+    title: params.title,
+    role: deriveContactRoleFromTitle(params.title),
+    email: params.email,
+    phone: params.phone,
+    sourceKind: params.sourceKind,
+    status,
     isPrimary: true,
-    outreachReady: qualityAssessment.campaignEligible,
+    outreachReady: params.forceNeedsReview ? false : quality.campaignEligible,
     confidence: {
       score: qualityAssessment.confidenceScore,
       signals: [...signals, ...qualityAssessment.selectionReasons],
     },
-    quality: buildContactQualitySnapshot(qualityAssessment, now),
-    notes: [],
-    source: buildSourceReference(input, now),
-    createdAt: now,
-    updatedAt: now,
+    quality,
+    notes: params.notes ?? [],
+    source: params.source,
+    createdAt: params.now,
+    updatedAt: params.now,
   };
 
+  return contact;
+}
+
+function buildInitialContacts(params: {
+  input: LeadIntakeInput;
+  companyId: Company["id"];
+  now: string;
+  normalizedWebsite: string | undefined;
+  noteArtifacts: ReturnType<typeof parseImportedNoteArtifacts>;
+}) {
+  const contacts: Contact[] = [];
+
+  if (hasContactInput(params.input)) {
+    contacts.push(
+      buildContactRecord({
+        companyId: params.companyId,
+        now: params.now,
+        normalizedWebsite: params.normalizedWebsite,
+        fullName: params.input.primaryContactName,
+        title: params.input.contactTitle,
+        email: params.input.contactEmail,
+        phone: params.input.phone,
+        sourceKind: "observed",
+        source: buildSourceReference(params.input, params.now),
+      }),
+    );
+  }
+
+  for (const candidate of params.noteArtifacts.candidateContacts) {
+    contacts.push(
+      buildContactRecord({
+        companyId: params.companyId,
+        now: params.now,
+        normalizedWebsite: params.normalizedWebsite,
+        fullName: candidate.fullName,
+        title: candidate.title,
+        email: candidate.email,
+        phone: candidate.phone,
+        sourceKind: "inferred",
+        source: candidate.source,
+        notes: candidate.notes,
+        forceNeedsReview: candidate.requiresReview,
+      }),
+    );
+  }
+
+  const dedupedContacts = contacts.filter(
+    (contact, index, collection) =>
+      collection.findIndex(
+        (current) =>
+          current.email === contact.email &&
+          current.phone === contact.phone &&
+          current.fullName === contact.fullName &&
+          current.title === contact.title,
+      ) === index,
+  );
+
   return applyPrimaryContactSelection({
-    contacts: [contact],
-    preferredContactId: contact.id,
-    now,
-  }).contacts[0]!;
+    contacts: dedupedContacts,
+    now: params.now,
+  });
 }
 
 function findDuplicateCompany(
@@ -349,8 +584,18 @@ export async function createLeadFromInput(
   }
 
   const dataAccess = getDataAccess();
+  const now = new Date().toISOString();
+  const initialSnapshot = buildInitialEnrichmentSnapshot(input, now);
+  const resolvedInput: LeadIntakeInput = {
+    ...input,
+    website:
+      normalizeWebsiteUrl(input.website) ??
+      initialSnapshot.noteArtifacts.suggestedWebsite ??
+      input.website,
+    phone: input.phone ?? initialSnapshot.noteArtifacts.suggestedPhone,
+  };
   const existingCompanies = await dataAccess.companies.list();
-  const duplicateCheck = findDuplicateCompany(input, existingCompanies);
+  const duplicateCheck = findDuplicateCompany(resolvedInput, existingCompanies);
 
   if (duplicateCheck.companyNameMatch || duplicateCheck.websiteMatch) {
     return {
@@ -360,22 +605,29 @@ export async function createLeadFromInput(
     };
   }
 
-  const provisionalContact = hasContactInput(input)
-    ? buildContactRecord(input, "company_placeholder" as Company["id"])
-    : undefined;
-  const company = buildCompanyRecord(input, undefined);
-  let createdCompany = await dataAccess.companies.create(company);
+  let createdCompany = await dataAccess.companies.create(
+    buildCompanyRecord(resolvedInput, undefined, initialSnapshot.enrichment),
+  );
+  const createdContacts = buildInitialContacts({
+    input: resolvedInput,
+    companyId: createdCompany.id,
+    now,
+    normalizedWebsite:
+      normalizeWebsiteUrl(resolvedInput.website) ??
+      initialSnapshot.enrichment.websiteDiscovery?.discoveredWebsite,
+    noteArtifacts: initialSnapshot.noteArtifacts,
+  }).contacts;
 
-  let createdContact: Contact | undefined;
-  if (provisionalContact) {
-    createdContact = await dataAccess.contacts.create({
-      ...provisionalContact,
-      companyId: createdCompany.id,
-    });
+  if (createdContacts.length > 0) {
+    await Promise.all(
+      createdContacts.map((contact) => dataAccess.contacts.create(contact)),
+    );
+
+    const primaryContact = createdContacts.find((contact) => contact.isPrimary);
     createdCompany = await dataAccess.companies.update({
       ...createdCompany,
-      primaryContactId: createdContact.id,
-      updatedAt: new Date().toISOString(),
+      primaryContactId: primaryContact?.id,
+      updatedAt: now,
     });
   }
 
@@ -384,7 +636,8 @@ export async function createLeadFromInput(
     message: `${createdCompany.name} was added to the intake queue.`,
     result: {
       company: createdCompany,
-      contact: createdContact,
+      contact: createdContacts.find((contact) => contact.isPrimary),
+      contacts: createdContacts,
     },
   };
 }
@@ -439,9 +692,11 @@ export async function importLeadRows(
     summary.createdCompanyIds.push(outcome.result.company.id);
     existingCompanies.push(outcome.result.company);
 
-    if (outcome.result.contact) {
-      summary.createdContacts += 1;
-      summary.createdContactIds.push(outcome.result.contact.id);
+    if ((outcome.result.contacts?.length ?? 0) > 0) {
+      summary.createdContacts += outcome.result.contacts?.length ?? 0;
+      summary.createdContactIds.push(
+        ...(outcome.result.contacts ?? []).map((contact) => contact.id),
+      );
     }
   }
 

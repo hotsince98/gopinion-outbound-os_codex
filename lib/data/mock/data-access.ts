@@ -155,6 +155,22 @@ class InMemoryEnrollmentRepository
   extends InMemoryRepository<Enrollment, EnrollmentId>
   implements EnrollmentRepository
 {
+  create(enrollment: Enrollment): Enrollment {
+    return this.insert(enrollment);
+  }
+
+  update(enrollment: Enrollment): Enrollment {
+    return this.replace(enrollment);
+  }
+
+  listByCompanyId(companyId: CompanyId): Enrollment[] {
+    return this.filter((enrollment) => enrollment.companyId === companyId);
+  }
+
+  listByCampaignId(campaignId: CampaignId): Enrollment[] {
+    return this.filter((enrollment) => enrollment.campaignId === campaignId);
+  }
+
   listBySequenceId(sequenceId: SequenceId): Enrollment[] {
     return this.filter((enrollment) => enrollment.sequenceId === sequenceId);
   }

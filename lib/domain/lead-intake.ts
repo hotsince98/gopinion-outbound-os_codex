@@ -17,9 +17,12 @@ export interface LeadIntakeInput {
   website?: string;
   industryKey: Company["industryKey"];
   subindustry?: string;
+  streetAddress?: string;
   city: string;
   state: string;
+  postalCode?: string;
   country: string;
+  phone?: string;
   googleRating?: number;
   reviewCount?: number;
   primaryContactName?: string;
@@ -34,9 +37,12 @@ export interface LeadIntakeFieldErrors {
   website?: string;
   industryKey?: string;
   subindustry?: string;
+  streetAddress?: string;
   city?: string;
   state?: string;
+  postalCode?: string;
   country?: string;
+  phone?: string;
   googleRating?: string;
   reviewCount?: string;
   primaryContactName?: string;
@@ -53,6 +59,7 @@ export interface LeadDuplicateCheck {
 export interface LeadCreationResult {
   company: Company;
   contact?: Contact;
+  contacts?: Contact[];
 }
 
 export interface CsvLeadPreviewRow {

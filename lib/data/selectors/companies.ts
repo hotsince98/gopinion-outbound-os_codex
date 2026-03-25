@@ -1,3 +1,4 @@
+import { buildCampaignAssignmentPanelView } from "@/lib/data/selectors/campaign-assignment";
 import {
   cleanQuery,
   deriveWorkflowState,
@@ -10,14 +11,26 @@ import {
   getDecisionMakerLabel,
   getIcpFilterOptions,
   getIcpLabel,
+  getImportDateLabel,
   getIndustryLabel,
+  getLastEnrichedLabel,
+  getNoteHintSummary,
+  getOutreachAngleConfidenceBadge,
+  getOutreachAngleLabel,
+  getOutreachAngleReason,
+  getOutreachAngleReviewPathBadge,
+  getOutreachAngleUrgencyBadge,
   getPriorityBadge,
   getPrimaryContactReadinessReason,
   getRecommendedOfferName,
   getReviewSnapshot,
+  getSegmentLabel,
+  getSourceLabel,
   getSuggestedNextAction,
   getTierFilterOptions,
+  getWebsiteDiscoveryLabel,
   getWorkflowBadge,
+  getWorkflowReason,
   listCompanyBundles,
   makeCountedOptions,
   matchesSearch,
@@ -45,6 +58,9 @@ export interface CompanyListRowView {
   reviewSnapshot: string;
   fitScore: string;
   priorityBadge: SelectorBadge;
+  angleLabel: string;
+  angleReason: string;
+  angleUrgencyBadge: SelectorBadge;
   recommendedOffer: string;
   contactCoverage: string;
   decisionMakerConfidence: string;
@@ -88,6 +104,14 @@ export interface CompanyDetailView {
   reputation: Array<{ label: string; value: string }>;
   pains: string[];
   notes: string[];
+  outreachAngle: {
+    label: string;
+    reason: string;
+    urgencyBadge: SelectorBadge;
+    confidenceBadge: SelectorBadge;
+    reviewPathBadge: SelectorBadge;
+    segmentLabel: string;
+  };
   recommendedOffer: {
     name: string;
     description: string;
@@ -96,6 +120,7 @@ export interface CompanyDetailView {
   };
   contacts: CompanyContactDetail[];
   campaignSummary: string[];
+  campaignAssignment: ReturnType<typeof buildCampaignAssignmentPanelView>;
 }
 
 export interface CompaniesWorkspaceView {
@@ -160,6 +185,15 @@ export async function getCompaniesWorkspaceView(
   const selectedBundle =
     filteredBundles.find((bundle) => bundle.company.id === filters.companyId) ??
     filteredBundles[0];
+  const selectedCampaignAssignment = selectedBundle
+    ? buildCampaignAssignmentPanelView({
+        bundles: [selectedBundle],
+        snapshot,
+      })
+    : {
+        campaignOptions: [],
+        rows: [],
+      };
 
   const rows = filteredBundles.map((bundle) => ({
     companyId: bundle.company.id,
@@ -169,6 +203,9 @@ export async function getCompaniesWorkspaceView(
     reviewSnapshot: getReviewSnapshot(bundle.company),
     fitScore: `${bundle.company.scoring.fitScore} fit • ${bundle.company.scoring.outreachReadinessScore} ready`,
     priorityBadge: getPriorityBadge(bundle.company.priorityTier),
+    angleLabel: getOutreachAngleLabel(bundle.company),
+    angleReason: getOutreachAngleReason(bundle.company),
+    angleUrgencyBadge: getOutreachAngleUrgencyBadge(bundle.company),
     recommendedOffer: getRecommendedOfferName(bundle),
     contactCoverage: getContactCoverageLabel(bundle),
     decisionMakerConfidence: getDecisionMakerConfidenceLabel(bundle),
@@ -215,7 +252,27 @@ export async function getCompaniesWorkspaceView(
           },
           {
             label: "Source",
-            value: `${selectedBundle.company.source.provider} • ${selectedBundle.company.source.label ?? selectedBundle.company.source.kind}`,
+            value: getSourceLabel(selectedBundle.company),
+          },
+          {
+            label: "Imported",
+            value: getImportDateLabel(selectedBundle.company),
+          },
+          {
+            label: "Last enrichment",
+            value: getLastEnrichedLabel(selectedBundle.company),
+          },
+          {
+            label: "Discovery",
+            value: getWebsiteDiscoveryLabel(selectedBundle.company),
+          },
+          {
+            label: "Segment",
+            value: getSegmentLabel(selectedBundle.company),
+          },
+          {
+            label: "Workflow",
+            value: getWorkflowReason(selectedBundle),
           },
         ],
         reputation: [
@@ -247,6 +304,10 @@ export async function getCompaniesWorkspaceView(
                 : "No GBP"
             }`,
           },
+          {
+            label: "Parsed note hints",
+            value: getNoteHintSummary(selectedBundle.company),
+          },
         ],
         pains: selectedBundle.company.painSignals,
         notes: [
@@ -254,6 +315,14 @@ export async function getCompaniesWorkspaceView(
           ...selectedBundle.company.scoring.reasons,
           ...(selectedBundle.primaryContact?.notes ?? []),
         ],
+        outreachAngle: {
+          label: getOutreachAngleLabel(selectedBundle.company),
+          reason: getOutreachAngleReason(selectedBundle.company),
+          urgencyBadge: getOutreachAngleUrgencyBadge(selectedBundle.company),
+          confidenceBadge: getOutreachAngleConfidenceBadge(selectedBundle.company),
+          reviewPathBadge: getOutreachAngleReviewPathBadge(selectedBundle.company),
+          segmentLabel: getSegmentLabel(selectedBundle.company),
+        },
         recommendedOffer: {
           name: selectedBundle.recommendedOffer?.name ?? "Offer pending",
           description:
@@ -305,6 +374,7 @@ export async function getCompaniesWorkspaceView(
                   `${campaign.name} • ${campaign.status} • ${campaign.objective}`,
               )
             : ["No active campaign is attached to this company yet."],
+        campaignAssignment: selectedCampaignAssignment,
       }
     : undefined;
 

@@ -1,11 +1,21 @@
 import { getDataAccess } from "@/lib/data/access";
 import {
+  classifyCompanyOutreachAngle,
+  prioritizeRecommendedOfferIds,
+} from "@/lib/data/company/outreach-angle";
+import { classifyCompanySegment } from "@/lib/data/company/segment";
+import {
   applyPrimaryContactSelection,
   assessContactPath,
   buildContactQualitySnapshot,
   getCompanyHost,
   getContactSourceLabel,
 } from "@/lib/data/contacts/quality";
+import {
+  buildRecordProvidedDiscoverySnapshot,
+  discoverCompanyWebsite,
+} from "@/lib/data/enrichment/discovery";
+import { parseImportedNoteArtifacts } from "@/lib/data/intake/notes";
 import { deriveContactRoleFromTitle } from "@/lib/data/intake/validation";
 import { scanCompanyWebsite } from "@/lib/data/enrichment/web";
 import type {
@@ -162,6 +172,79 @@ function createEnrichmentSource(now: string, url: string | undefined) {
     url,
     observedAt: now,
   };
+}
+
+const ENRICHMENT_SYSTEM_NOTE_PREFIXES = [
+  "Website summary:",
+  "Manual review is still recommended after enrichment.",
+];
+
+function getImportedNoteLines(company: Company) {
+  return (company.notes ?? []).filter((line) => {
+    const trimmed = line.trim();
+
+    return (
+      trimmed.length > 0 &&
+      !ENRICHMENT_SYSTEM_NOTE_PREFIXES.some((prefix) => trimmed.startsWith(prefix))
+    );
+  });
+}
+
+function buildWebsiteDiscoverySummary(
+  websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"],
+  resolvedWebsite: string | undefined,
+) {
+  if (!websiteDiscovery) {
+    return resolvedWebsite
+      ? `Website candidate is ${resolvedWebsite}`
+      : "Website discovery has not run yet";
+  }
+
+  switch (websiteDiscovery.status) {
+    case "record_provided":
+      return `Website is already on record: ${websiteDiscovery.discoveredWebsite ?? resolvedWebsite ?? "pending verification"}`;
+    case "discovered":
+      return `Website discovery found ${websiteDiscovery.discoveredWebsite ?? "a likely public site"}`;
+    case "not_found":
+      return "Website discovery could not find a confident public site";
+    case "failed":
+      return websiteDiscovery.lastError
+        ? `Website discovery failed: ${websiteDiscovery.lastError}`
+        : "Website discovery failed";
+    case "not_checked":
+    default:
+      return resolvedWebsite
+        ? `Website candidate is ${resolvedWebsite}`
+        : "Website discovery has not run yet";
+  }
+}
+
+function buildNoteHintSummary(noteHints: CompanyEnrichmentSnapshot["noteHints"]) {
+  if (noteHints.length === 0) {
+    return "No structured hints parsed from imported notes";
+  }
+
+  const counts = {
+    contacts: noteHints.filter((hint) => hint.kind === "contact_name").length,
+    emails: noteHints.filter((hint) => hint.kind === "email").length,
+    phones: noteHints.filter((hint) => hint.kind === "phone").length,
+    observations: noteHints.filter((hint) => hint.kind === "observation").length,
+  };
+
+  return dedupeStrings([
+    counts.contacts > 0
+      ? `${counts.contacts} contact hint${counts.contacts === 1 ? "" : "s"}`
+      : undefined,
+    counts.emails > 0
+      ? `${counts.emails} email hint${counts.emails === 1 ? "" : "s"}`
+      : undefined,
+    counts.phones > 0
+      ? `${counts.phones} phone hint${counts.phones === 1 ? "" : "s"}`
+      : undefined,
+    counts.observations > 0
+      ? `${counts.observations} operator note${counts.observations === 1 ? "" : "s"}`
+      : undefined,
+  ]).join(" • ");
 }
 
 interface ContactDraft {
@@ -363,6 +446,95 @@ function buildWebsiteDrafts(params: {
   return drafts;
 }
 
+function mergeNoteDrafts(params: {
+  drafts: ContactDraft[];
+  noteArtifacts: ReturnType<typeof parseImportedNoteArtifacts>;
+  normalizedWebsite?: string;
+  now: string;
+}) {
+  const drafts = params.drafts.map((draft) => ({
+    ...draft,
+    notes: [...draft.notes],
+  }));
+
+  for (const candidate of params.noteArtifacts.candidateContacts) {
+    const existingDraft =
+      findDraftByEmail(drafts, candidate.email) ??
+      findDraftByName(drafts, candidate.fullName) ??
+      findDraftByPhone(drafts, candidate.phone);
+
+    if (existingDraft) {
+      existingDraft.fullName = existingDraft.fullName ?? candidate.fullName;
+      existingDraft.title = existingDraft.title ?? candidate.title;
+      existingDraft.role = existingDraft.title
+        ? deriveContactRoleFromTitle(existingDraft.title)
+        : existingDraft.role;
+      existingDraft.email = existingDraft.email ?? candidate.email;
+      existingDraft.phone = existingDraft.phone ?? candidate.phone;
+      existingDraft.notes = dedupeStrings([
+        ...existingDraft.notes,
+        ...candidate.notes,
+        "Imported notes contributed a possible contact path",
+      ]);
+      continue;
+    }
+
+    if (!candidate.email && !candidate.phone && !candidate.fullName) {
+      continue;
+    }
+
+    drafts.push({
+      id: createContactId(),
+      isNew: true,
+      wasPrimary: false,
+      fullName: candidate.fullName,
+      title: candidate.title,
+      role: candidate.title
+        ? deriveContactRoleFromTitle(candidate.title)
+        : "unknown",
+      email: candidate.email,
+      phone: candidate.phone,
+      linkedinUrl: undefined,
+      sourceKind: "inferred",
+      source: candidate.source,
+      notes: dedupeStrings([
+        ...candidate.notes,
+        candidate.requiresReview
+          ? "Imported notes should be verified before outreach"
+          : undefined,
+      ]),
+      createdAt: params.now,
+    });
+  }
+
+  if (
+    params.noteArtifacts.suggestedPhone &&
+    !findDraftByPhone(drafts, params.noteArtifacts.suggestedPhone)
+  ) {
+    drafts.push({
+      id: createContactId(),
+      isNew: true,
+      wasPrimary: false,
+      fullName: undefined,
+      title: "Imported main line",
+      role: "unknown",
+      email: undefined,
+      phone: params.noteArtifacts.suggestedPhone,
+      linkedinUrl: undefined,
+      sourceKind: "inferred",
+      source:
+        params.noteArtifacts.candidateContacts[0]?.source ?? createEnrichmentSource(
+          params.now,
+          params.normalizedWebsite,
+        ),
+      notes: ["Imported notes surfaced a possible main phone line."],
+      createdAt: params.now,
+    });
+  }
+
+  return drafts;
+}
+
 function rankContactDrafts(params: {
   drafts: ContactDraft[];
   company: Company;
@@ -462,15 +634,21 @@ function updateCompanyReadiness(params: {
   foundEmails: string[];
   foundPhones: string[];
   foundNames: string[];
+  websiteDiscovery?: CompanyEnrichmentSnapshot["websiteDiscovery"];
+  noteHints: CompanyEnrichmentSnapshot["noteHints"];
+  segment?: CompanyEnrichmentSnapshot["segment"];
   lastError?: string;
   now: string;
 }) {
   const hasWebsiteEvidence = params.sourceUrls.length > 0;
+  const hasWebsiteCandidate = Boolean(
+    params.normalizedWebsite ?? params.websiteDiscovery?.discoveredWebsite,
+  );
   const hasCampaignEligiblePath = Boolean(params.primaryContact?.quality?.campaignEligible);
   const enrichmentSource =
-    hasWebsiteEvidence && params.primaryContact
+    hasWebsiteCandidate && params.primaryContact
       ? "public_website_and_record"
-      : hasWebsiteEvidence
+      : hasWebsiteCandidate
         ? "public_website"
         : "record_only";
   const linkedinVerificationNeeded =
@@ -481,6 +659,19 @@ function updateCompanyReadiness(params: {
     params.primaryContact?.quality?.qualityTier === "junk" ||
     linkedinVerificationNeeded ||
     params.missingFields.length > 2;
+  const nextPresence = {
+    ...params.company.presence,
+    hasWebsite: hasWebsiteCandidate,
+    websiteUrl: params.normalizedWebsite ?? params.company.presence.websiteUrl,
+    primaryPhone: params.bestPhone ?? params.company.presence.primaryPhone,
+  };
+  const outreachAngle = classifyCompanyOutreachAngle({
+    presence: nextPresence,
+    segment: params.segment ?? params.company.enrichment?.segment,
+    primaryContact: params.primaryContact,
+    manualReviewRequired,
+    now: params.now,
+  });
 
   const enrichment: CompanyEnrichmentSnapshot = {
     confidenceLevel: params.confidenceLevel,
@@ -492,6 +683,13 @@ function updateCompanyReadiness(params: {
     foundEmails: params.foundEmails,
     foundPhones: params.foundPhones,
     foundNames: params.foundNames,
+    websiteDiscovery: params.websiteDiscovery,
+    noteHints:
+      params.noteHints.length > 0
+        ? params.noteHints
+        : params.company.enrichment?.noteHints ?? [],
+    segment: params.segment ?? params.company.enrichment?.segment,
+    outreachAngle,
     descriptionSnippet: params.descriptionSnippet,
     missingFields: params.missingFields,
     manualReviewRequired,
@@ -504,7 +702,7 @@ function updateCompanyReadiness(params: {
 
   const nextStatus: Company["status"] = hasCampaignEligiblePath
     ? "campaign_ready"
-    : hasWebsiteEvidence ||
+    : hasWebsiteCandidate ||
         params.bestSubindustry ||
         params.bestPhone ||
         params.primaryContact
@@ -528,7 +726,13 @@ function updateCompanyReadiness(params: {
     ...params.company.scoring.reasons,
     hasWebsiteEvidence
       ? `Website enrichment scanned ${params.sourceUrls.length} page${params.sourceUrls.length === 1 ? "" : "s"}`
-      : "Website enrichment could not verify the public site",
+      : hasWebsiteCandidate
+        ? "Website was identified but still needs manual verification"
+        : "Website enrichment could not verify the public site",
+    params.websiteDiscovery?.status === "discovered"
+      ? `Website discovery identified ${params.websiteDiscovery.discoveredWebsite}`
+      : undefined,
+    `Recommended outreach angle: ${outreachAngle.label}`,
     params.primaryContact?.email
       ? `Primary outreach path selected: ${params.primaryContact.email}`
       : params.primaryContact?.phone
@@ -550,6 +754,7 @@ function updateCompanyReadiness(params: {
   const notes = dedupeStrings([
     ...(params.company.notes ?? []),
     params.descriptionSnippet ? `Website summary: ${params.descriptionSnippet}` : undefined,
+    `Current outreach angle: ${outreachAngle.label} (${outreachAngle.shortReason})`,
     manualReviewRequired ? "Manual review is still recommended after enrichment." : undefined,
   ]);
 
@@ -558,13 +763,13 @@ function updateCompanyReadiness(params: {
     subindustry: params.bestSubindustry ?? params.company.subindustry,
     status: nextStatus,
     primaryContactId: params.primaryContact?.id ?? params.company.primaryContactId,
-    presence: {
-      ...params.company.presence,
-      hasWebsite: Boolean(params.normalizedWebsite),
-      websiteUrl: params.normalizedWebsite ?? params.company.presence.websiteUrl,
-    },
+    presence: nextPresence,
     painSignals,
     notes,
+    recommendedOfferIds: prioritizeRecommendedOfferIds(
+      outreachAngle.recommendedFirstOfferId,
+      params.company.recommendedOfferIds,
+    ),
     scoring: {
       ...params.company.scoring,
       outreachReadinessScore,
@@ -580,21 +785,61 @@ async function enrichSingleCompany(
   companyContacts: Contact[],
 ): Promise<LeadEnrichmentRecordResult> {
   const now = new Date().toISOString();
-  const websiteScan = await scanCompanyWebsite(company.presence.websiteUrl);
-  const host = getCompanyHost(websiteScan.normalizedWebsite ?? company.presence.websiteUrl);
+  const noteArtifacts = parseImportedNoteArtifacts(getImportedNoteLines(company), now);
+  const noteWebsiteSource = noteArtifacts.hints.find(
+    (hint) => hint.kind === "website",
+  )?.source;
+  const websiteDiscovery = company.presence.websiteUrl
+    ? buildRecordProvidedDiscoverySnapshot({
+        website: company.presence.websiteUrl,
+        now,
+        source: company.source,
+        matchedSignals: ["Website was already present on the company record"],
+      })
+    : noteArtifacts.suggestedWebsite
+      ? buildRecordProvidedDiscoverySnapshot({
+          website: noteArtifacts.suggestedWebsite,
+          now,
+          source: noteWebsiteSource ?? company.source,
+          matchedSignals: ["Website surfaced from imported notes"],
+        })
+      : await discoverCompanyWebsite(
+          {
+            ...company,
+            presence: {
+              ...company.presence,
+              primaryPhone:
+                company.presence.primaryPhone ?? noteArtifacts.suggestedPhone,
+            },
+          },
+          now,
+        );
+  const resolvedWebsite =
+    company.presence.websiteUrl ??
+    noteArtifacts.suggestedWebsite ??
+    websiteDiscovery.discoveredWebsite;
+  const websiteScan = await scanCompanyWebsite(resolvedWebsite);
+  const normalizedWebsite = websiteScan.normalizedWebsite ?? resolvedWebsite;
+  const host = getCompanyHost(normalizedWebsite);
   const drafts = buildWebsiteDrafts({
     company,
     existingContacts: companyContacts,
     now,
-    normalizedWebsite: websiteScan.normalizedWebsite,
+    normalizedWebsite,
     sourceUrls: websiteScan.sourceUrls,
     websiteEmails: websiteScan.emails,
     websitePhones: websiteScan.phones,
     namedContacts: websiteScan.namedContacts,
   });
+  const mergedDrafts = mergeNoteDrafts({
+    drafts,
+    noteArtifacts,
+    normalizedWebsite,
+    now,
+  });
   const hasWebsiteEvidence = websiteScan.sourceUrls.length > 0;
   const rankedContacts = rankContactDrafts({
-    drafts,
+    drafts: mergedDrafts,
     company,
     hasWebsiteEvidence,
     host,
@@ -604,11 +849,46 @@ async function enrichSingleCompany(
     rankedContacts.primaryContact,
     hasWebsiteEvidence,
   );
+  const foundEmails = dedupeStrings([
+    ...noteArtifacts.hints
+      .filter((hint) => hint.kind === "email")
+      .map((hint) => hint.value),
+    ...websiteScan.emails,
+  ]);
+  const foundPhones = dedupeStrings([
+    company.presence.primaryPhone,
+    noteArtifacts.suggestedPhone,
+    ...noteArtifacts.hints
+      .filter((hint) => hint.kind === "phone")
+      .map((hint) => hint.value),
+    ...websiteScan.phones,
+  ]);
+  const foundNames = dedupeStrings([
+    ...noteArtifacts.hints
+      .filter((hint) => hint.kind === "contact_name")
+      .map((hint) => hint.value),
+    ...websiteScan.namedContacts.map((candidate) => candidate.fullName),
+  ]);
+  const bestPhone =
+    rankedContacts.primaryContact?.phone ??
+    foundPhones[0] ??
+    company.presence.primaryPhone;
+  const bestSubindustry = company.subindustry ?? websiteScan.categoryClues[0];
+  const segment = classifyCompanySegment({
+    presence: {
+      ...company.presence,
+      hasWebsite: Boolean(normalizedWebsite),
+      websiteUrl: normalizedWebsite,
+      primaryPhone: bestPhone,
+    },
+    softwareToolCountEstimate: company.softwareToolCountEstimate,
+    now,
+  });
   const missingFields = buildMissingFields({
-    website: websiteScan.normalizedWebsite ?? company.presence.websiteUrl,
+    website: normalizedWebsite,
     primaryContact: rankedContacts.primaryContact,
-    phone: rankedContacts.primaryContact?.phone ?? websiteScan.phones[0],
-    subindustry: company.subindustry ?? websiteScan.categoryClues[0],
+    phone: bestPhone,
+    subindustry: bestSubindustry,
     linkedinVerificationNeeded:
       Boolean(rankedContacts.primaryContact?.fullName) &&
       !rankedContacts.primaryContact?.linkedinUrl,
@@ -616,17 +896,20 @@ async function enrichSingleCompany(
   const updatedCompany = updateCompanyReadiness({
     company,
     primaryContact: rankedContacts.primaryContact,
-    normalizedWebsite: websiteScan.normalizedWebsite,
-    bestPhone: rankedContacts.primaryContact?.phone ?? websiteScan.phones[0],
-    bestSubindustry: company.subindustry ?? websiteScan.categoryClues[0],
+    normalizedWebsite,
+    bestPhone,
+    bestSubindustry,
     descriptionSnippet: websiteScan.descriptionSnippet,
     confidenceLevel,
     missingFields,
     sourceUrls: websiteScan.sourceUrls,
     pagesChecked: websiteScan.pagesChecked,
-    foundEmails: websiteScan.emails,
-    foundPhones: websiteScan.phones,
-    foundNames: websiteScan.namedContacts.map((candidate) => candidate.fullName),
+    foundEmails,
+    foundPhones,
+    foundNames,
+    websiteDiscovery,
+    noteHints: noteArtifacts.hints,
+    segment,
     lastError: websiteScan.lastError,
     now,
   });
@@ -634,7 +917,7 @@ async function enrichSingleCompany(
 
   await Promise.all(
     rankedContacts.contacts.map((contact) =>
-      drafts.find((draft) => draft.id === contact.id)?.isNew
+      mergedDrafts.find((draft) => draft.id === contact.id)?.isNew
         ? dataAccess.contacts.create(contact)
         : dataAccess.contacts.update(contact),
     ),
@@ -642,20 +925,31 @@ async function enrichSingleCompany(
 
   await dataAccess.companies.update(updatedCompany);
 
+  const noUsablePath =
+    !normalizedWebsite &&
+    !bestPhone &&
+    !rankedContacts.primaryContact &&
+    foundEmails.length === 0;
   const status: LeadEnrichmentRecordResult["status"] =
     updatedCompany.status === "campaign_ready"
       ? "ready"
-      : updatedCompany.status === "enriched"
-        ? "needs_review"
-        : websiteScan.lastError
-          ? "failed"
+      : noUsablePath &&
+          ["failed", "not_found"].includes(websiteDiscovery.status)
+        ? "blocked"
+        : updatedCompany.status === "enriched"
+          ? "needs_review"
           : "needs_enrichment";
-  const readinessReason = rankedContacts.primaryContact?.quality?.campaignEligible
-    ? rankedContacts.primaryContact.fullName
-      ? "Named company-domain contact is ready for outreach"
-      : "Exact-domain business inbox is ready for outreach"
-    : rankedContacts.primaryContact?.quality?.warnings[0] ??
-      "No strong contact path is ready for outreach yet";
+  const readinessReason =
+    status === "blocked"
+      ? "Still blocked because no website, phone, or primary contact path was verified."
+      : rankedContacts.primaryContact?.quality?.campaignEligible
+        ? rankedContacts.primaryContact.fullName
+          ? "Ready because a named company-domain contact was selected."
+          : "Ready because an exact-domain business inbox was selected."
+        : !normalizedWebsite
+          ? "Needs enrichment because the company still has no verified website on record."
+          : rankedContacts.primaryContact?.quality?.warnings[0] ??
+            "No strong contact path is ready for outreach yet.";
 
   return {
     companyId: company.id,
@@ -666,14 +960,33 @@ async function enrichSingleCompany(
         ? "Company is now campaign-eligible."
         : status === "needs_review"
           ? "Website enrichment improved the record, but an operator should review it."
-          : status === "needs_enrichment"
+          : status === "blocked"
+            ? "The record is still blocked because no usable public contact path was found."
+            : status === "needs_enrichment"
             ? "The record still needs more enrichment before outreach."
             : websiteScan.lastError ?? "Website enrichment failed for this company.",
     confidenceLevel,
     missingFields,
-    foundEmails: websiteScan.emails,
-    foundPhones: websiteScan.phones,
-    pagesChecked: websiteScan.sourceUrls,
+    foundEmails,
+    foundPhones,
+    pagesChecked: websiteScan.pagesChecked,
+    website: normalizedWebsite,
+    websiteDiscoveryStatus: websiteDiscovery.status,
+    websiteDiscoverySummary: buildWebsiteDiscoverySummary(
+      websiteDiscovery,
+      normalizedWebsite,
+    ),
+    noteHintSummary: buildNoteHintSummary(noteArtifacts.hints),
+    segmentLabel: segment.label,
+    angleLabel: updatedCompany.enrichment?.outreachAngle?.label,
+    angleReason: updatedCompany.enrichment?.outreachAngle?.shortReason,
+    angleUrgency: updatedCompany.enrichment?.outreachAngle?.urgency,
+    angleConfidenceLevel: updatedCompany.enrichment?.outreachAngle?.confidenceLevel,
+    angleReviewPath: updatedCompany.enrichment?.outreachAngle?.reviewPath,
+    recommendedFirstOfferId:
+      updatedCompany.enrichment?.outreachAngle?.recommendedFirstOfferId,
+    importedAt: company.createdAt,
+    lastEnrichedAt: updatedCompany.enrichment?.lastEnrichedAt,
     primaryContactId: rankedContacts.primaryContact?.id,
     primaryContactLabel:
       rankedContacts.primaryContact?.fullName ??
@@ -710,7 +1023,12 @@ export async function runLeadEnrichment(params: {
   const targetCompanyIds =
     params.scope === "queue"
       ? companies
-          .filter((company) => company.status === "new")
+          .filter(
+            (company) =>
+              company.status === "new" ||
+              company.status === "enriched" ||
+              company.enrichment?.manualReviewRequired,
+          )
           .map((company) => company.id)
       : dedupeStrings((params.companyIds ?? []) as string[]).map((id) => id as CompanyId);
   const targets = companies.filter((company) => targetCompanyIds.includes(company.id));
@@ -764,6 +1082,7 @@ export async function runLeadEnrichment(params: {
     stillNeedsEnrichmentCount: results.filter(
       (result) => result.status === "needs_enrichment",
     ).length,
+    blockedCount: results.filter((result) => result.status === "blocked").length,
     results,
   };
 }

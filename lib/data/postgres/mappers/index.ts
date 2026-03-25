@@ -2,7 +2,9 @@ import type {
   Appointment,
   Campaign,
   Company,
+  CompanyEnrichmentSnapshot,
   Contact,
+  Enrollment,
   Reply,
 } from "@/lib/domain";
 import type {
@@ -10,11 +12,50 @@ import type {
   CampaignRow,
   CompanyRow,
   ContactRow,
+  EnrollmentRow,
   ReplyRow,
 } from "@/lib/data/postgres/schema";
 
 function listOrEmpty<T>(value: readonly T[] | null | undefined): T[] {
   return value ? [...value] : [];
+}
+
+function normalizeCompanyEnrichment(
+  enrichment: CompanyEnrichmentSnapshot | null | undefined,
+): CompanyEnrichmentSnapshot | undefined {
+  if (!enrichment) {
+    return undefined;
+  }
+
+  return {
+    ...enrichment,
+    sourceUrls: listOrEmpty(enrichment.sourceUrls),
+    pagesChecked: listOrEmpty(enrichment.pagesChecked),
+    foundEmails: listOrEmpty(enrichment.foundEmails),
+    foundPhones: listOrEmpty(enrichment.foundPhones),
+    foundNames: listOrEmpty(enrichment.foundNames),
+    noteHints: listOrEmpty(enrichment.noteHints),
+    missingFields: listOrEmpty(enrichment.missingFields),
+    websiteDiscovery: enrichment.websiteDiscovery
+      ? {
+          ...enrichment.websiteDiscovery,
+          candidateUrls: listOrEmpty(enrichment.websiteDiscovery.candidateUrls),
+          matchedSignals: listOrEmpty(enrichment.websiteDiscovery.matchedSignals),
+        }
+      : undefined,
+    segment: enrichment.segment
+      ? {
+          ...enrichment.segment,
+          reasons: listOrEmpty(enrichment.segment.reasons),
+        }
+      : undefined,
+    outreachAngle: enrichment.outreachAngle
+      ? {
+          ...enrichment.outreachAngle,
+          reasons: listOrEmpty(enrichment.outreachAngle.reasons),
+        }
+      : undefined,
+  };
 }
 
 export function mapCompanyRowToDomain(row: CompanyRow): Company {
@@ -42,7 +83,7 @@ export function mapCompanyRowToDomain(row: CompanyRow): Company {
     activeCampaignIds: listOrEmpty(row.active_campaign_ids),
     appointmentIds: listOrEmpty(row.appointment_ids),
     scoring: row.scoring,
-    enrichment: row.enrichment ?? undefined,
+    enrichment: normalizeCompanyEnrichment(row.enrichment),
     source: row.source,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -106,6 +147,27 @@ export function mapReplyRowToDomain(row: ReplyRow): Reply {
     receivedAt: row.received_at,
     requiresHumanReview: row.requires_human_review,
     indicatesBookingIntent: row.indicates_booking_intent,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapEnrollmentRowToDomain(row: EnrollmentRow): Enrollment {
+  return {
+    id: row.id,
+    companyId: row.company_id,
+    contactId: row.contact_id,
+    campaignId: row.campaign_id,
+    sequenceId: row.sequence_id,
+    offerId: row.offer_id,
+    priorityTier: row.priority_tier,
+    state: row.state,
+    currentStepIndex: row.current_step_index,
+    enteredSequenceAt: row.entered_sequence_at,
+    nextActionAt: row.next_action_at ?? undefined,
+    lastContactedAt: row.last_contacted_at ?? undefined,
+    lastReplyId: row.last_reply_id ?? undefined,
+    appointmentId: row.appointment_id ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -200,6 +262,29 @@ export function mapCampaignDomainToRow(campaign: Campaign): CampaignRow {
     goal_metric: campaign.goalMetric,
     created_at: campaign.createdAt,
     updated_at: campaign.updatedAt,
+  };
+}
+
+export function mapEnrollmentDomainToRow(
+  enrollment: Enrollment,
+): EnrollmentRow {
+  return {
+    id: enrollment.id,
+    company_id: enrollment.companyId,
+    contact_id: enrollment.contactId,
+    campaign_id: enrollment.campaignId,
+    sequence_id: enrollment.sequenceId,
+    offer_id: enrollment.offerId,
+    priority_tier: enrollment.priorityTier,
+    state: enrollment.state,
+    current_step_index: enrollment.currentStepIndex,
+    entered_sequence_at: enrollment.enteredSequenceAt,
+    next_action_at: enrollment.nextActionAt ?? null,
+    last_contacted_at: enrollment.lastContactedAt ?? null,
+    last_reply_id: enrollment.lastReplyId ?? null,
+    appointment_id: enrollment.appointmentId ?? null,
+    created_at: enrollment.createdAt,
+    updated_at: enrollment.updatedAt,
   };
 }
 
