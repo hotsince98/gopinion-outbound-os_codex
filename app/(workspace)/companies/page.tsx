@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
+import { PreferredSupportingPageCard } from "@/components/companies/preferred-supporting-page-card";
 import { DetailList } from "@/components/ui/detail-list";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPanel } from "@/components/ui/filter-panel";
@@ -291,6 +292,26 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 <p className="mt-3 text-sm leading-6 text-muted">
                   {view.selectedCompany.recommendedOffer.cta}
                 </p>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <PreferredSupportingPageCard
+                  companyId={view.selectedCompany.companyId}
+                  currentUrl={view.selectedCompany.preferredSupportingPage.url}
+                  label={view.selectedCompany.preferredSupportingPage.label}
+                  sourceLabel={view.selectedCompany.preferredSupportingPage.sourceLabel}
+                  reason={view.selectedCompany.preferredSupportingPage.reason}
+                />
+
+                <div className="surface-muted p-4">
+                  <p className="micro-label">Top recommended outreach contact</p>
+                  <p className="mt-3 text-base font-medium text-copy">
+                    {view.selectedCompany.topRecommendedContact.label}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    {view.selectedCompany.topRecommendedContact.reason}
+                  </p>
+                </div>
               </div>
 
               <div className="surface-muted p-4">

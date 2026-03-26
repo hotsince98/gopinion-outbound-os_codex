@@ -68,6 +68,13 @@ export const websiteDiscoveryStatuses = [
 export type WebsiteDiscoveryStatus =
   (typeof websiteDiscoveryStatuses)[number];
 
+export const preferredSupportingPageSources = [
+  "discovery",
+  "operator_confirmed",
+] as const;
+export type PreferredSupportingPageSource =
+  (typeof preferredSupportingPageSources)[number];
+
 export const companyNoteHintKinds = [
   "website",
   "email",
@@ -125,6 +132,13 @@ export interface CompanyWebsiteDiscoverySnapshot {
   contactPageUrls: string[];
   staffPageUrls: string[];
   extractedEvidence: string[];
+  preferredSupportingPage?: {
+    url: string;
+    kind: "contact" | "about" | "staff";
+    source: PreferredSupportingPageSource;
+    reason: string;
+    updatedAt?: IsoDateString;
+  };
   source: SourceReference;
   lastCheckedAt?: IsoDateString;
   lastError?: string;

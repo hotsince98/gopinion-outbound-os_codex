@@ -73,6 +73,9 @@ export default async function LeadsPage({ searchParams }: PageProps) {
           tone={row.enrichmentBadge.tone}
         />
         <p className="text-sm text-copy">{row.websiteDiscovery}</p>
+        <p className="text-sm text-muted">
+          {row.preferredSupportingPageLabel} • {row.preferredSupportingPageSource}
+        </p>
         <p className="text-sm text-muted">{row.noteHintSummary}</p>
       </div>,
       <div key={`${row.companyId}-status`} className="space-y-2">
@@ -104,6 +107,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         </p>
         <p className="text-sm text-muted">{row.contactCoverage}</p>
         <p className="text-sm text-muted">{row.primaryContactSource}</p>
+        <p className="text-sm text-copy">{row.primaryContactSelectionReason}</p>
         {row.primaryContactWarnings[0] ? (
           <p className="text-sm text-warning">{row.primaryContactWarnings[0]}</p>
         ) : null}

@@ -20,9 +20,17 @@ const STAFF_PATH_PATTERNS = [
   /meet[-_/]?the[-_/]?(?:team|staff)/i,
   /our[-_/]?(?:team|staff)/i,
   /sales[-_/]?(?:team|staff)/i,
+  /service[-_/]?(?:team|staff)/i,
+  /parts[-_/]?(?:team|staff)/i,
+  /finance[-_/]?(?:team|staff)/i,
   /staff[-_/]?directory/i,
   /team[-_/]?directory/i,
+  /\/departments?(?:[/.?#-]|$)/i,
   /\/management(?:[/.?#-]|$)/i,
+  /management[-_/]?team/i,
+  /leadership/i,
+  /our[-_/]?people/i,
+  /people/i,
 ];
 
 const CONTACT_PATH_PATTERNS = [
@@ -38,6 +46,7 @@ const ABOUT_PATH_PATTERNS = [
   /about[-_/]?us/i,
   /our[-_/]?story/i,
   /who[-_/]?we[-_/]?are/i,
+  /why[-_/]?buy[-_/]?from[-_/]?us/i,
 ];
 
 function decodeHtmlEntities(value: string) {

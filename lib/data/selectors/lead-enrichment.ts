@@ -17,6 +17,9 @@ import {
   getOutreachAngleReason,
   getOutreachAngleReviewPathBadge,
   getOutreachAngleUrgencyBadge,
+  getPrimaryContactSelectionReason,
+  getPreferredSupportingPageLabel,
+  getPreferredSupportingPageSourceLabel,
   getRecommendedOfferName,
   getSegmentLabel,
   getWebsiteDiscoveryLabel,
@@ -52,7 +55,10 @@ export interface LeadEnrichmentQueueRowView {
   contactCoverage: string;
   decisionMaker: string;
   primaryContactSource: string;
+  primaryContactSelectionReason: string;
   primaryContactWarnings: string[];
+  preferredSupportingPageLabel: string;
+  preferredSupportingPageSource: string;
   readinessBadge: SelectorBadge;
   readinessReason: string;
   recommendedCampaignName: string;
@@ -153,7 +159,10 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
         contactCoverage: getContactCoverageLabel(bundle),
         decisionMaker: getDecisionMakerLabel(bundle),
         primaryContactSource: getContactSourceLabel(bundle.primaryContact),
+        primaryContactSelectionReason: getPrimaryContactSelectionReason(bundle),
         primaryContactWarnings: getContactWarnings(bundle.primaryContact),
+        preferredSupportingPageLabel: getPreferredSupportingPageLabel(bundle.company),
+        preferredSupportingPageSource: getPreferredSupportingPageSourceLabel(bundle.company),
         readinessBadge: getWorkflowBadge(deriveWorkflowState(bundle)),
         readinessReason: getWorkflowReason(bundle),
         recommendedCampaignName:

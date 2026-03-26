@@ -53,6 +53,13 @@ export interface LeadEnrichmentRecordResult {
   discoveryEvidence: string[];
   staffPageUrls: string[];
   contactPageUrls: string[];
+  preferredSupportingPageUrl?: string;
+  preferredSupportingPageSource?: NonNullable<
+    NonNullable<
+      CompanyEnrichmentSnapshot["websiteDiscovery"]
+    >["preferredSupportingPage"]
+  >["source"];
+  preferredSupportingPageReason?: string;
   noteHintSummary?: string;
   segmentLabel?: string;
   angleLabel?: string;
@@ -67,6 +74,7 @@ export interface LeadEnrichmentRecordResult {
   primaryContactLabel?: string;
   primaryContactSource?: string;
   primaryContactQuality?: ContactQualityTier;
+  primaryContactSelectionReason?: string;
   qualityWarnings: string[];
   readinessReason: string;
 }

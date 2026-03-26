@@ -1,5 +1,6 @@
 import { normalizeWebsiteUrl } from "@/lib/data/intake/validation";
 import type {
+  CompanyOutreachAngleKey,
   Contact,
   ContactPathKind,
   ContactQualitySnapshot,
@@ -139,37 +140,228 @@ function getContactRankScore(contact: Contact) {
   return contact.quality?.rankScore ?? Math.round(contact.confidence.score * 100);
 }
 
-function getRoleSelectionBonus(contact: Contact) {
+function getTitleRolePriority(title: string | undefined) {
+  const normalized = title?.toLowerCase() ?? "";
+
+  if (!normalized) {
+    return {
+      score: 0,
+      reason: undefined,
+      tag: undefined,
+    };
+  }
+
+  if (
+    normalized.includes("owner") ||
+    normalized.includes("president") ||
+    normalized.includes("dealer principal")
+  ) {
+    return {
+      score: 18,
+      reason: "Title points to final vendor decision authority",
+      tag: "owner",
+    } as const;
+  }
+
+  if (normalized.includes("general manager") || normalized === "gm") {
+    return {
+      score: 16,
+      reason: "Title points to store-level operating authority",
+      tag: "general_manager",
+    } as const;
+  }
+
+  if (normalized.includes("sales manager") || normalized.includes("sales director")) {
+    return {
+      score: 12,
+      reason: "Title points to sales-process influence and frontline workflow ownership",
+      tag: "sales_manager",
+    } as const;
+  }
+
+  if (normalized.includes("service manager") || normalized.includes("service director")) {
+    return {
+      score: 11,
+      reason: "Title points to service-lane workflow ownership",
+      tag: "service_manager",
+    } as const;
+  }
+
+  if (normalized.includes("parts manager") || normalized.includes("parts director")) {
+    return {
+      score: 10,
+      reason: "Title points to parts and inventory workflow ownership",
+      tag: "parts_manager",
+    } as const;
+  }
+
+  if (
+    normalized.includes("financial services manager") ||
+    normalized.includes("finance manager") ||
+    normalized.includes("f&i")
+  ) {
+    return {
+      score: 10,
+      reason: "Title points to finance and post-sale workflow ownership",
+      tag: "finance_manager",
+    } as const;
+  }
+
+  return {
+    score: 0,
+    reason: undefined,
+    tag: undefined,
+  } as const;
+}
+
+function getAngleSpecificRoleBonus(params: {
+  contact: Contact;
+  titlePriority: ReturnType<typeof getTitleRolePriority>;
+  angleKey?: CompanyOutreachAngleKey;
+}) {
+  switch (params.angleKey) {
+    case "review_growth_opportunity":
+    case "review_response_routing_issue":
+    case "strong_review_optimization_opportunity":
+      if (params.titlePriority.tag === "sales_manager") {
+        return {
+          score: 8,
+          reason: "Role fits review and post-sale follow-up ownership for this angle",
+        };
+      }
+
+      if (params.titlePriority.tag === "service_manager") {
+        return {
+          score: 5,
+          reason: "Service leadership can support response and retention workflow changes",
+        };
+      }
+
+      if (params.titlePriority.tag === "finance_manager") {
+        return {
+          score: 4,
+          reason: "Finance leadership can reinforce process adoption for this angle",
+        };
+      }
+
+      return {
+        score: 0,
+        reason: undefined,
+      };
+    case "provider_replacement_opportunity":
+    case "naps_listing_consistency_opportunity":
+      if (params.titlePriority.tag === "owner" || params.contact.role === "owner") {
+        return {
+          score: 6,
+          reason: "Role aligns with broader vendor or operations ownership for this angle",
+        };
+      }
+
+      if (
+        params.titlePriority.tag === "general_manager" ||
+        params.contact.role === "general_manager"
+      ) {
+        return {
+          score: 5,
+          reason: "Role aligns with store-level process ownership for this angle",
+        };
+      }
+
+      return {
+        score: 0,
+        reason: undefined,
+      };
+    case "control_reporting_opportunity":
+      if (params.titlePriority.tag === "general_manager") {
+        return {
+          score: 6,
+          reason: "Role aligns with reporting and visibility ownership for this angle",
+        };
+      }
+
+      if (
+        params.titlePriority.tag === "service_manager" ||
+        params.titlePriority.tag === "parts_manager" ||
+        params.titlePriority.tag === "finance_manager"
+      ) {
+        return {
+          score: 4,
+          reason: "Department leadership can validate control and reporting gaps for this angle",
+        };
+      }
+
+      return {
+        score: 0,
+        reason: undefined,
+      };
+    case "generic_manual_review":
+    default:
+      return {
+        score: 0,
+        reason: undefined,
+      };
+  }
+}
+
+function getRoleSelectionBonus(
+  contact: Contact,
+  angleKey?: CompanyOutreachAngleKey,
+) {
+  const titlePriority = getTitleRolePriority(contact.title);
+
   switch (contact.role) {
     case "owner":
       return {
-        score: 18,
-        reason: "Role points to final vendor decision authority",
+        score: 18 + titlePriority.score,
+        reason:
+          titlePriority.reason ?? "Role points to final vendor decision authority",
       };
     case "operator_owner":
       return {
-        score: 16,
+        score: 16 + titlePriority.score,
         reason: "Role points to hands-on operator decision authority",
       };
     case "general_manager":
       return {
-        score: 12,
-        reason: "Role points to day-to-day operating authority",
+        score:
+          12 +
+          titlePriority.score +
+          getAngleSpecificRoleBonus({ contact, titlePriority, angleKey }).score,
+        reason:
+          getAngleSpecificRoleBonus({ contact, titlePriority, angleKey }).reason ??
+          titlePriority.reason ??
+          "Role points to day-to-day operating authority",
       };
     case "dealership_manager":
       return {
-        score: 8,
-        reason: "Role supports store-level routing and operational context",
+        score:
+          8 +
+          titlePriority.score +
+          getAngleSpecificRoleBonus({ contact, titlePriority, angleKey }).score,
+        reason:
+          getAngleSpecificRoleBonus({ contact, titlePriority, angleKey }).reason ??
+          titlePriority.reason ??
+          "Role supports store-level routing and operational context",
       };
     case "sales_manager":
       return {
-        score: 5,
-        reason: "Role may influence follow-up and post-sale workflow decisions",
+        score:
+          5 +
+          titlePriority.score +
+          getAngleSpecificRoleBonus({ contact, titlePriority, angleKey }).score,
+        reason:
+          getAngleSpecificRoleBonus({ contact, titlePriority, angleKey }).reason ??
+          titlePriority.reason ??
+          "Role may influence follow-up and post-sale workflow decisions",
       };
     case "unknown":
       return {
-        score: 0,
-        reason: undefined,
+        score:
+          titlePriority.score +
+          getAngleSpecificRoleBonus({ contact, titlePriority, angleKey }).score,
+        reason:
+          getAngleSpecificRoleBonus({ contact, titlePriority, angleKey }).reason ??
+          titlePriority.reason,
       };
   }
 }
@@ -185,11 +377,12 @@ function canBePrimaryContact(contact: Contact) {
 function assessContactForPrimarySelection(
   contact: Contact,
   preferredContactId: Contact["id"] | undefined,
+  angleKey?: CompanyOutreachAngleKey,
 ) {
   let selectionScore = getContactRankScore(contact);
   const selectionReasons: string[] = [];
   const demotionReasons: string[] = [];
-  const roleBonus = getRoleSelectionBonus(contact);
+  const roleBonus = getRoleSelectionBonus(contact, angleKey);
 
   if (contact.quality?.campaignEligible ?? contact.outreachReady) {
     selectionScore += 12;
@@ -276,10 +469,15 @@ export function rankContactsForPrimarySelection(
   contacts: readonly Contact[],
   options?: {
     preferredContactId?: Contact["id"];
+    angleKey?: CompanyOutreachAngleKey;
   },
 ): RankedContactSelection[] {
   const assessed = contacts.map((contact) =>
-    assessContactForPrimarySelection(contact, options?.preferredContactId),
+    assessContactForPrimarySelection(
+      contact,
+      options?.preferredContactId,
+      options?.angleKey,
+    ),
   );
   const ordered = [...assessed].sort((left, right) => {
     if (right.selectionScore !== left.selectionScore) {
@@ -351,6 +549,7 @@ export function selectPrimaryContact(
   contacts: readonly Contact[],
   options?: {
     preferredContactId?: Contact["id"];
+    angleKey?: CompanyOutreachAngleKey;
   },
 ) {
   return rankContactsForPrimarySelection(contacts, options).find(
@@ -361,10 +560,12 @@ export function selectPrimaryContact(
 export function applyPrimaryContactSelection(params: {
   contacts: readonly Contact[];
   preferredContactId?: Contact["id"];
+  angleKey?: CompanyOutreachAngleKey;
   now: string;
 }) {
   const rankedContacts = rankContactsForPrimarySelection(params.contacts, {
     preferredContactId: params.preferredContactId,
+    angleKey: params.angleKey,
   });
   const updatedContacts = rankedContacts.map((selection) => ({
     ...selection.contact,

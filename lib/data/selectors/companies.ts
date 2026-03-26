@@ -21,6 +21,10 @@ import {
   getOutreachAngleReviewPathBadge,
   getOutreachAngleUrgencyBadge,
   getPriorityBadge,
+  getPreferredSupportingPage,
+  getPreferredSupportingPageLabel,
+  getPreferredSupportingPageSourceLabel,
+  getPrimaryContactSelectionReason,
   getPrimaryContactReadinessReason,
   getRecommendedOfferName,
   getReviewSnapshot,
@@ -117,6 +121,16 @@ export interface CompanyDetailView {
     description: string;
     angle: string;
     cta: string;
+  };
+  preferredSupportingPage: {
+    url?: string;
+    label: string;
+    sourceLabel: string;
+    reason?: string;
+  };
+  topRecommendedContact: {
+    label: string;
+    reason: string;
   };
   contacts: CompanyContactDetail[];
   campaignSummary: string[];
@@ -334,6 +348,16 @@ export async function getCompaniesWorkspaceView(
           cta:
             selectedBundle.recommendedOffer?.primaryCta ??
             "CTA is still pending.",
+        },
+        preferredSupportingPage: {
+          url: getPreferredSupportingPage(selectedBundle.company)?.url,
+          label: getPreferredSupportingPageLabel(selectedBundle.company),
+          sourceLabel: getPreferredSupportingPageSourceLabel(selectedBundle.company),
+          reason: getPreferredSupportingPage(selectedBundle.company)?.reason,
+        },
+        topRecommendedContact: {
+          label: getDecisionMakerLabel(selectedBundle),
+          reason: getPrimaryContactSelectionReason(selectedBundle),
         },
         contacts: selectedBundle.rankedContacts.map((selection) => {
           const contact = selection.contact;

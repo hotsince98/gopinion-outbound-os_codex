@@ -159,6 +159,18 @@ export function LeadEnrichmentWorkspace({
                       Discovery evidence: {result.discoveryEvidence.slice(0, 2).join(" • ")}
                     </p>
                   ) : null}
+                  {result.preferredSupportingPageUrl ? (
+                    <p className="mt-2 text-sm text-copy">
+                      Preferred page: {result.preferredSupportingPageUrl} •{" "}
+                      {result.preferredSupportingPageSource?.replaceAll("_", " ") ??
+                        "saved"}
+                    </p>
+                  ) : null}
+                  {result.preferredSupportingPageReason ? (
+                    <p className="mt-2 text-sm text-muted">
+                      {result.preferredSupportingPageReason}
+                    </p>
+                  ) : null}
                   {result.staffPageUrls[0] || result.contactPageUrls[0] ? (
                     <p className="mt-2 text-sm text-muted">
                       Pages:{" "}
@@ -203,6 +215,11 @@ export function LeadEnrichmentWorkspace({
                   {result.primaryContactSource ? (
                     <p className="mt-2 text-sm text-muted">
                       Source: {result.primaryContactSource}
+                    </p>
+                  ) : null}
+                  {result.primaryContactSelectionReason ? (
+                    <p className="mt-2 text-sm text-copy">
+                      Why chosen: {result.primaryContactSelectionReason}
                     </p>
                   ) : null}
                   {result.primaryContactQuality ? (
@@ -332,6 +349,12 @@ export function LeadEnrichmentWorkspace({
                           {row.website ?? "No website on record"}
                         </p>
                         <p className="text-sm text-muted">{row.websiteDiscovery}</p>
+                        <p className="text-sm text-copy">
+                          {row.preferredSupportingPageLabel}
+                        </p>
+                        <p className="text-sm text-muted">
+                          {row.preferredSupportingPageSource}
+                        </p>
                         <StatusBadge
                           label={row.confidenceBadge.label}
                           tone={row.confidenceBadge.tone}
@@ -369,6 +392,9 @@ export function LeadEnrichmentWorkspace({
                         <p className="text-sm text-copy">{row.decisionMaker}</p>
                         <p className="text-sm text-muted">{row.contactCoverage}</p>
                         <p className="text-sm text-muted">{row.primaryContactSource}</p>
+                        <p className="text-sm text-copy">
+                          {row.primaryContactSelectionReason}
+                        </p>
                         {row.primaryContactWarnings[0] ? (
                           <p className="text-sm text-warning">
                             {row.primaryContactWarnings[0]}

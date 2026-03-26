@@ -6,6 +6,7 @@ import {
 } from "@/lib/data/enrichment/site-pages";
 import type {
   Company,
+  PreferredSupportingPageSource,
   CompanyWebsiteDiscoverySnapshot,
   EnrichmentConfidenceLevel,
   SourceReference,
@@ -528,6 +529,7 @@ function createDiscoverySnapshot(params: {
   contactPageUrls?: string[];
   staffPageUrls?: string[];
   extractedEvidence?: string[];
+  preferredSupportingPage?: CompanyWebsiteDiscoverySnapshot["preferredSupportingPage"];
   lastError?: string;
   source?: SourceReference;
 }) {
@@ -542,10 +544,95 @@ function createDiscoverySnapshot(params: {
     contactPageUrls: params.contactPageUrls ?? [],
     staffPageUrls: params.staffPageUrls ?? [],
     extractedEvidence: params.extractedEvidence ?? [],
+    preferredSupportingPage: params.preferredSupportingPage,
     source: params.source ?? createDiscoverySource(params.now, params.discoveredWebsite),
     lastCheckedAt: params.now,
     lastError: params.lastError,
   } satisfies CompanyWebsiteDiscoverySnapshot;
+}
+
+function buildPreferredSupportingPageReason(params: {
+  kind: NonNullable<CompanyWebsiteDiscoverySnapshot["preferredSupportingPage"]>["kind"];
+  source: PreferredSupportingPageSource;
+  extractedEvidence?: string[];
+}) {
+  if (params.source === "operator_confirmed") {
+    return "Operator confirmed this supporting page for future enrichment runs.";
+  }
+
+  const evidence = params.extractedEvidence?.find((value) =>
+    /named contact|staff\/team page|contact page|email path/i.test(value),
+  );
+
+  switch (params.kind) {
+    case "staff":
+      return evidence ?? "Discovery found a staff/team page with likely decision-maker clues.";
+    case "contact":
+      return evidence ?? "Discovery found a contact page with a likely outreach path.";
+    case "about":
+    default:
+      return evidence ?? "Discovery found a supporting page worth reusing during future enrichment.";
+  }
+}
+
+export function selectPreferredSupportingPage(params: {
+  now: string;
+  current?: CompanyWebsiteDiscoverySnapshot["preferredSupportingPage"];
+  supportingPageUrls?: string[];
+  contactPageUrls?: string[];
+  staffPageUrls?: string[];
+  extractedEvidence?: string[];
+  source?: PreferredSupportingPageSource;
+}) {
+  if (
+    params.current?.source === "operator_confirmed" &&
+    params.source !== "operator_confirmed"
+  ) {
+    return params.current;
+  }
+
+  const source = params.source ?? "discovery";
+  const kind =
+    params.staffPageUrls?.[0] ? "staff" : params.contactPageUrls?.[0] ? "contact" : params.supportingPageUrls?.[0] ? "about" : undefined;
+  const url =
+    (kind === "staff" ? params.staffPageUrls?.[0] : undefined) ??
+    (kind === "contact" ? params.contactPageUrls?.[0] : undefined) ??
+    params.supportingPageUrls?.[0] ??
+    params.current?.url;
+
+  if (!url || !kind) {
+    return params.current;
+  }
+
+  if (
+    params.current?.url === url &&
+    params.current.kind === kind &&
+    params.current.source === source
+  ) {
+    return {
+      ...params.current,
+      reason:
+        params.current.reason ||
+        buildPreferredSupportingPageReason({
+          kind,
+          source,
+          extractedEvidence: params.extractedEvidence,
+        }),
+      updatedAt: params.now,
+    };
+  }
+
+  return {
+    url,
+    kind,
+    source,
+    reason: buildPreferredSupportingPageReason({
+      kind,
+      source,
+      extractedEvidence: params.extractedEvidence,
+    }),
+    updatedAt: params.now,
+  } satisfies NonNullable<CompanyWebsiteDiscoverySnapshot["preferredSupportingPage"]>;
 }
 
 export function buildRecordProvidedDiscoverySnapshot(params: {
@@ -569,6 +656,7 @@ export function buildRecordProvidedDiscoverySnapshot(params: {
     contactPageUrls: [],
     staffPageUrls: [],
     extractedEvidence: [],
+    preferredSupportingPage: undefined,
     source: params.source,
   });
 }
@@ -580,6 +668,7 @@ export function mergeWebsiteDiscoveryEvidence(params: {
   contactPageUrls?: string[];
   staffPageUrls?: string[];
   extractedEvidence?: string[];
+  preferredSupportingPage?: CompanyWebsiteDiscoverySnapshot["preferredSupportingPage"];
   lastError?: string;
 }) {
   return createDiscoverySnapshot({
@@ -605,6 +694,8 @@ export function mergeWebsiteDiscoveryEvidence(params: {
       ...params.snapshot.extractedEvidence,
       ...(params.extractedEvidence ?? []),
     ]),
+    preferredSupportingPage:
+      params.preferredSupportingPage ?? params.snapshot.preferredSupportingPage,
     lastError: params.lastError ?? params.snapshot.lastError,
     source: params.snapshot.source,
   });

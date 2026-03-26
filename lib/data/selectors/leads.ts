@@ -24,7 +24,10 @@ import {
   getOutreachAngleReviewPathBadge,
   getOutreachAngleUrgencyBadge,
   getPriorityBadge,
+  getPrimaryContactSelectionReason,
   getContactSourceLabel,
+  getPreferredSupportingPageLabel,
+  getPreferredSupportingPageSourceLabel,
   getRecommendedOfferName,
   getSegmentAngle,
   getSegmentLabel,
@@ -103,6 +106,7 @@ export interface LeadRowView {
   decisionMakerConfidence: string;
   contactCoverage: string;
   primaryContactSource: string;
+  primaryContactSelectionReason: string;
   primaryContactWarnings: string[];
   enrichmentSummary: string;
   missingFieldsLabel: string;
@@ -111,6 +115,8 @@ export interface LeadRowView {
   sourceLabel: string;
   websiteLabel: string;
   websiteDiscovery: string;
+  preferredSupportingPageLabel: string;
+  preferredSupportingPageSource: string;
   noteHintSummary: string;
   angleLabel: string;
   angleReason: string;
@@ -550,6 +556,7 @@ export async function getLeadsWorkspaceView(
       decisionMakerConfidence: getDecisionMakerConfidenceLabel(bundle),
       contactCoverage: getContactCoverageLabel(bundle),
       primaryContactSource: getContactSourceLabel(bundle.primaryContact),
+      primaryContactSelectionReason: getPrimaryContactSelectionReason(bundle),
       primaryContactWarnings: getContactWarnings(bundle.primaryContact),
       enrichmentSummary: getEnrichmentSummary(bundle.company),
       missingFieldsLabel: getMissingFieldsLabel(bundle.company),
@@ -561,6 +568,8 @@ export async function getLeadsWorkspaceView(
         bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite ??
         "No website on record",
       websiteDiscovery: getWebsiteDiscoveryLabel(bundle.company),
+      preferredSupportingPageLabel: getPreferredSupportingPageLabel(bundle.company),
+      preferredSupportingPageSource: getPreferredSupportingPageSourceLabel(bundle.company),
       noteHintSummary: getNoteHintSummary(bundle.company),
       angleLabel: getOutreachAngleLabel(bundle.company),
       angleReason: getOutreachAngleReason(bundle.company),

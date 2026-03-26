@@ -15,6 +15,7 @@ import {
   buildRecordProvidedDiscoverySnapshot,
   discoverCompanyWebsite,
   mergeWebsiteDiscoveryEvidence,
+  selectPreferredSupportingPage,
 } from "@/lib/data/enrichment/discovery";
 import { scanCompanyWebsiteWithProvider } from "@/lib/data/enrichment/provider";
 import { parseImportedNoteArtifacts } from "@/lib/data/intake/notes";
@@ -198,6 +199,9 @@ function buildWebsiteDiscoverySummary(
   const evidencePreview = dedupeStrings(
     websiteDiscovery?.extractedEvidence.slice(0, 2) ?? [],
   ).join(" • ");
+  const preferredSupportingPageLabel = websiteDiscovery?.preferredSupportingPage
+    ? `Preferred ${websiteDiscovery.preferredSupportingPage.kind} page (${websiteDiscovery.preferredSupportingPage.source.replaceAll("_", " ")}): ${websiteDiscovery.preferredSupportingPage.url}`
+    : undefined;
 
   if (!websiteDiscovery) {
     return resolvedWebsite
@@ -219,6 +223,7 @@ function buildWebsiteDiscoverySummary(
               websiteDiscovery.contactPageUrls.length === 1 ? "" : "s"
             } found`
           : undefined,
+        preferredSupportingPageLabel,
         evidencePreview,
       ]
         .filter((value): value is string => Boolean(value))
@@ -236,6 +241,7 @@ function buildWebsiteDiscoverySummary(
               websiteDiscovery.contactPageUrls.length === 1 ? "" : "s"
             } found`
           : undefined,
+        preferredSupportingPageLabel,
         evidencePreview,
       ]
         .filter((value): value is string => Boolean(value))
@@ -280,6 +286,17 @@ function buildNoteHintSummary(noteHints: CompanyEnrichmentSnapshot["noteHints"])
       ? `${counts.observations} operator note${counts.observations === 1 ? "" : "s"}`
       : undefined,
   ]).join(" • ");
+}
+
+function getPreferredSupportingPageUrls(
+  websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"],
+) {
+  return dedupeStrings([
+    websiteDiscovery?.preferredSupportingPage?.url,
+    ...(websiteDiscovery?.staffPageUrls ?? []),
+    ...(websiteDiscovery?.contactPageUrls ?? []),
+    ...(websiteDiscovery?.supportingPageUrls ?? []),
+  ]);
 }
 
 interface ContactDraft {
@@ -575,6 +592,7 @@ function rankContactDrafts(params: {
   company: Company;
   hasWebsiteEvidence: boolean;
   host: string | undefined;
+  angleKey?: NonNullable<CompanyEnrichmentSnapshot["outreachAngle"]>["key"];
   now: string;
 }) {
   const ranked = params.drafts.map((draft) => {
@@ -651,6 +669,7 @@ function rankContactDrafts(params: {
   return applyPrimaryContactSelection({
     contacts: persistedContacts,
     preferredContactId: params.company.primaryContactId,
+    angleKey: params.angleKey,
     now: params.now,
   });
 }
@@ -773,6 +792,9 @@ function updateCompanyReadiness(params: {
     params.websiteDiscovery?.contactPageUrls.length
       ? `Supporting contact pages found: ${params.websiteDiscovery.contactPageUrls.length}`
       : undefined,
+    params.websiteDiscovery?.preferredSupportingPage
+      ? `Preferred supporting page reused: ${params.websiteDiscovery.preferredSupportingPage.url}`
+      : undefined,
     params.foundNames.length > 0
       ? `Named contact clues surfaced: ${params.foundNames.slice(0, 3).join(", ")}`
       : undefined,
@@ -833,7 +855,8 @@ async function enrichSingleCompany(
   const noteWebsiteSource = noteArtifacts.hints.find(
     (hint) => hint.kind === "website",
   )?.source;
-  const websiteDiscovery = company.presence.websiteUrl
+  const previousWebsiteDiscovery = company.enrichment?.websiteDiscovery;
+  const baseWebsiteDiscovery = company.presence.websiteUrl
     ? buildRecordProvidedDiscoverySnapshot({
         website: company.presence.websiteUrl,
         now,
@@ -847,6 +870,9 @@ async function enrichSingleCompany(
           source: noteWebsiteSource ?? company.source,
           matchedSignals: ["Website surfaced from imported notes"],
         })
+      : previousWebsiteDiscovery?.discoveredWebsite ||
+          previousWebsiteDiscovery?.preferredSupportingPage?.url
+        ? previousWebsiteDiscovery
       : await discoverCompanyWebsite(
           {
             ...company,
@@ -858,53 +884,30 @@ async function enrichSingleCompany(
           },
           now,
         );
+  const websiteDiscovery =
+    previousWebsiteDiscovery && previousWebsiteDiscovery !== baseWebsiteDiscovery
+      ? mergeWebsiteDiscoveryEvidence({
+          snapshot: baseWebsiteDiscovery,
+          now,
+          supportingPageUrls: previousWebsiteDiscovery.supportingPageUrls,
+          contactPageUrls: previousWebsiteDiscovery.contactPageUrls,
+          staffPageUrls: previousWebsiteDiscovery.staffPageUrls,
+          extractedEvidence: previousWebsiteDiscovery.extractedEvidence,
+          preferredSupportingPage: previousWebsiteDiscovery.preferredSupportingPage,
+          lastError: baseWebsiteDiscovery.lastError,
+        })
+      : baseWebsiteDiscovery;
   const resolvedWebsite =
     company.presence.websiteUrl ??
     noteArtifacts.suggestedWebsite ??
-    websiteDiscovery.discoveredWebsite;
+    websiteDiscovery.discoveredWebsite ??
+    websiteDiscovery.preferredSupportingPage?.url;
   const websiteScan = await scanCompanyWebsiteWithProvider({
     website: resolvedWebsite,
-    preferredPageUrls: websiteDiscovery.supportingPageUrls,
-  });
-  const enrichedWebsiteDiscovery = mergeWebsiteDiscoveryEvidence({
-    snapshot: websiteDiscovery,
-    now,
-    supportingPageUrls: websiteScan.supportingPageUrls,
-    contactPageUrls: websiteScan.contactPageUrls,
-    staffPageUrls: websiteScan.staffPageUrls,
-    extractedEvidence: websiteScan.evidenceSummary,
-    lastError: websiteScan.lastError,
+    preferredPageUrls: getPreferredSupportingPageUrls(websiteDiscovery),
   });
   const normalizedWebsite = websiteScan.normalizedWebsite ?? resolvedWebsite;
   const host = getCompanyHost(normalizedWebsite);
-  const drafts = buildWebsiteDrafts({
-    company,
-    existingContacts: companyContacts,
-    now,
-    normalizedWebsite,
-    sourceUrls: websiteScan.sourceUrls,
-    websiteEmails: websiteScan.emails,
-    websitePhones: websiteScan.phones,
-    namedContacts: websiteScan.namedContacts,
-  });
-  const mergedDrafts = mergeNoteDrafts({
-    drafts,
-    noteArtifacts,
-    normalizedWebsite,
-    now,
-  });
-  const hasWebsiteEvidence = websiteScan.sourceUrls.length > 0;
-  const rankedContacts = rankContactDrafts({
-    drafts: mergedDrafts,
-    company,
-    hasWebsiteEvidence,
-    host,
-    now,
-  });
-  const confidenceLevel = getConfidenceLevel(
-    rankedContacts.primaryContact,
-    hasWebsiteEvidence,
-  );
   const foundEmails = dedupeStrings([
     ...noteArtifacts.hints
       .filter((hint) => hint.kind === "email")
@@ -925,6 +928,91 @@ async function enrichSingleCompany(
       .map((hint) => hint.value),
     ...websiteScan.namedContacts.map((candidate) => candidate.fullName),
   ]);
+  const preferredSupportingPage = selectPreferredSupportingPage({
+    now,
+    current: websiteDiscovery.preferredSupportingPage,
+    supportingPageUrls: dedupeStrings([
+      ...websiteScan.supportingPageUrls,
+      ...websiteDiscovery.supportingPageUrls,
+    ]),
+    contactPageUrls: dedupeStrings([
+      ...websiteScan.contactPageUrls,
+      ...websiteDiscovery.contactPageUrls,
+    ]),
+    staffPageUrls: dedupeStrings([
+      ...websiteScan.staffPageUrls,
+      ...websiteDiscovery.staffPageUrls,
+    ]),
+    extractedEvidence: dedupeStrings([
+      ...websiteDiscovery.extractedEvidence,
+      ...websiteScan.evidenceSummary,
+    ]),
+  });
+  const enrichedWebsiteDiscovery = mergeWebsiteDiscoveryEvidence({
+    snapshot: websiteDiscovery,
+    now,
+    supportingPageUrls: websiteScan.supportingPageUrls,
+    contactPageUrls: websiteScan.contactPageUrls,
+    staffPageUrls: websiteScan.staffPageUrls,
+    extractedEvidence: websiteScan.evidenceSummary,
+    preferredSupportingPage,
+    lastError: websiteScan.lastError,
+  });
+  const drafts = buildWebsiteDrafts({
+    company,
+    existingContacts: companyContacts,
+    now,
+    normalizedWebsite,
+    sourceUrls: websiteScan.sourceUrls,
+    websiteEmails: websiteScan.emails,
+    websitePhones: websiteScan.phones,
+    namedContacts: websiteScan.namedContacts,
+  });
+  const mergedDrafts = mergeNoteDrafts({
+    drafts,
+    noteArtifacts,
+    normalizedWebsite,
+    now,
+  });
+  const hasWebsiteEvidence = websiteScan.sourceUrls.length > 0;
+  const provisionalPhone =
+    foundPhones[0] ??
+    company.presence.primaryPhone;
+  const provisionalSegment = classifyCompanySegment({
+    presence: {
+      ...company.presence,
+      hasWebsite: Boolean(normalizedWebsite),
+      websiteUrl: normalizedWebsite,
+      primaryPhone: provisionalPhone,
+    },
+    softwareToolCountEstimate: company.softwareToolCountEstimate,
+    now,
+  });
+  const provisionalOutreachAngle = classifyCompanyOutreachAngle({
+    presence: {
+      ...company.presence,
+      hasWebsite: Boolean(normalizedWebsite),
+      websiteUrl: normalizedWebsite,
+      primaryPhone: provisionalPhone,
+    },
+    segment: provisionalSegment,
+    primaryContact: undefined,
+    manualReviewRequired: true,
+    now,
+  });
+  const rankedContacts = rankContactDrafts({
+    drafts: mergedDrafts,
+    company,
+    hasWebsiteEvidence,
+    host,
+    angleKey:
+      company.enrichment?.outreachAngle?.key ?? provisionalOutreachAngle.key,
+    now,
+  });
+  const confidenceLevel = getConfidenceLevel(
+    rankedContacts.primaryContact,
+    hasWebsiteEvidence,
+  );
   const bestPhone =
     rankedContacts.primaryContact?.phone ??
     foundPhones[0] ??
@@ -1037,6 +1125,11 @@ async function enrichSingleCompany(
     discoveryEvidence: enrichedWebsiteDiscovery.extractedEvidence,
     staffPageUrls: enrichedWebsiteDiscovery.staffPageUrls,
     contactPageUrls: enrichedWebsiteDiscovery.contactPageUrls,
+    preferredSupportingPageUrl: enrichedWebsiteDiscovery.preferredSupportingPage?.url,
+    preferredSupportingPageSource:
+      enrichedWebsiteDiscovery.preferredSupportingPage?.source,
+    preferredSupportingPageReason:
+      enrichedWebsiteDiscovery.preferredSupportingPage?.reason,
     foundNames,
     noteHintSummary: buildNoteHintSummary(noteArtifacts.hints),
     segmentLabel: segment.label,
@@ -1058,6 +1151,8 @@ async function enrichSingleCompany(
       ? getContactSourceLabel(rankedContacts.primaryContact)
       : undefined,
     primaryContactQuality: rankedContacts.primaryContact?.quality?.qualityTier,
+    primaryContactSelectionReason:
+      rankedContacts.primaryContact?.quality?.selectionReasons[0],
     qualityWarnings: rankedContacts.primaryContact?.quality?.warnings ?? [],
     readinessReason,
   };
@@ -1130,8 +1225,12 @@ export async function runLeadEnrichment(params: {
         discoveryEvidence: [],
         staffPageUrls: [],
         contactPageUrls: [],
+        preferredSupportingPageUrl: undefined,
+        preferredSupportingPageSource: undefined,
+        preferredSupportingPageReason: undefined,
         primaryContactSource: undefined,
         primaryContactQuality: undefined,
+        primaryContactSelectionReason: undefined,
         qualityWarnings: [],
         readinessReason: "The enrichment run failed before a contact path could be evaluated.",
       });

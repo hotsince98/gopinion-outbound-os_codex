@@ -51,6 +51,11 @@ function normalizeCompanyEnrichment(
           extractedEvidence: listOrEmpty(
             enrichment.websiteDiscovery.extractedEvidence,
           ),
+          preferredSupportingPage: enrichment.websiteDiscovery.preferredSupportingPage
+            ? {
+                ...enrichment.websiteDiscovery.preferredSupportingPage,
+              }
+            : undefined,
         }
       : undefined,
     segment: enrichment.segment

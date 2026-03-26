@@ -304,6 +304,32 @@ export function getWebsiteDiscoveryLabel(company: Company) {
   }
 }
 
+export function getPreferredSupportingPage(company: Company) {
+  return company.enrichment?.websiteDiscovery?.preferredSupportingPage;
+}
+
+export function getPreferredSupportingPageLabel(company: Company) {
+  const preferredPage = getPreferredSupportingPage(company);
+
+  if (!preferredPage) {
+    return "No preferred supporting page saved yet";
+  }
+
+  return `${preferredPage.kind.replaceAll("_", " ")} page: ${preferredPage.url}`;
+}
+
+export function getPreferredSupportingPageSourceLabel(company: Company) {
+  const preferredPage = getPreferredSupportingPage(company);
+
+  if (!preferredPage) {
+    return "Preferred-page source pending";
+  }
+
+  return preferredPage.source === "operator_confirmed"
+    ? "Operator confirmed"
+    : "Auto-discovered";
+}
+
 export function getNoteHintSummary(company: Company) {
   const noteHints = company.enrichment?.noteHints ?? [];
 
@@ -468,6 +494,22 @@ export function getContactSourceLabel(contact: Contact | undefined) {
 
 export function getContactWarnings(contact: Contact | undefined) {
   return contact?.quality?.warnings ?? [];
+}
+
+export function getPrimaryContactSelectionReason(bundle: CompanyBundle) {
+  if (!bundle.primaryContact) {
+    if (bundle.company.enrichment?.websiteDiscovery?.preferredSupportingPage?.reason) {
+      return bundle.company.enrichment.websiteDiscovery.preferredSupportingPage.reason;
+    }
+
+    return "A primary outreach contact has not been selected yet.";
+  }
+
+  return (
+    bundle.primaryContact.quality?.selectionReasons[0] ??
+    bundle.primaryContact.confidence.signals[0] ??
+    "This contact currently ranks highest for outreach."
+  );
 }
 
 export function getContactCoverageLabel(bundle: CompanyBundle) {
