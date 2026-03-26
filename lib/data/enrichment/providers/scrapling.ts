@@ -406,6 +406,7 @@ function mapWorkerResultToWebsiteScanResult(
     transportUsed: transport.transportUsed,
     transportTarget: transport.transportTarget,
     transportSucceeded: true,
+    crawlAttempted: true,
     providerEvidence: evidenceSummary,
     pagesChecked,
     sourceUrls,
@@ -457,6 +458,7 @@ async function scanWebsiteWithFallback(
     transportUsed: transport.transportUsed,
     transportTarget: transport.transportTarget,
     transportSucceeded: false,
+    crawlAttempted: Boolean(params.website),
     providerEvidence,
     evidenceSummary: providerEvidence,
   } satisfies WebsiteScanResult;

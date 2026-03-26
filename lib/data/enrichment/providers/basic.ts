@@ -17,6 +17,7 @@ export const basicWebsiteEnrichmentProvider: WebsiteEnrichmentProviderAdapter = 
       actualProvider: "basic",
       fallbackUsed: false,
       fallbackReason: undefined,
+      crawlAttempted: Boolean(params.website),
       providerEvidence: result.evidenceSummary,
     };
   },

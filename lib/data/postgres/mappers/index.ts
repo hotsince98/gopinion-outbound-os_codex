@@ -20,6 +20,20 @@ function listOrEmpty<T>(value: readonly T[] | null | undefined): T[] {
   return value ? [...value] : [];
 }
 
+function isProviderOnlyEvidence(value: string | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  return /^(Scrapling transport:|Scrapling endpoint:|Scrapling worker entry:|Scrapling fallback reason:|Scrapling worker fallback:)/iu.test(
+    value,
+  );
+}
+
+function normalizeDiscoveryEvidence(values: readonly string[] | null | undefined) {
+  return listOrEmpty(values).filter((value) => !isProviderOnlyEvidence(value));
+}
+
 function normalizeProviderRun(
   providerRun: CompanyEnrichmentSnapshot["providerRun"],
 ) {
@@ -28,12 +42,18 @@ function normalizeProviderRun(
   }
 
   const evidence = listOrEmpty(providerRun.evidence);
+  const ignoreHistoricalFallbackInference =
+    providerRun.transportSucceeded === true &&
+    providerRun.actualProvider === "scrapling" &&
+    !providerRun.fallbackUsed &&
+    !providerRun.fallbackReason;
   const inferredFallbackEvidence = evidence.find(
     (item) =>
-      item.startsWith("Scrapling worker fallback:") ||
-      item.startsWith("Scrapling fallback reason:") ||
-      item.startsWith("Scrapling transport: HTTP endpoint failed") ||
-      item.startsWith("Scrapling transport: local worker failed"),
+      !ignoreHistoricalFallbackInference &&
+      (item.startsWith("Scrapling worker fallback:") ||
+        item.startsWith("Scrapling fallback reason:") ||
+        item.startsWith("Scrapling transport: HTTP endpoint failed") ||
+        item.startsWith("Scrapling transport: local worker failed")),
   );
   const fallbackReason =
     providerRun.fallbackReason ??
@@ -49,6 +69,18 @@ function normalizeProviderRun(
       : providerRun.actualProvider;
   const transportSucceeded =
     providerRun.transportSucceeded ?? (!fallbackUsed && providerRun.requestedProvider === "scrapling");
+  const crawlAttempted =
+    providerRun.crawlAttempted ??
+    (providerRun.inputStatus === "confirmed_website" ||
+      Boolean(providerRun.crawledWebsite));
+  const normalizedEvidence =
+    actualProvider === "scrapling" && !fallbackUsed && transportSucceeded
+      ? evidence.filter(
+          (item) =>
+            !item.startsWith("Scrapling worker fallback:") &&
+            !item.startsWith("Scrapling fallback reason:"),
+        )
+      : evidence;
 
   return {
     ...providerRun,
@@ -56,7 +88,8 @@ function normalizeProviderRun(
     fallbackUsed,
     fallbackReason,
     transportSucceeded,
-    evidence,
+    crawlAttempted,
+    evidence: normalizedEvidence,
   };
 }
 
@@ -103,7 +136,7 @@ function normalizeCompanyEnrichment(
             enrichment.websiteDiscovery.contactPageUrls,
           ),
           staffPageUrls: listOrEmpty(enrichment.websiteDiscovery.staffPageUrls),
-          extractedEvidence: listOrEmpty(
+          extractedEvidence: normalizeDiscoveryEvidence(
             enrichment.websiteDiscovery.extractedEvidence,
           ),
           debugNotes: listOrEmpty(enrichment.websiteDiscovery.debugNotes),

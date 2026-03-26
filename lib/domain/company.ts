@@ -69,6 +69,24 @@ export const companyEnrichmentTransportKeys = ["http", "process"] as const;
 export type CompanyEnrichmentTransportKey =
   (typeof companyEnrichmentTransportKeys)[number];
 
+export const companyEnrichmentInputStatuses = [
+  "confirmed_website",
+  "candidate_website",
+  "no_website",
+] as const;
+export type CompanyEnrichmentInputStatus =
+  (typeof companyEnrichmentInputStatuses)[number];
+
+export const companyEnrichmentInputSources = [
+  "company_record",
+  "imported_notes",
+  "discovery_confirmed",
+  "discovery_candidate",
+  "none",
+] as const;
+export type CompanyEnrichmentInputSource =
+  (typeof companyEnrichmentInputSources)[number];
+
 export const websiteDiscoveryStatuses = [
   "not_checked",
   "record_provided",
@@ -224,6 +242,11 @@ export interface CompanyEnrichmentProviderRunSnapshot {
   transportUsed?: CompanyEnrichmentTransportKey;
   transportTarget?: string;
   transportSucceeded?: boolean;
+  crawlAttempted?: boolean;
+  inputStatus?: CompanyEnrichmentInputStatus;
+  inputSource?: CompanyEnrichmentInputSource;
+  inputWebsite?: string;
+  crawledWebsite?: string;
   evidence: string[];
   lastRunAt?: IsoDateString;
 }

@@ -199,8 +199,13 @@ export function getWebsiteDiscoveryConfidenceBadge(company: Company): SelectorBa
 
 export function getEnrichmentSummary(company: Company) {
   const discovery = company.enrichment?.websiteDiscovery;
+  const providerRun = getNormalizedProviderRun(company);
   const supportingPageCount =
     (discovery?.staffPageUrls.length ?? 0) + (discovery?.contactPageUrls.length ?? 0);
+
+  if (!providerRun?.crawlAttempted && company.enrichment?.lastError) {
+    return company.enrichment.lastError;
+  }
 
   if (company.enrichment?.lastError) {
     return `Fetch issue: ${company.enrichment.lastError}`;
@@ -836,6 +841,16 @@ function formatTransportLabel(transport: "http" | "process" | undefined) {
   }
 }
 
+function isProviderOnlyEvidence(value: string | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  return /^(Scrapling transport:|Scrapling endpoint:|Scrapling worker entry:|Scrapling fallback reason:|Scrapling worker fallback:)/iu.test(
+    value,
+  );
+}
+
 function getNormalizedProviderRun(company: Company) {
   const providerRun = company.enrichment?.providerRun;
 
@@ -843,12 +858,18 @@ function getNormalizedProviderRun(company: Company) {
     return undefined;
   }
 
+  const ignoreHistoricalFallbackInference =
+    providerRun.transportSucceeded === true &&
+    providerRun.actualProvider === "scrapling" &&
+    !providerRun.fallbackUsed &&
+    !providerRun.fallbackReason;
   const inferredFallbackEvidence = providerRun.evidence.find(
     (item) =>
-      item.startsWith("Scrapling worker fallback:") ||
-      item.startsWith("Scrapling fallback reason:") ||
-      item.startsWith("Scrapling transport: HTTP endpoint failed") ||
-      item.startsWith("Scrapling transport: local worker failed"),
+      !ignoreHistoricalFallbackInference &&
+      (item.startsWith("Scrapling worker fallback:") ||
+        item.startsWith("Scrapling fallback reason:") ||
+        item.startsWith("Scrapling transport: HTTP endpoint failed") ||
+        item.startsWith("Scrapling transport: local worker failed")),
   );
   const fallbackReason =
     providerRun.fallbackReason ??
@@ -858,6 +879,29 @@ function getNormalizedProviderRun(company: Company) {
   const fallbackUsed =
     providerRun.fallbackUsed ||
     (!!fallbackReason && providerRun.requestedProvider === "scrapling");
+  const inputStatus =
+    providerRun.inputStatus ??
+    (providerRun.crawledWebsite || company.enrichment?.sourceUrls.length
+      ? "confirmed_website"
+      : company.enrichment?.websiteDiscovery?.confirmationStatus === "needs_review" &&
+          company.enrichment.websiteDiscovery.candidateWebsite
+        ? "candidate_website"
+        : "no_website");
+  const inputWebsite =
+    providerRun.inputWebsite ??
+    (inputStatus === "candidate_website"
+      ? company.enrichment?.websiteDiscovery?.candidateWebsite
+      : providerRun.crawledWebsite ??
+        company.enrichment?.websiteDiscovery?.discoveredWebsite ??
+        company.presence.websiteUrl);
+  const crawlAttempted =
+    providerRun.crawlAttempted ??
+    Boolean(providerRun.crawledWebsite || company.enrichment?.sourceUrls.length);
+  const evidence = dedupeStrings(providerRun.evidence).filter((value) =>
+    providerRun.transportSucceeded && !fallbackUsed && isProviderOnlyEvidence(value)
+      ? !/fallback/iu.test(value)
+      : true,
+  );
 
   return {
     ...providerRun,
@@ -870,6 +914,10 @@ function getNormalizedProviderRun(company: Company) {
     transportSucceeded:
       providerRun.transportSucceeded ??
       (!fallbackUsed && providerRun.requestedProvider === "scrapling"),
+    inputStatus,
+    inputWebsite,
+    crawlAttempted,
+    evidence,
   };
 }
 
@@ -878,6 +926,12 @@ export function getEnrichmentProviderBadge(company: Company): SelectorBadge {
 
   if (!providerRun) {
     return { label: "Provider pending", tone: "muted" };
+  }
+
+  if (!providerRun.crawlAttempted) {
+    return providerRun.inputStatus === "candidate_website"
+      ? { label: "Crawl pending review", tone: "warning" }
+      : { label: "No crawl input", tone: "muted" };
   }
 
   if (providerRun.fallbackUsed) {
@@ -896,6 +950,12 @@ export function getEnrichmentProviderLabel(company: Company) {
     return "No provider run captured yet";
   }
 
+  if (!providerRun.crawlAttempted) {
+    return providerRun.inputStatus === "candidate_website"
+      ? `Requested ${formatProviderLabel(providerRun.requestedProvider)} • crawl held pending website review`
+      : `Requested ${formatProviderLabel(providerRun.requestedProvider)} • discovery ended before crawl`;
+  }
+
   if (providerRun.fallbackUsed) {
     return `Requested ${formatProviderLabel(providerRun.requestedProvider)} • ran ${formatProviderLabel(providerRun.actualProvider)} fallback via ${formatTransportLabel(providerRun.transportUsed)}`;
   }
@@ -909,6 +969,17 @@ export function getEnrichmentProviderLabel(company: Company) {
 
 export function getEnrichmentProviderFallbackLabel(company: Company) {
   const providerRun = getNormalizedProviderRun(company);
+
+  if (!providerRun) {
+    return "No provider fallback was needed";
+  }
+
+  if (!providerRun.crawlAttempted) {
+    return providerRun.inputStatus === "candidate_website"
+      ? `Candidate considered but not confirmed: ${providerRun.inputWebsite ?? "candidate pending"}`
+      : company.enrichment?.lastError ??
+          "No confirmed website was available to pass into the crawler";
+  }
 
   if (!providerRun?.fallbackUsed) {
     return providerRun?.transportUsed
@@ -929,17 +1000,25 @@ export function getEnrichmentProviderEvidenceLabel(company: Company) {
   const providerRun = getNormalizedProviderRun(company);
   const evidence = providerRun?.evidence ?? [];
 
-  if (evidence.length === 0) {
-    return "No provider evidence captured yet";
-  }
-
   const details = [
+    providerRun?.inputStatus === "confirmed_website" && providerRun.inputWebsite
+      ? `Input confirmed website ${providerRun.inputWebsite}`
+      : providerRun?.inputStatus === "candidate_website" && providerRun.inputWebsite
+        ? `Input candidate website ${providerRun.inputWebsite}`
+        : providerRun?.inputStatus === "no_website"
+          ? "Input missing: no website available"
+          : undefined,
+    providerRun?.crawledWebsite ? `Crawled ${providerRun.crawledWebsite}` : undefined,
     providerRun?.transportUsed
       ? `Transport ${formatTransportLabel(providerRun.transportUsed)}${providerRun.transportSucceeded === false ? " failed" : providerRun.transportSucceeded ? " succeeded" : ""}`
       : undefined,
     providerRun?.transportTarget ? `Target ${providerRun.transportTarget}` : undefined,
     ...evidence,
   ];
+
+  if (dedupeStrings(details).length === 0) {
+    return "No provider evidence captured yet";
+  }
 
   return dedupeStrings(details).slice(0, 3).join(" • ");
 }
@@ -960,18 +1039,28 @@ function getUsedSupportingPageUrls(company: Company) {
 }
 
 export function getSupportingPageUsageLabel(company: Company) {
+  const providerRun = getNormalizedProviderRun(company);
   const usedPages = getUsedSupportingPageUrls(company);
   const supportingCount = dedupeStrings(usedPages.supporting).length;
   const staffCount = dedupeStrings(usedPages.staff).length;
   const contactCount = dedupeStrings(usedPages.contact).length;
 
+  if (providerRun && !providerRun.crawlAttempted) {
+    return providerRun.inputStatus === "candidate_website"
+      ? "No crawl ran yet • website candidate still needs confirmation"
+      : "No crawl ran yet • discovery did not produce a confirmed website";
+  }
+
   if (supportingCount === 0 && staffCount === 0 && contactCount === 0) {
     return company.enrichment?.pagesChecked.length
-      ? "Homepage-only crawl"
+      ? providerRun?.crawledWebsite
+        ? `Crawled ${providerRun.crawledWebsite} • homepage only`
+        : "Homepage-only crawl"
       : "No supporting pages used yet";
   }
 
-  return [
+  return dedupeStrings([
+    providerRun?.crawledWebsite ? `Crawled ${providerRun.crawledWebsite}` : undefined,
     `${dedupeStrings([
       ...usedPages.supporting,
       ...usedPages.staff,
@@ -983,9 +1072,7 @@ export function getSupportingPageUsageLabel(company: Company) {
     ]).length === 1 ? "" : "s"} used`,
     staffCount > 0 ? `${staffCount} staff/team` : undefined,
     contactCount > 0 ? `${contactCount} contact` : undefined,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(" • ");
+  ]).join(" • ");
 }
 
 export function getContactWarnings(contact: Contact | undefined) {

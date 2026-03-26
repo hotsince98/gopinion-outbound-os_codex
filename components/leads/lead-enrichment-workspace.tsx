@@ -325,9 +325,25 @@ export function LeadEnrichmentWorkspace({
                   ) : null}
                   {result.providerUsed ? (
                     <p className="mt-2 text-sm text-copy">
-                      Provider: requested {result.providerRequested ?? result.providerUsed} • ran{" "}
-                      {result.providerUsed}
-                      {result.providerFallbackUsed ? " fallback" : ""}
+                      {result.providerCrawlAttempted === false
+                        ? result.providerInputStatus === "candidate_website"
+                          ? `Provider: requested ${result.providerRequested ?? result.providerUsed} • crawl held pending website review`
+                          : `Provider: requested ${result.providerRequested ?? result.providerUsed} • discovery ended before crawl`
+                        : `Provider: requested ${result.providerRequested ?? result.providerUsed} • ran ${result.providerUsed}${result.providerFallbackUsed ? " fallback" : ""}`}
+                    </p>
+                  ) : null}
+                  {result.providerInputStatus ? (
+                    <p className="mt-2 text-sm text-muted">
+                      {result.providerInputStatus === "confirmed_website"
+                        ? `Crawler input: confirmed website ${result.providerInputWebsite ?? "available"}`
+                        : result.providerInputStatus === "candidate_website"
+                          ? `Crawler input held: candidate website ${result.providerInputWebsite ?? "pending"} still needs confirmation`
+                          : "Crawler input: no confirmed website was available"}
+                    </p>
+                  ) : null}
+                  {result.providerCrawledWebsite ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Crawler website: {result.providerCrawledWebsite}
                     </p>
                   ) : null}
                   {result.providerFallbackReason ? (

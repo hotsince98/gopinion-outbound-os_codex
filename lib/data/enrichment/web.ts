@@ -22,6 +22,7 @@ export interface WebsiteScanResult {
   transportUsed?: "http" | "process";
   transportTarget?: string;
   transportSucceeded?: boolean;
+  crawlAttempted?: boolean;
   providerEvidence?: string[];
   pagesChecked: string[];
   sourceUrls: string[];

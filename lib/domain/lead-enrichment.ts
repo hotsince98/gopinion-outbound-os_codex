@@ -88,6 +88,18 @@ export interface LeadEnrichmentRecordResult {
   >["actualProvider"];
   providerFallbackUsed?: boolean;
   providerFallbackReason?: string;
+  providerCrawlAttempted?: NonNullable<
+    CompanyEnrichmentSnapshot["providerRun"]
+  >["crawlAttempted"];
+  providerInputStatus?: NonNullable<
+    CompanyEnrichmentSnapshot["providerRun"]
+  >["inputStatus"];
+  providerInputWebsite?: NonNullable<
+    CompanyEnrichmentSnapshot["providerRun"]
+  >["inputWebsite"];
+  providerCrawledWebsite?: NonNullable<
+    CompanyEnrichmentSnapshot["providerRun"]
+  >["crawledWebsite"];
   providerEvidence: string[];
   primaryContactId?: ContactId;
   primaryContactLabel?: string;

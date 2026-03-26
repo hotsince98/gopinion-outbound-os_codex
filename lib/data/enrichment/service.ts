@@ -17,7 +17,11 @@ import {
   mergeWebsiteDiscoveryEvidence,
   selectPreferredSupportingPage,
 } from "@/lib/data/enrichment/discovery";
-import { scanCompanyWebsiteWithProvider } from "@/lib/data/enrichment/provider";
+import {
+  getConfiguredEnrichmentProvider,
+  scanCompanyWebsiteWithProvider,
+} from "@/lib/data/enrichment/provider";
+import type { WebsiteScanResult } from "@/lib/data/enrichment/web";
 import { parseImportedNoteArtifacts } from "@/lib/data/intake/notes";
 import {
   deriveContactRoleFromTitle,
@@ -345,17 +349,208 @@ function buildNoteHintSummary(noteHints: CompanyEnrichmentSnapshot["noteHints"])
   ]).join(" • ");
 }
 
-function buildProviderRunSnapshot(params: {
-  websiteScan: {
-    requestedProvider?: "basic" | "scrapling";
-    actualProvider?: "basic" | "scrapling";
-    fallbackUsed?: boolean;
-    fallbackReason?: string;
-    transportUsed?: "http" | "process";
-    transportTarget?: string;
-    transportSucceeded?: boolean;
-    providerEvidence?: string[];
+type WebsiteInputStatus = NonNullable<
+  NonNullable<CompanyEnrichmentSnapshot["providerRun"]>["inputStatus"]
+>;
+type WebsiteInputSource = NonNullable<
+  NonNullable<CompanyEnrichmentSnapshot["providerRun"]>["inputSource"]
+>;
+
+interface WebsiteEnrichmentInputContext {
+  website?: string;
+  status: WebsiteInputStatus;
+  source: WebsiteInputSource;
+  candidateWebsite?: string;
+}
+
+function isProviderOnlyEvidence(value: string | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  return /^(Scrapling transport:|Scrapling endpoint:|Scrapling worker entry:|Scrapling fallback reason:|Scrapling worker fallback:)/iu.test(
+    value,
+  );
+}
+
+function filterDiscoveryEvidence(values: Array<string | undefined>) {
+  return dedupeStrings(values).filter((value) => !isProviderOnlyEvidence(value));
+}
+
+function resolveWebsiteEnrichmentInput(params: {
+  company: Company;
+  noteWebsite?: string;
+  websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"];
+}) {
+  const recordWebsite = normalizeWebsiteUrl(params.company.presence.websiteUrl);
+  const noteWebsite = normalizeWebsiteUrl(params.noteWebsite);
+  const confirmedDiscoveryWebsite =
+    params.websiteDiscovery?.confirmationStatus &&
+    ["record_provided", "auto_confirmed", "operator_confirmed"].includes(
+      params.websiteDiscovery.confirmationStatus,
+    )
+      ? normalizeWebsiteUrl(params.websiteDiscovery.discoveredWebsite)
+      : undefined;
+  const candidateWebsite =
+    params.websiteDiscovery?.confirmationStatus === "needs_review"
+      ? normalizeWebsiteUrl(params.websiteDiscovery.candidateWebsite)
+      : undefined;
+
+  if (recordWebsite) {
+    return {
+      website: recordWebsite,
+      status: "confirmed_website",
+      source: "company_record",
+    } satisfies WebsiteEnrichmentInputContext;
+  }
+
+  if (noteWebsite) {
+    return {
+      website: noteWebsite,
+      status: "confirmed_website",
+      source: "imported_notes",
+    } satisfies WebsiteEnrichmentInputContext;
+  }
+
+  if (confirmedDiscoveryWebsite) {
+    return {
+      website: confirmedDiscoveryWebsite,
+      status: "confirmed_website",
+      source: "discovery_confirmed",
+    } satisfies WebsiteEnrichmentInputContext;
+  }
+
+  if (candidateWebsite) {
+    return {
+      website: undefined,
+      candidateWebsite,
+      status: "candidate_website",
+      source: "discovery_candidate",
+    } satisfies WebsiteEnrichmentInputContext;
+  }
+
+  return {
+    website: undefined,
+    status: "no_website",
+    source: "none",
+  } satisfies WebsiteEnrichmentInputContext;
+}
+
+function buildProviderInputEvidence(params: {
+  input: WebsiteEnrichmentInputContext;
+  websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"];
+  websiteScan: WebsiteScanResult;
+}) {
+  if (params.input.status === "confirmed_website") {
+    return dedupeStrings([
+      params.input.website
+        ? `Crawler input: confirmed website ${params.input.website}`
+        : undefined,
+      params.websiteScan.normalizedWebsite
+        ? `Crawler actual website: ${params.websiteScan.normalizedWebsite}`
+        : undefined,
+      params.websiteScan.sourceUrls.length > 0
+        ? `Crawler fetched ${params.websiteScan.sourceUrls.length} public page${
+            params.websiteScan.sourceUrls.length === 1 ? "" : "s"
+          }`
+        : undefined,
+      params.websiteScan.staffPageUrls.length > 0
+        ? `Crawler found ${params.websiteScan.staffPageUrls.length} staff/team page${
+            params.websiteScan.staffPageUrls.length === 1 ? "" : "s"
+          }`
+        : undefined,
+      params.websiteScan.contactPageUrls.length > 0
+        ? `Crawler found ${params.websiteScan.contactPageUrls.length} contact page${
+            params.websiteScan.contactPageUrls.length === 1 ? "" : "s"
+          }`
+        : undefined,
+    ]);
+  }
+
+  if (params.input.status === "candidate_website") {
+    return dedupeStrings([
+      params.input.candidateWebsite
+        ? `Crawler input held pending candidate review: ${params.input.candidateWebsite}`
+        : undefined,
+      params.websiteDiscovery?.confirmationStatus
+        ? `Candidate status at run: ${params.websiteDiscovery.confirmationStatus.replaceAll("_", " ")}`
+        : undefined,
+    ]);
+  }
+
+  return [
+    "Crawler input missing: discovery did not produce a confirmed website",
+  ];
+}
+
+function buildDiscoveryEvidenceFromWebsiteScan(websiteScan: WebsiteScanResult) {
+  return filterDiscoveryEvidence([
+    websiteScan.normalizedWebsite && websiteScan.sourceUrls.length > 0
+      ? `Website crawl verified ${websiteScan.normalizedWebsite}`
+      : undefined,
+    websiteScan.staffPageUrls.length > 0
+      ? `${websiteScan.staffPageUrls.length} staff/team page${
+          websiteScan.staffPageUrls.length === 1 ? "" : "s"
+        } surfaced during crawl`
+      : undefined,
+    websiteScan.contactPageUrls.length > 0
+      ? `${websiteScan.contactPageUrls.length} contact page${
+          websiteScan.contactPageUrls.length === 1 ? "" : "s"
+        } surfaced during crawl`
+      : undefined,
+  ]);
+}
+
+function buildNoWebsiteInputScanResult(params: {
+  input: WebsiteEnrichmentInputContext;
+  websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"];
+}): WebsiteScanResult {
+  const requestedProvider = getConfiguredEnrichmentProvider();
+  const providerEvidence =
+    params.input.status === "candidate_website"
+      ? dedupeStrings([
+          params.input.candidateWebsite
+            ? `Crawler input held pending candidate review: ${params.input.candidateWebsite}`
+            : undefined,
+          params.websiteDiscovery?.confirmationStatus
+            ? `Candidate status at run: ${params.websiteDiscovery.confirmationStatus.replaceAll(
+                "_",
+                " ",
+              )}`
+            : undefined,
+        ])
+      : ["Crawler input missing: discovery did not produce a confirmed website"];
+
+  return {
+    requestedProvider,
+    actualProvider: requestedProvider,
+    fallbackUsed: false,
+    fallbackReason: undefined,
+    crawlAttempted: false,
+    providerEvidence,
+    normalizedWebsite: undefined,
+    pagesChecked: [],
+    sourceUrls: [],
+    supportingPageUrls: [],
+    contactPageUrls: [],
+    staffPageUrls: [],
+    emails: [],
+    phones: [],
+    namedContacts: [],
+    categoryClues: [],
+    evidenceSummary: [],
+    lastError:
+      params.input.status === "candidate_website"
+        ? "Website discovery found a candidate, but it still needs confirmation before crawl."
+        : params.websiteDiscovery?.lastError ??
+          "Website discovery did not produce a confirmed website to crawl.",
   };
+}
+
+function buildProviderRunSnapshot(params: {
+  input: WebsiteEnrichmentInputContext;
+  websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"];
+  websiteScan: WebsiteScanResult;
   now: string;
 }) {
   const requestedProvider = params.websiteScan.requestedProvider ?? "basic";
@@ -369,7 +564,20 @@ function buildProviderRunSnapshot(params: {
     transportUsed: params.websiteScan.transportUsed,
     transportTarget: params.websiteScan.transportTarget,
     transportSucceeded: params.websiteScan.transportSucceeded,
-    evidence: dedupeStrings(params.websiteScan.providerEvidence ?? []),
+    crawlAttempted:
+      params.websiteScan.crawlAttempted ?? params.input.status === "confirmed_website",
+    inputStatus: params.input.status,
+    inputSource: params.input.source,
+    inputWebsite: params.input.website ?? params.input.candidateWebsite,
+    crawledWebsite: params.websiteScan.normalizedWebsite,
+    evidence: dedupeStrings([
+      ...buildProviderInputEvidence({
+        input: params.input,
+        websiteDiscovery: params.websiteDiscovery,
+        websiteScan: params.websiteScan,
+      }),
+      ...(params.websiteScan.providerEvidence ?? []),
+    ]),
     lastRunAt: params.now,
   } satisfies NonNullable<CompanyEnrichmentSnapshot["providerRun"]>;
 }
@@ -1028,7 +1236,9 @@ async function enrichSingleCompany(
           supportingPageUrls: previousWebsiteDiscovery.supportingPageUrls,
           contactPageUrls: previousWebsiteDiscovery.contactPageUrls,
           staffPageUrls: previousWebsiteDiscovery.staffPageUrls,
-          extractedEvidence: previousWebsiteDiscovery.extractedEvidence,
+          extractedEvidence: filterDiscoveryEvidence(
+            previousWebsiteDiscovery.extractedEvidence,
+          ),
           preferredSupportingPage: previousWebsiteDiscovery.preferredSupportingPage,
           confirmationStatus: previousWebsiteDiscovery.confirmationStatus,
           confirmationReason: previousWebsiteDiscovery.confirmationReason,
@@ -1036,16 +1246,24 @@ async function enrichSingleCompany(
           lastError: baseWebsiteDiscovery.lastError,
         })
       : baseWebsiteDiscovery;
-  const resolvedWebsite =
-    company.presence.websiteUrl ??
-    noteArtifacts.suggestedWebsite ??
-    websiteDiscovery.discoveredWebsite ??
-    websiteDiscovery.preferredSupportingPage?.url;
-  const websiteScan = await scanCompanyWebsiteWithProvider({
-    website: resolvedWebsite,
-    preferredPageUrls: getPreferredSupportingPageUrls(websiteDiscovery),
+  const websiteInput = resolveWebsiteEnrichmentInput({
+    company,
+    noteWebsite: noteArtifacts.suggestedWebsite,
+    websiteDiscovery,
   });
+  const resolvedWebsite = websiteInput.website;
+  const websiteScan = resolvedWebsite
+    ? await scanCompanyWebsiteWithProvider({
+        website: resolvedWebsite,
+        preferredPageUrls: getPreferredSupportingPageUrls(websiteDiscovery),
+      })
+    : buildNoWebsiteInputScanResult({
+        input: websiteInput,
+        websiteDiscovery,
+      });
   const providerRun = buildProviderRunSnapshot({
+    input: websiteInput,
+    websiteDiscovery,
     websiteScan,
     now,
   });
@@ -1087,8 +1305,8 @@ async function enrichSingleCompany(
       ...websiteDiscovery.staffPageUrls,
     ]),
     extractedEvidence: dedupeStrings([
-      ...websiteDiscovery.extractedEvidence,
-      ...websiteScan.evidenceSummary,
+      ...filterDiscoveryEvidence(websiteDiscovery.extractedEvidence),
+      ...buildDiscoveryEvidenceFromWebsiteScan(websiteScan),
     ]),
   });
   const enrichedWebsiteDiscovery = mergeWebsiteDiscoveryEvidence({
@@ -1097,7 +1315,7 @@ async function enrichSingleCompany(
     supportingPageUrls: websiteScan.supportingPageUrls,
     contactPageUrls: websiteScan.contactPageUrls,
     staffPageUrls: websiteScan.staffPageUrls,
-    extractedEvidence: websiteScan.evidenceSummary,
+    extractedEvidence: buildDiscoveryEvidenceFromWebsiteScan(websiteScan),
     preferredSupportingPage,
     lastError: websiteScan.lastError,
   });
@@ -1308,6 +1526,10 @@ async function enrichSingleCompany(
     providerUsed: providerRun.actualProvider,
     providerFallbackUsed: providerRun.fallbackUsed,
     providerFallbackReason: providerRun.fallbackReason,
+    providerCrawlAttempted: providerRun.crawlAttempted,
+    providerInputStatus: providerRun.inputStatus,
+    providerInputWebsite: providerRun.inputWebsite,
+    providerCrawledWebsite: providerRun.crawledWebsite,
     providerEvidence: providerRun.evidence,
     primaryContactId: rankedContacts.primaryContact?.id,
     primaryContactLabel:
