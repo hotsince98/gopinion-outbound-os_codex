@@ -5,11 +5,16 @@ import {
   deriveWorkflowState,
   getCompanyStatusBadge,
   getContactCoverageLabel,
+  getContactQualityBadge,
   getContactWarnings,
   getDecisionMakerConfidenceLabel,
   getDecisionMakerLabel,
   getEnrichmentBadge,
   getEnrichmentConfidenceBadge,
+  getEnrichmentProviderBadge,
+  getEnrichmentProviderEvidenceLabel,
+  getEnrichmentProviderFallbackLabel,
+  getEnrichmentProviderLabel,
   getEnrichmentSummary,
   getIcpFilterOptions,
   getIcpLabel,
@@ -25,7 +30,10 @@ import {
   getOutreachAngleUrgencyBadge,
   getPriorityBadge,
   getPrimaryContactSelectionReason,
+  getRankedContactCountLabel,
+  getRankedContactPreviews,
   getContactSourceLabel,
+  getReadinessConfidenceBadge,
   getPreferredSupportingPageLabel,
   getPreferredSupportingPageSourceLabel,
   getRecommendedOfferName,
@@ -33,9 +41,11 @@ import {
   getSegmentLabel,
   getSourceLabel,
   getSuggestedNextAction,
+  getSupportingPageUsageLabel,
   getTierFilterOptions,
   getWebsiteDiscoveryCandidateLabel,
   getWebsiteDiscoveryConfirmationBadge,
+  getWebsiteDiscoveryConfidenceBadge,
   getWebsiteDiscoveryLabel,
   getWebsiteDiscoveryReason,
   getWebsiteDiscoverySourceLabel,
@@ -49,6 +59,7 @@ import {
   readSearchParam,
   type EnrichmentState,
   type FilterOption,
+  type RankedContactPreview,
   type SearchParamsInput,
   type SelectorBadge,
   type WorkspaceStat,
@@ -111,6 +122,9 @@ export interface LeadRowView {
   decisionMaker: string;
   decisionMakerConfidence: string;
   contactCoverage: string;
+  contactCountLabel: string;
+  contactConfidenceBadge: SelectorBadge;
+  contactCandidates: RankedContactPreview[];
   primaryContactSource: string;
   primaryContactSelectionReason: string;
   primaryContactWarnings: string[];
@@ -122,10 +136,16 @@ export interface LeadRowView {
   websiteLabel: string;
   websiteDiscovery: string;
   websiteDiscoveryBadge: SelectorBadge;
+  websiteDiscoveryConfidenceBadge: SelectorBadge;
   websiteDiscoveryCandidate: string;
   websiteDiscoveryReason: string;
   websiteDiscoverySource: string;
   canReviewWebsiteCandidate: boolean;
+  providerBadge: SelectorBadge;
+  providerLabel: string;
+  providerFallbackLabel: string;
+  providerEvidence: string;
+  supportingPageUsage: string;
   preferredSupportingPageLabel: string;
   preferredSupportingPageSource: string;
   noteHintSummary: string;
@@ -134,6 +154,7 @@ export interface LeadRowView {
   angleUrgencyBadge: SelectorBadge;
   angleConfidenceBadge: SelectorBadge;
   angleReviewPathBadge: SelectorBadge;
+  readinessConfidenceBadge: SelectorBadge;
   segmentLabel: string;
   segmentAngle: string;
   workflowReason: string;
@@ -570,6 +591,9 @@ export async function getLeadsWorkspaceView(
       decisionMaker: getDecisionMakerLabel(bundle),
       decisionMakerConfidence: getDecisionMakerConfidenceLabel(bundle),
       contactCoverage: getContactCoverageLabel(bundle),
+      contactCountLabel: getRankedContactCountLabel(bundle),
+      contactConfidenceBadge: getContactQualityBadge(bundle.primaryContact),
+      contactCandidates: getRankedContactPreviews(bundle),
       primaryContactSource: getContactSourceLabel(bundle.primaryContact),
       primaryContactSelectionReason: getPrimaryContactSelectionReason(bundle),
       primaryContactWarnings: getContactWarnings(bundle.primaryContact),
@@ -584,11 +608,17 @@ export async function getLeadsWorkspaceView(
         "No website on record",
       websiteDiscovery: getWebsiteDiscoveryLabel(bundle.company),
       websiteDiscoveryBadge: getWebsiteDiscoveryConfirmationBadge(bundle.company),
+      websiteDiscoveryConfidenceBadge: getWebsiteDiscoveryConfidenceBadge(bundle.company),
       websiteDiscoveryCandidate: getWebsiteDiscoveryCandidateLabel(bundle.company),
       websiteDiscoveryReason: getWebsiteDiscoveryReason(bundle.company),
       websiteDiscoverySource: getWebsiteDiscoverySourceLabel(bundle.company),
       canReviewWebsiteCandidate:
         bundle.company.enrichment?.websiteDiscovery?.confirmationStatus === "needs_review",
+      providerBadge: getEnrichmentProviderBadge(bundle.company),
+      providerLabel: getEnrichmentProviderLabel(bundle.company),
+      providerFallbackLabel: getEnrichmentProviderFallbackLabel(bundle.company),
+      providerEvidence: getEnrichmentProviderEvidenceLabel(bundle.company),
+      supportingPageUsage: getSupportingPageUsageLabel(bundle.company),
       preferredSupportingPageLabel: getPreferredSupportingPageLabel(bundle.company),
       preferredSupportingPageSource: getPreferredSupportingPageSourceLabel(bundle.company),
       noteHintSummary: getNoteHintSummary(bundle.company),
@@ -597,6 +627,7 @@ export async function getLeadsWorkspaceView(
       angleUrgencyBadge: getOutreachAngleUrgencyBadge(bundle.company),
       angleConfidenceBadge: getOutreachAngleConfidenceBadge(bundle.company),
       angleReviewPathBadge: getOutreachAngleReviewPathBadge(bundle.company),
+      readinessConfidenceBadge: getReadinessConfidenceBadge(bundle.company),
       segmentLabel: getSegmentLabel(bundle.company),
       segmentAngle: getSegmentAngle(bundle.company),
       workflowReason: getWorkflowReason(bundle),

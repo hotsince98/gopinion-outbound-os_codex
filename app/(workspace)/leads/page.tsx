@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
 import { WebsiteDiscoveryReviewActions } from "@/components/leads/website-discovery-review-actions";
+import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
+import { ContactRankingStack } from "@/components/enrichment/contact-ranking-stack";
+import { ProviderRunSummary } from "@/components/enrichment/provider-run-summary";
 import { FilterPanel } from "@/components/ui/filter-panel";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
@@ -78,6 +81,10 @@ export default async function LeadsPage({ searchParams }: PageProps) {
             label={row.websiteDiscoveryBadge.label}
             tone={row.websiteDiscoveryBadge.tone}
           />
+          <StatusBadge
+            label={row.websiteDiscoveryConfidenceBadge.label}
+            tone={row.websiteDiscoveryConfidenceBadge.tone}
+          />
         </div>
         <p className="text-sm text-copy">{row.websiteDiscovery}</p>
         <p className="text-sm text-copy">{row.websiteDiscoveryCandidate}</p>
@@ -87,6 +94,13 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         <p className="text-sm text-muted">
           {row.preferredSupportingPageLabel} • {row.preferredSupportingPageSource}
         </p>
+        <ProviderRunSummary
+          badge={row.providerBadge}
+          label={row.providerLabel}
+          fallback={row.providerFallbackLabel}
+          evidence={row.providerEvidence}
+          pageUsage={row.supportingPageUsage}
+        />
         <p className="text-sm text-muted">{row.noteHintSummary}</p>
       </div>,
       <div key={`${row.companyId}-status`} className="space-y-2">
@@ -95,15 +109,31 @@ export default async function LeadsPage({ searchParams }: PageProps) {
           tone={row.statusBadge.tone}
         />
         <p className="text-sm text-copy">{row.workflowReason}</p>
+        <ConfidenceBreakdown
+          items={[
+            {
+              label: "Website discovery",
+              badge: row.websiteDiscoveryConfidenceBadge,
+            },
+            {
+              label: "Primary contact quality",
+              badge: row.contactConfidenceBadge,
+            },
+            {
+              label: "Angle confidence",
+              badge: row.angleConfidenceBadge,
+            },
+            {
+              label: "Readiness confidence",
+              badge: row.readinessConfidenceBadge,
+            },
+          ]}
+        />
       </div>,
       <div key={`${row.companyId}-offer`} className="space-y-2">
         <p className="text-sm font-medium text-copy">{row.recommendedOffer}</p>
         <p className="text-sm text-copy">{row.angleReason}</p>
         <div className="flex flex-wrap gap-2">
-          <StatusBadge
-            label={row.angleConfidenceBadge.label}
-            tone={row.angleConfidenceBadge.tone}
-          />
           <StatusBadge
             label={row.angleReviewPathBadge.label}
             tone={row.angleReviewPathBadge.tone}
@@ -111,23 +141,17 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         </div>
         <p className="text-sm text-muted">{row.segmentAngle}</p>
       </div>,
-      <div key={`${row.companyId}-contact`} className="space-y-1">
-        <p className="text-sm text-copy">{row.decisionMaker}</p>
+      <div key={`${row.companyId}-contact`} className="space-y-2">
         <p className="text-xs uppercase tracking-[0.18em] text-muted">
           {row.decisionMakerConfidence}
         </p>
         <p className="text-sm text-muted">{row.contactCoverage}</p>
-        <p className="text-sm text-muted">{row.primaryContactSource}</p>
-        <p className="text-sm text-copy">{row.primaryContactSelectionReason}</p>
-        {row.primaryContactWarnings[0] ? (
-          <p className="text-sm text-warning">{row.primaryContactWarnings[0]}</p>
-        ) : null}
+        <ContactRankingStack
+          totalLabel={row.contactCountLabel}
+          items={row.contactCandidates}
+        />
       </div>,
       <div key={`${row.companyId}-action`} className="space-y-2">
-        <StatusBadge
-          label={row.confidenceBadge.label}
-          tone={row.confidenceBadge.tone}
-        />
         <div className="flex flex-wrap gap-2">
           <StatusBadge
             label={row.recommendedCampaignStatusBadge.label}
@@ -396,7 +420,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
             </label>
 
             <label className="space-y-2">
-              <span className="micro-label">Confidence</span>
+              <span className="micro-label">Readiness confidence</span>
               <select
                 name="confidence"
                 defaultValue={view.filters.values.confidence}

@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
 import { WebsiteDiscoveryReviewActions } from "@/components/leads/website-discovery-review-actions";
+import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
+import { ContactRankingStack } from "@/components/enrichment/contact-ranking-stack";
+import { ProviderRunSummary } from "@/components/enrichment/provider-run-summary";
 import { runLeadEnrichmentAction } from "@/app/(workspace)/leads/enrichment/actions";
 import { initialLeadEnrichmentActionState } from "@/app/(workspace)/leads/enrichment/action-state";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -148,8 +151,13 @@ export function LeadEnrichmentWorkspace({
                   </div>
                   <p className="mt-3 text-sm text-muted">
                     {result.primaryContactLabel ?? "No contact path yet"} •{" "}
-                    {result.confidenceLevel} confidence
+                    readiness confidence: {result.confidenceLevel}
                   </p>
+                  {result.primaryContactQuality ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Primary contact quality: {result.primaryContactQuality}
+                    </p>
+                  ) : null}
                   {result.websiteDiscoverySummary ? (
                     <p className="mt-2 text-sm text-muted">
                       {result.websiteDiscoverySummary}
@@ -164,10 +172,27 @@ export function LeadEnrichmentWorkspace({
                     <p className="mt-2 text-sm text-muted">
                       Discovery status:{" "}
                       {result.websiteDiscoveryConfirmationStatus.replaceAll("_", " ")} •{" "}
-                      {result.websiteDiscoveryConfidenceLevel ?? "none"} confidence
+                      website confidence: {result.websiteDiscoveryConfidenceLevel ?? "none"}
                       {result.websiteDiscoveryConfidenceScore != null
                         ? ` (${result.websiteDiscoveryConfidenceScore}/100)`
                         : ""}
+                    </p>
+                  ) : null}
+                  {result.providerUsed ? (
+                    <p className="mt-2 text-sm text-copy">
+                      Provider: requested {result.providerRequested ?? result.providerUsed} • ran{" "}
+                      {result.providerUsed}
+                      {result.providerFallbackUsed ? " fallback" : ""}
+                    </p>
+                  ) : null}
+                  {result.providerFallbackReason ? (
+                    <p className="mt-2 text-sm text-muted">
+                      {result.providerFallbackReason}
+                    </p>
+                  ) : null}
+                  {result.providerEvidence[0] ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Provider evidence: {result.providerEvidence.slice(0, 2).join(" • ")}
                     </p>
                   ) : null}
                   {result.discoveryEvidence[0] ? (
@@ -238,9 +263,14 @@ export function LeadEnrichmentWorkspace({
                       Why chosen: {result.primaryContactSelectionReason}
                     </p>
                   ) : null}
-                  {result.primaryContactQuality ? (
+                  {result.secondaryContactLabels[0] ? (
                     <p className="mt-2 text-sm text-muted">
-                      Quality: {result.primaryContactQuality}
+                      Secondary: {result.secondaryContactLabels[0]}
+                    </p>
+                  ) : null}
+                  {result.backupContactLabels[0] ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Backups: {result.backupContactLabels.join(", ")}
                     </p>
                   ) : null}
                   <p className="mt-2 text-sm text-copy">{result.readinessReason}</p>
@@ -367,8 +397,8 @@ export function LeadEnrichmentWorkspace({
                             tone={row.websiteDiscoveryBadge.tone}
                           />
                           <StatusBadge
-                            label={row.confidenceBadge.label}
-                            tone={row.confidenceBadge.tone}
+                            label={row.websiteDiscoveryConfidenceBadge.label}
+                            tone={row.websiteDiscoveryConfidenceBadge.tone}
                           />
                         </div>
                         <p className="text-sm text-copy">
@@ -384,6 +414,13 @@ export function LeadEnrichmentWorkspace({
                         <p className="text-sm text-muted">
                           {row.websiteDiscoveryReason}
                         </p>
+                        <ProviderRunSummary
+                          badge={row.providerBadge}
+                          label={row.providerLabel}
+                          fallback={row.providerFallbackLabel}
+                          evidence={row.providerEvidence}
+                          pageUsage={row.supportingPageUsage}
+                        />
                         <p className="text-sm text-copy">
                           {row.preferredSupportingPageLabel}
                         </p>
@@ -415,10 +452,6 @@ export function LeadEnrichmentWorkspace({
                             tone={row.angleUrgencyBadge.tone}
                           />
                           <StatusBadge
-                            label={row.angleConfidenceBadge.label}
-                            tone={row.angleConfidenceBadge.tone}
-                          />
-                          <StatusBadge
                             label={row.angleReviewPathBadge.label}
                             tone={row.angleReviewPathBadge.tone}
                           />
@@ -426,21 +459,36 @@ export function LeadEnrichmentWorkspace({
                         <p className="text-sm text-muted">{row.segmentLabel}</p>
                         <p className="text-sm text-muted">{row.noteHintSummary}</p>
                         <p className="text-sm text-muted">{row.enrichmentSummary}</p>
+                        <ConfidenceBreakdown
+                          items={[
+                            {
+                              label: "Website discovery",
+                              badge: row.websiteDiscoveryConfidenceBadge,
+                            },
+                            {
+                              label: "Primary contact quality",
+                              badge: row.contactConfidenceBadge,
+                            },
+                            {
+                              label: "Angle confidence",
+                              badge: row.angleConfidenceBadge,
+                            },
+                            {
+                              label: "Readiness confidence",
+                              badge: row.readinessConfidenceBadge,
+                            },
+                          ]}
+                        />
                       </div>
                     </td>
                     <td className="px-4 py-4 align-top">
                       <div className="space-y-2">
                         <p className="text-sm text-copy">{row.decisionMaker}</p>
                         <p className="text-sm text-muted">{row.contactCoverage}</p>
-                        <p className="text-sm text-muted">{row.primaryContactSource}</p>
-                        <p className="text-sm text-copy">
-                          {row.primaryContactSelectionReason}
-                        </p>
-                        {row.primaryContactWarnings[0] ? (
-                          <p className="text-sm text-warning">
-                            {row.primaryContactWarnings[0]}
-                          </p>
-                        ) : null}
+                        <ContactRankingStack
+                          totalLabel={row.contactCountLabel}
+                          items={row.contactCandidates}
+                        />
                       </div>
                     </td>
                     <td className="px-4 py-4 align-top">

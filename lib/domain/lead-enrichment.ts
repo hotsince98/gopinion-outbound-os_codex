@@ -80,11 +80,22 @@ export interface LeadEnrichmentRecordResult {
   recommendedFirstOfferId?: CompanyOutreachAngleSnapshot["recommendedFirstOfferId"];
   importedAt?: string;
   lastEnrichedAt?: string;
+  providerRequested?: NonNullable<
+    CompanyEnrichmentSnapshot["providerRun"]
+  >["requestedProvider"];
+  providerUsed?: NonNullable<
+    CompanyEnrichmentSnapshot["providerRun"]
+  >["actualProvider"];
+  providerFallbackUsed?: boolean;
+  providerFallbackReason?: string;
+  providerEvidence: string[];
   primaryContactId?: ContactId;
   primaryContactLabel?: string;
   primaryContactSource?: string;
   primaryContactQuality?: ContactQualityTier;
   primaryContactSelectionReason?: string;
+  secondaryContactLabels: string[];
+  backupContactLabels: string[];
   qualityWarnings: string[];
   readinessReason: string;
 }

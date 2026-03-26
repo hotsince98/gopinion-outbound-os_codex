@@ -2,10 +2,15 @@ import { buildCampaignAssignmentPanelView } from "@/lib/data/selectors/campaign-
 import {
   deriveWorkflowState,
   getContactCoverageLabel,
+  getContactQualityBadge,
   getContactSourceLabel,
   getContactWarnings,
   getDecisionMakerLabel,
   getEnrichmentConfidenceBadge,
+  getEnrichmentProviderBadge,
+  getEnrichmentProviderEvidenceLabel,
+  getEnrichmentProviderFallbackLabel,
+  getEnrichmentProviderLabel,
   getEnrichmentSummary,
   getImportDateLabel,
   getIndustryLabel,
@@ -20,10 +25,15 @@ import {
   getPrimaryContactSelectionReason,
   getPreferredSupportingPageLabel,
   getPreferredSupportingPageSourceLabel,
+  getRankedContactCountLabel,
+  getRankedContactPreviews,
+  getReadinessConfidenceBadge,
   getRecommendedOfferName,
   getSegmentLabel,
+  getSupportingPageUsageLabel,
   getWebsiteDiscoveryCandidateLabel,
   getWebsiteDiscoveryConfirmationBadge,
+  getWebsiteDiscoveryConfidenceBadge,
   getWebsiteDiscoveryLabel,
   getWebsiteDiscoveryReason,
   getWebsiteDiscoverySourceLabel,
@@ -31,6 +41,7 @@ import {
   getWorkflowReason,
   hasWebsiteCandidate,
   listCompanyBundles,
+  type RankedContactPreview,
   type SelectorBadge,
   type WorkspaceStat,
 } from "@/lib/data/selectors/shared";
@@ -57,12 +68,22 @@ export interface LeadEnrichmentQueueRowView {
   angleUrgencyBadge: SelectorBadge;
   angleConfidenceBadge: SelectorBadge;
   angleReviewPathBadge: SelectorBadge;
+  readinessConfidenceBadge: SelectorBadge;
   segmentLabel: string;
   recommendedOffer: string;
   confidenceBadge: SelectorBadge;
+  websiteDiscoveryConfidenceBadge: SelectorBadge;
   enrichmentSummary: string;
+  providerBadge: SelectorBadge;
+  providerLabel: string;
+  providerFallbackLabel: string;
+  providerEvidence: string;
+  supportingPageUsage: string;
   missingFieldsLabel: string;
   contactCoverage: string;
+  contactCountLabel: string;
+  contactConfidenceBadge: SelectorBadge;
+  contactCandidates: RankedContactPreview[];
   decisionMaker: string;
   primaryContactSource: string;
   primaryContactSelectionReason: string;
@@ -168,12 +189,22 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
         angleUrgencyBadge: getOutreachAngleUrgencyBadge(bundle.company),
         angleConfidenceBadge: getOutreachAngleConfidenceBadge(bundle.company),
         angleReviewPathBadge: getOutreachAngleReviewPathBadge(bundle.company),
+        readinessConfidenceBadge: getReadinessConfidenceBadge(bundle.company),
         segmentLabel: getSegmentLabel(bundle.company),
         recommendedOffer: getRecommendedOfferName(bundle),
         confidenceBadge: getEnrichmentConfidenceBadge(bundle.company),
+        websiteDiscoveryConfidenceBadge: getWebsiteDiscoveryConfidenceBadge(bundle.company),
         enrichmentSummary: getEnrichmentSummary(bundle.company),
+        providerBadge: getEnrichmentProviderBadge(bundle.company),
+        providerLabel: getEnrichmentProviderLabel(bundle.company),
+        providerFallbackLabel: getEnrichmentProviderFallbackLabel(bundle.company),
+        providerEvidence: getEnrichmentProviderEvidenceLabel(bundle.company),
+        supportingPageUsage: getSupportingPageUsageLabel(bundle.company),
         missingFieldsLabel: getMissingFieldsLabel(bundle.company),
         contactCoverage: getContactCoverageLabel(bundle),
+        contactCountLabel: getRankedContactCountLabel(bundle),
+        contactConfidenceBadge: getContactQualityBadge(bundle.primaryContact),
+        contactCandidates: getRankedContactPreviews(bundle),
         decisionMaker: getDecisionMakerLabel(bundle),
         primaryContactSource: getContactSourceLabel(bundle.primaryContact),
         primaryContactSelectionReason: getPrimaryContactSelectionReason(bundle),

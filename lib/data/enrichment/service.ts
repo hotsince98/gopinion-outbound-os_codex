@@ -345,6 +345,29 @@ function buildNoteHintSummary(noteHints: CompanyEnrichmentSnapshot["noteHints"])
   ]).join(" • ");
 }
 
+function buildProviderRunSnapshot(params: {
+  websiteScan: {
+    requestedProvider?: "basic" | "scrapling";
+    actualProvider?: "basic" | "scrapling";
+    fallbackUsed?: boolean;
+    fallbackReason?: string;
+    providerEvidence?: string[];
+  };
+  now: string;
+}) {
+  const requestedProvider = params.websiteScan.requestedProvider ?? "basic";
+  const actualProvider = params.websiteScan.actualProvider ?? requestedProvider;
+
+  return {
+    requestedProvider,
+    actualProvider,
+    fallbackUsed: params.websiteScan.fallbackUsed ?? requestedProvider !== actualProvider,
+    fallbackReason: params.websiteScan.fallbackReason,
+    evidence: dedupeStrings(params.websiteScan.providerEvidence ?? []),
+    lastRunAt: params.now,
+  } satisfies NonNullable<CompanyEnrichmentSnapshot["providerRun"]>;
+}
+
 function getPreferredSupportingPageUrls(
   websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"],
 ) {
@@ -746,6 +769,7 @@ function updateCompanyReadiness(params: {
   foundPhones: string[];
   foundNames: string[];
   websiteDiscovery?: CompanyEnrichmentSnapshot["websiteDiscovery"];
+  providerRun?: CompanyEnrichmentSnapshot["providerRun"];
   noteHints: CompanyEnrichmentSnapshot["noteHints"];
   segment?: CompanyEnrichmentSnapshot["segment"];
   lastError?: string;
@@ -793,6 +817,7 @@ function updateCompanyReadiness(params: {
     confidenceScore: getConfidenceScore(params.confidenceLevel),
     contactPath: getContactPath(params.primaryContact),
     enrichmentSource,
+    providerRun: params.providerRun,
     sourceUrls: params.sourceUrls,
     pagesChecked: params.pagesChecked,
     foundEmails: params.foundEmails,
@@ -865,6 +890,16 @@ function updateCompanyReadiness(params: {
       : undefined,
     params.websiteDiscovery?.preferredSupportingPage
       ? `Preferred supporting page reused: ${params.websiteDiscovery.preferredSupportingPage.url}`
+      : undefined,
+    params.providerRun
+      ? `Enrichment provider run: ${params.providerRun.actualProvider}${
+          params.providerRun.fallbackUsed && params.providerRun.requestedProvider !== params.providerRun.actualProvider
+            ? ` (requested ${params.providerRun.requestedProvider}, fallback used)`
+            : ""
+        }`
+      : undefined,
+    params.providerRun?.fallbackReason
+      ? `Provider fallback reason: ${params.providerRun.fallbackReason}`
       : undefined,
     params.foundNames.length > 0
       ? `Named contact clues surfaced: ${params.foundNames.slice(0, 3).join(", ")}`
@@ -992,6 +1027,10 @@ async function enrichSingleCompany(
   const websiteScan = await scanCompanyWebsiteWithProvider({
     website: resolvedWebsite,
     preferredPageUrls: getPreferredSupportingPageUrls(websiteDiscovery),
+  });
+  const providerRun = buildProviderRunSnapshot({
+    websiteScan,
+    now,
   });
   const normalizedWebsite = websiteScan.normalizedWebsite ?? resolvedWebsite;
   const host = getCompanyHost(normalizedWebsite);
@@ -1139,6 +1178,7 @@ async function enrichSingleCompany(
     foundPhones,
     foundNames,
     websiteDiscovery: enrichedWebsiteDiscovery,
+    providerRun,
     noteHints: noteArtifacts.hints,
     segment,
     lastError: websiteScan.lastError,
@@ -1247,6 +1287,11 @@ async function enrichSingleCompany(
       updatedCompany.enrichment?.outreachAngle?.recommendedFirstOfferId,
     importedAt: company.createdAt,
     lastEnrichedAt: updatedCompany.enrichment?.lastEnrichedAt,
+    providerRequested: providerRun.requestedProvider,
+    providerUsed: providerRun.actualProvider,
+    providerFallbackUsed: providerRun.fallbackUsed,
+    providerFallbackReason: providerRun.fallbackReason,
+    providerEvidence: providerRun.evidence,
     primaryContactId: rankedContacts.primaryContact?.id,
     primaryContactLabel:
       rankedContacts.primaryContact?.fullName ??
@@ -1258,6 +1303,20 @@ async function enrichSingleCompany(
     primaryContactQuality: rankedContacts.primaryContact?.quality?.qualityTier,
     primaryContactSelectionReason:
       rankedContacts.primaryContact?.quality?.selectionReasons[0],
+    secondaryContactLabels: rankedContacts.contacts
+      .filter((contact) => !contact.isPrimary)
+      .slice(0, 1)
+      .map(
+        (contact) =>
+          contact.fullName ?? contact.email ?? contact.phone ?? "Secondary contact",
+      ),
+    backupContactLabels: rankedContacts.contacts
+      .filter((contact) => !contact.isPrimary)
+      .slice(1, 4)
+      .map(
+        (contact) =>
+          contact.fullName ?? contact.email ?? contact.phone ?? "Backup contact",
+      ),
     qualityWarnings: rankedContacts.primaryContact?.quality?.warnings ?? [],
     readinessReason,
   };
@@ -1336,6 +1395,13 @@ export async function runLeadEnrichment(params: {
         primaryContactSource: undefined,
         primaryContactQuality: undefined,
         primaryContactSelectionReason: undefined,
+        providerRequested: undefined,
+        providerUsed: undefined,
+        providerFallbackUsed: false,
+        providerFallbackReason: undefined,
+        providerEvidence: [],
+        secondaryContactLabels: [],
+        backupContactLabels: [],
         qualityWarnings: [],
         readinessReason: "The enrichment run failed before a contact path could be evaluated.",
       });

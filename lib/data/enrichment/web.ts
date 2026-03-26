@@ -15,6 +15,11 @@ export interface WebsiteNamedContactCandidate {
 
 export interface WebsiteScanResult {
   normalizedWebsite?: string;
+  requestedProvider?: "basic" | "scrapling";
+  actualProvider?: "basic" | "scrapling";
+  fallbackUsed?: boolean;
+  fallbackReason?: string;
+  providerEvidence?: string[];
   pagesChecked: string[];
   sourceUrls: string[];
   supportingPageUrls: string[];

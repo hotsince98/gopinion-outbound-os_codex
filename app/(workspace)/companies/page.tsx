@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
+import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
+import { ContactRankingStack } from "@/components/enrichment/contact-ranking-stack";
+import { ProviderRunSummary } from "@/components/enrichment/provider-run-summary";
 import { PreferredSupportingPageCard } from "@/components/companies/preferred-supporting-page-card";
 import { WebsiteDiscoveryReviewPanel } from "@/components/companies/website-discovery-review-panel";
 import { DetailList } from "@/components/ui/detail-list";
@@ -295,6 +298,32 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 </p>
               </div>
 
+              <div className="surface-muted p-4">
+                <p className="micro-label">Confidence breakdown</p>
+                <div className="mt-3">
+                  <ConfidenceBreakdown
+                    items={[
+                      {
+                        label: view.selectedCompany.confidenceBreakdown[0]?.label ?? "Website discovery confidence",
+                        badge: view.selectedCompany.websiteDiscovery.confidenceBadge,
+                      },
+                      {
+                        label: view.selectedCompany.confidenceBreakdown[1]?.label ?? "Primary contact quality",
+                        badge: view.selectedCompany.topRecommendedContact.qualityBadge,
+                      },
+                      {
+                        label: view.selectedCompany.confidenceBreakdown[2]?.label ?? "Outreach-angle confidence",
+                        badge: view.selectedCompany.outreachAngle.confidenceBadge,
+                      },
+                      {
+                        label: view.selectedCompany.confidenceBreakdown[3]?.label ?? "Overall readiness confidence",
+                        badge: view.selectedCompany.readinessConfidenceBadge,
+                      },
+                    ]}
+                  />
+                </div>
+              </div>
+
               <div className="grid gap-4 lg:grid-cols-3">
                 <WebsiteDiscoveryReviewPanel
                   companyId={view.selectedCompany.companyId}
@@ -303,6 +332,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                   canRejectCandidate={view.selectedCompany.websiteDiscovery.canReviewCandidate}
                   confirmationLabel={view.selectedCompany.websiteDiscovery.confirmationBadge.label}
                   confirmationTone={view.selectedCompany.websiteDiscovery.confirmationBadge.tone}
+                  confidenceLabel={view.selectedCompany.websiteDiscovery.confidenceBadge.label}
                   sourceLabel={view.selectedCompany.websiteDiscovery.sourceLabel}
                   reason={view.selectedCompany.websiteDiscovery.reason}
                   reviewSourceLabel={view.selectedCompany.websiteDiscovery.reviewSourceLabel}
@@ -319,12 +349,46 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
 
                 <div className="surface-muted p-4">
                   <p className="micro-label">Top recommended outreach contact</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <StatusBadge
+                      label={view.selectedCompany.topRecommendedContact.qualityBadge.label}
+                      tone={view.selectedCompany.topRecommendedContact.qualityBadge.tone}
+                    />
+                  </div>
+                  <p className="mt-3 text-sm text-muted">
+                    {view.selectedCompany.contactSummary.totalLabel}
+                  </p>
                   <p className="mt-3 text-base font-medium text-copy">
                     {view.selectedCompany.topRecommendedContact.label}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-muted">
                     {view.selectedCompany.topRecommendedContact.reason}
                   </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="surface-muted p-4">
+                  <p className="micro-label">Provider transparency</p>
+                  <div className="mt-3">
+                    <ProviderRunSummary
+                      badge={view.selectedCompany.providerTransparency.badge}
+                      label={view.selectedCompany.providerTransparency.label}
+                      fallback={view.selectedCompany.providerTransparency.fallback}
+                      evidence={view.selectedCompany.providerTransparency.evidence}
+                      pageUsage={view.selectedCompany.providerTransparency.pageUsage}
+                    />
+                  </div>
+                </div>
+
+                <div className="surface-muted p-4">
+                  <p className="micro-label">Ranked outreach contacts</p>
+                  <div className="mt-3">
+                    <ContactRankingStack
+                      totalLabel={view.selectedCompany.contactSummary.totalLabel}
+                      items={view.selectedCompany.contactSummary.highlights}
+                    />
+                  </div>
                 </div>
               </div>
 

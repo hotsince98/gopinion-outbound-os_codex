@@ -256,6 +256,11 @@ function mapWorkerResultToWebsiteScanResult(
 
   return {
     normalizedWebsite: result.website_used,
+    requestedProvider: "scrapling",
+    actualProvider: "scrapling",
+    fallbackUsed: false,
+    fallbackReason: undefined,
+    providerEvidence: evidenceSummary,
     pagesChecked,
     sourceUrls,
     supportingPageUrls,
@@ -283,13 +288,19 @@ async function scanWebsiteWithFallback(
   fallbackReason: string,
 ) {
   const fallback = await basicWebsiteEnrichmentProvider.scanWebsite(params);
+  const providerEvidence = dedupeStrings([
+    buildFallbackEvidenceMessage(fallbackReason),
+    ...(fallback.providerEvidence ?? fallback.evidenceSummary),
+  ]);
 
   return {
     ...fallback,
-    evidenceSummary: dedupeStrings([
-      buildFallbackEvidenceMessage(fallbackReason),
-      ...fallback.evidenceSummary,
-    ]),
+    requestedProvider: "scrapling",
+    actualProvider: "basic",
+    fallbackUsed: true,
+    fallbackReason,
+    providerEvidence,
+    evidenceSummary: providerEvidence,
   } satisfies WebsiteScanResult;
 }
 

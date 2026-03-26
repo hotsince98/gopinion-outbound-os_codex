@@ -34,6 +34,12 @@ function normalizeCompanyEnrichment(
     foundEmails: listOrEmpty(enrichment.foundEmails),
     foundPhones: listOrEmpty(enrichment.foundPhones),
     foundNames: listOrEmpty(enrichment.foundNames),
+    providerRun: enrichment.providerRun
+      ? {
+          ...enrichment.providerRun,
+          evidence: listOrEmpty(enrichment.providerRun.evidence),
+        }
+      : undefined,
     noteHints: listOrEmpty(enrichment.noteHints),
     missingFields: listOrEmpty(enrichment.missingFields),
     websiteDiscovery: enrichment.websiteDiscovery

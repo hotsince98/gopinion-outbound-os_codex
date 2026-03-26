@@ -7,8 +7,17 @@ import type {
 export const basicWebsiteEnrichmentProvider: WebsiteEnrichmentProviderAdapter = {
   provider: "basic",
   async scanWebsite(params: WebsiteEnrichmentScanParams) {
-    return scanCompanyWebsite(params.website, {
+    const result = await scanCompanyWebsite(params.website, {
       preferredPageUrls: params.preferredPageUrls,
     });
+
+    return {
+      ...result,
+      requestedProvider: "basic",
+      actualProvider: "basic",
+      fallbackUsed: false,
+      fallbackReason: undefined,
+      providerEvidence: result.evidenceSummary,
+    };
   },
 };

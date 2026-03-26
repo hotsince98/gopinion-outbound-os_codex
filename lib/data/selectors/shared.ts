@@ -46,6 +46,18 @@ export interface SelectorBadge {
   tone: Tone;
 }
 
+export interface RankedContactPreview {
+  id: string;
+  slotLabel: string;
+  label: string;
+  roleLabel: string;
+  sourceLabel: string;
+  qualityBadge: SelectorBadge;
+  reason: string;
+  whyLower?: string;
+  warnings: string[];
+}
+
 export {
   deriveWorkflowState,
   getCompanyBundle,
@@ -77,6 +89,12 @@ function formatLabel(value: string) {
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function dedupeStrings(values: Array<string | undefined>) {
+  return Array.from(
+    new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))),
+  );
 }
 
 export function formatPriorityLabel(tier: PriorityTier) {
@@ -149,13 +167,31 @@ export function getEnrichmentBadge(state: EnrichmentState): SelectorBadge {
 export function getEnrichmentConfidenceBadge(company: Company): SelectorBadge {
   switch (company.enrichment?.confidenceLevel ?? "none") {
     case "high":
-      return { label: "High confidence", tone: "success" };
+      return { label: "High readiness confidence", tone: "success" };
     case "medium":
-      return { label: "Medium confidence", tone: "accent" };
+      return { label: "Medium readiness confidence", tone: "accent" };
     case "low":
-      return { label: "Low confidence", tone: "warning" };
+      return { label: "Low readiness confidence", tone: "warning" };
     case "none":
-      return { label: "Confidence pending", tone: "muted" };
+      return { label: "Readiness confidence pending", tone: "muted" };
+  }
+}
+
+export function getReadinessConfidenceBadge(company: Company): SelectorBadge {
+  return getEnrichmentConfidenceBadge(company);
+}
+
+export function getWebsiteDiscoveryConfidenceBadge(company: Company): SelectorBadge {
+  switch (company.enrichment?.websiteDiscovery?.confidenceLevel ?? "none") {
+    case "high":
+      return { label: "High site confidence", tone: "success" };
+    case "medium":
+      return { label: "Medium site confidence", tone: "accent" };
+    case "low":
+      return { label: "Low site confidence", tone: "warning" };
+    case "none":
+    default:
+      return { label: "Site confidence pending", tone: "muted" };
   }
 }
 
@@ -634,12 +670,203 @@ export function getContactQualityLabel(contact: Contact | undefined) {
   }
 }
 
+export function getContactQualityBadge(contact: Contact | undefined): SelectorBadge {
+  if (!contact) {
+    return { label: "Contact pending", tone: "muted" };
+  }
+
+  switch (contact.quality?.qualityTier) {
+    case "strong":
+      return { label: "Strong contact quality", tone: "success" };
+    case "usable":
+      return { label: "Usable contact quality", tone: "accent" };
+    case "weak":
+      return { label: "Weak contact quality", tone: "warning" };
+    case "junk":
+      return { label: "Low-quality contact", tone: "danger" };
+    default:
+      return { label: `Contact confidence ${contact.confidence.score.toFixed(2)}`, tone: "muted" };
+  }
+}
+
 export function getContactSourceLabel(contact: Contact | undefined) {
   if (!contact) {
     return "Source pending";
   }
 
   return `${contact.source.label ?? contact.source.provider} • ${contact.source.kind}`;
+}
+
+function getContactSlotLabel(rank: number) {
+  if (rank <= 1) {
+    return "Primary";
+  }
+
+  if (rank === 2) {
+    return "Secondary";
+  }
+
+  return "Backup";
+}
+
+export function getRankedContactPreviews(
+  bundle: CompanyBundle,
+  limit = 4,
+): RankedContactPreview[] {
+  return bundle.rankedContacts.slice(0, limit).map((selection) => {
+    const contact = selection.contact;
+
+    return {
+      id: contact.id,
+      slotLabel: getContactSlotLabel(selection.selectionRank),
+      label:
+        contact.fullName ??
+        contact.email ??
+        contact.phone ??
+        "Unnamed contact",
+      roleLabel: formatRoleLabel(contact),
+      sourceLabel: getContactSourceLabel(contact),
+      qualityBadge: getContactQualityBadge(contact),
+      reason:
+        selection.selectionReasons[0] ??
+        contact.quality?.selectionReasons[0] ??
+        contact.confidence.signals[0] ??
+        "Contact ranking reason pending",
+      whyLower:
+        !selection.isPrimary
+          ? selection.demotionReasons[0] ??
+            contact.quality?.demotionReasons[0]
+          : undefined,
+      warnings: getContactWarnings(contact),
+    };
+  });
+}
+
+export function getRankedContactCountLabel(bundle: CompanyBundle) {
+  const total = bundle.contacts.length;
+
+  if (total === 0) {
+    return "0 contacts found";
+  }
+
+  const secondaryCount = Math.max(total - 1, 0);
+  const backupCount = Math.max(total - 2, 0);
+
+  return [
+    `${total} contact${total === 1 ? "" : "s"} found`,
+    total > 0 ? "1 primary" : undefined,
+    secondaryCount > 0 ? "1 secondary" : undefined,
+    backupCount > 0 ? `${backupCount} backup${backupCount === 1 ? "" : "s"}` : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" • ");
+}
+
+function formatProviderLabel(provider: "basic" | "scrapling" | undefined) {
+  switch (provider) {
+    case "scrapling":
+      return "Scrapling";
+    case "basic":
+      return "Basic";
+    default:
+      return "Provider pending";
+  }
+}
+
+export function getEnrichmentProviderBadge(company: Company): SelectorBadge {
+  const providerRun = company.enrichment?.providerRun;
+
+  if (!providerRun) {
+    return { label: "Provider pending", tone: "muted" };
+  }
+
+  if (providerRun.fallbackUsed) {
+    return { label: "Fallback provider", tone: "warning" };
+  }
+
+  return providerRun.actualProvider === "scrapling"
+    ? { label: "Scrapling used", tone: "success" }
+    : { label: "Basic provider", tone: "accent" };
+}
+
+export function getEnrichmentProviderLabel(company: Company) {
+  const providerRun = company.enrichment?.providerRun;
+
+  if (!providerRun) {
+    return "No provider run captured yet";
+  }
+
+  if (providerRun.fallbackUsed) {
+    return `Requested ${formatProviderLabel(providerRun.requestedProvider)} • ran ${formatProviderLabel(providerRun.actualProvider)} fallback`;
+  }
+
+  return `Ran ${formatProviderLabel(providerRun.actualProvider)} provider`;
+}
+
+export function getEnrichmentProviderFallbackLabel(company: Company) {
+  const providerRun = company.enrichment?.providerRun;
+
+  if (!providerRun?.fallbackUsed) {
+    return "No provider fallback was needed";
+  }
+
+  return providerRun.fallbackReason
+    ? `Fallback reason: ${providerRun.fallbackReason}`
+    : `Fell back from ${formatProviderLabel(providerRun.requestedProvider)} to ${formatProviderLabel(providerRun.actualProvider)}`;
+}
+
+export function getEnrichmentProviderEvidenceLabel(company: Company) {
+  const evidence = company.enrichment?.providerRun?.evidence ?? [];
+
+  if (evidence.length === 0) {
+    return "No provider evidence captured yet";
+  }
+
+  return evidence.slice(0, 2).join(" • ");
+}
+
+function getUsedSupportingPageUrls(company: Company) {
+  const enrichment = company.enrichment;
+  const discovery = enrichment?.websiteDiscovery;
+  const checkedUrls = new Set([
+    ...(enrichment?.sourceUrls ?? []),
+    ...(enrichment?.pagesChecked ?? []),
+  ]);
+
+  return {
+    staff: (discovery?.staffPageUrls ?? []).filter((url) => checkedUrls.has(url)),
+    contact: (discovery?.contactPageUrls ?? []).filter((url) => checkedUrls.has(url)),
+    supporting: (discovery?.supportingPageUrls ?? []).filter((url) => checkedUrls.has(url)),
+  };
+}
+
+export function getSupportingPageUsageLabel(company: Company) {
+  const usedPages = getUsedSupportingPageUrls(company);
+  const supportingCount = dedupeStrings(usedPages.supporting).length;
+  const staffCount = dedupeStrings(usedPages.staff).length;
+  const contactCount = dedupeStrings(usedPages.contact).length;
+
+  if (supportingCount === 0 && staffCount === 0 && contactCount === 0) {
+    return company.enrichment?.pagesChecked.length
+      ? "Homepage-only crawl"
+      : "No supporting pages used yet";
+  }
+
+  return [
+    `${dedupeStrings([
+      ...usedPages.supporting,
+      ...usedPages.staff,
+      ...usedPages.contact,
+    ]).length} supporting page${dedupeStrings([
+      ...usedPages.supporting,
+      ...usedPages.staff,
+      ...usedPages.contact,
+    ]).length === 1 ? "" : "s"} used`,
+    staffCount > 0 ? `${staffCount} staff/team` : undefined,
+    contactCount > 0 ? `${contactCount} contact` : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" • ");
 }
 
 export function getContactWarnings(contact: Contact | undefined) {

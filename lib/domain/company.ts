@@ -58,6 +58,13 @@ export const enrichmentSources = [
 ] as const;
 export type EnrichmentSource = (typeof enrichmentSources)[number];
 
+export const companyEnrichmentProviderKeys = [
+  "basic",
+  "scrapling",
+] as const;
+export type CompanyEnrichmentProviderKey =
+  (typeof companyEnrichmentProviderKeys)[number];
+
 export const websiteDiscoveryStatuses = [
   "not_checked",
   "record_provided",
@@ -205,11 +212,21 @@ export interface CompanyOutreachAngleSnapshot {
   updatedAt?: IsoDateString;
 }
 
+export interface CompanyEnrichmentProviderRunSnapshot {
+  requestedProvider: CompanyEnrichmentProviderKey;
+  actualProvider: CompanyEnrichmentProviderKey;
+  fallbackUsed: boolean;
+  fallbackReason?: string;
+  evidence: string[];
+  lastRunAt?: IsoDateString;
+}
+
 export interface CompanyEnrichmentSnapshot {
   confidenceLevel: EnrichmentConfidenceLevel;
   confidenceScore: number;
   contactPath: EnrichmentContactPath;
   enrichmentSource: EnrichmentSource;
+  providerRun?: CompanyEnrichmentProviderRunSnapshot;
   sourceUrls: string[];
   pagesChecked: string[];
   foundEmails: string[];

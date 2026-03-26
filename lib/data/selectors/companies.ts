@@ -5,10 +5,15 @@ import {
   getCampaignStatusLabel,
   getCompanyStatusBadge,
   getContactCoverageLabel,
+  getContactQualityBadge,
   getContactSourceLabel,
   getContactWarnings,
   getDecisionMakerConfidenceLabel,
   getDecisionMakerLabel,
+  getEnrichmentProviderBadge,
+  getEnrichmentProviderEvidenceLabel,
+  getEnrichmentProviderFallbackLabel,
+  getEnrichmentProviderLabel,
   getIcpFilterOptions,
   getIcpLabel,
   getImportDateLabel,
@@ -26,14 +31,19 @@ import {
   getPreferredSupportingPageSourceLabel,
   getPrimaryContactSelectionReason,
   getPrimaryContactReadinessReason,
+  getRankedContactCountLabel,
+  getRankedContactPreviews,
+  getReadinessConfidenceBadge,
   getRecommendedOfferName,
   getReviewSnapshot,
   getSegmentLabel,
   getSourceLabel,
   getSuggestedNextAction,
+  getSupportingPageUsageLabel,
   getTierFilterOptions,
   getWebsiteDiscoveryCandidateLabel,
   getWebsiteDiscoveryConfirmationBadge,
+  getWebsiteDiscoveryConfidenceBadge,
   getWebsiteDiscoveryLabel,
   getWebsiteDiscoveryReason,
   getWebsiteDiscoveryReviewedAtLabel,
@@ -46,6 +56,7 @@ import {
   matchesSearch,
   readSearchParam,
   type FilterOption,
+  type RankedContactPreview,
   type SearchParamsInput,
   type SelectorBadge,
   type WorkspaceStat,
@@ -128,6 +139,8 @@ export interface CompanyDetailView {
     angle: string;
     cta: string;
   };
+  confidenceBreakdown: Array<{ label: string; value: string }>;
+  readinessConfidenceBadge: SelectorBadge;
   websiteDiscovery: {
     label: string;
     candidate: string;
@@ -139,6 +152,14 @@ export interface CompanyDetailView {
     reviewSourceLabel?: string;
     reviewedAtLabel?: string;
     confirmationBadge: SelectorBadge;
+    confidenceBadge: SelectorBadge;
+  };
+  providerTransparency: {
+    badge: SelectorBadge;
+    label: string;
+    fallback: string;
+    evidence: string;
+    pageUsage: string;
   };
   preferredSupportingPage: {
     url?: string;
@@ -149,6 +170,11 @@ export interface CompanyDetailView {
   topRecommendedContact: {
     label: string;
     reason: string;
+    qualityBadge: SelectorBadge;
+  };
+  contactSummary: {
+    totalLabel: string;
+    highlights: RankedContactPreview[];
   };
   contacts: CompanyContactDetail[];
   campaignSummary: string[];
@@ -367,6 +393,25 @@ export async function getCompaniesWorkspaceView(
             selectedBundle.recommendedOffer?.primaryCta ??
             "CTA is still pending.",
         },
+        confidenceBreakdown: [
+          {
+            label: "Website discovery confidence",
+            value: getWebsiteDiscoveryConfidenceBadge(selectedBundle.company).label,
+          },
+          {
+            label: "Primary contact quality",
+            value: getContactQualityBadge(selectedBundle.primaryContact).label,
+          },
+          {
+            label: "Outreach-angle confidence",
+            value: getOutreachAngleConfidenceBadge(selectedBundle.company).label,
+          },
+          {
+            label: "Overall readiness confidence",
+            value: getReadinessConfidenceBadge(selectedBundle.company).label,
+          },
+        ],
+        readinessConfidenceBadge: getReadinessConfidenceBadge(selectedBundle.company),
         websiteDiscovery: {
           label: getWebsiteDiscoveryLabel(selectedBundle.company),
           candidate: getWebsiteDiscoveryCandidateLabel(selectedBundle.company),
@@ -382,6 +427,14 @@ export async function getCompaniesWorkspaceView(
           reviewSourceLabel: getWebsiteDiscoveryReviewSourceLabel(selectedBundle.company),
           reviewedAtLabel: getWebsiteDiscoveryReviewedAtLabel(selectedBundle.company),
           confirmationBadge: getWebsiteDiscoveryConfirmationBadge(selectedBundle.company),
+          confidenceBadge: getWebsiteDiscoveryConfidenceBadge(selectedBundle.company),
+        },
+        providerTransparency: {
+          badge: getEnrichmentProviderBadge(selectedBundle.company),
+          label: getEnrichmentProviderLabel(selectedBundle.company),
+          fallback: getEnrichmentProviderFallbackLabel(selectedBundle.company),
+          evidence: getEnrichmentProviderEvidenceLabel(selectedBundle.company),
+          pageUsage: getSupportingPageUsageLabel(selectedBundle.company),
         },
         preferredSupportingPage: {
           url: getPreferredSupportingPage(selectedBundle.company)?.url,
@@ -392,6 +445,11 @@ export async function getCompaniesWorkspaceView(
         topRecommendedContact: {
           label: getDecisionMakerLabel(selectedBundle),
           reason: getPrimaryContactSelectionReason(selectedBundle),
+          qualityBadge: getContactQualityBadge(selectedBundle.primaryContact),
+        },
+        contactSummary: {
+          totalLabel: getRankedContactCountLabel(selectedBundle),
+          highlights: getRankedContactPreviews(selectedBundle, 4),
         },
         contacts: selectedBundle.rankedContacts.map((selection) => {
           const contact = selection.contact;
@@ -402,13 +460,15 @@ export async function getCompaniesWorkspaceView(
             role: contact.title ?? contact.role.replaceAll("_", " "),
             email: contact.email,
             phone: contact.phone,
-            confidence: `Confidence ${contact.confidence.score.toFixed(2)}`,
+            confidence: `Contact confidence ${contact.confidence.score.toFixed(2)}`,
             status: contact.status.replaceAll("_", " "),
             source: getContactSourceLabel(contact),
             isPrimary: selection.isPrimary,
             selectionLabel: selection.isPrimary
               ? `Primary • Rank #${selection.selectionRank}`
-              : `Backup • Rank #${selection.selectionRank}`,
+              : selection.selectionRank === 2
+                ? `Secondary • Rank #${selection.selectionRank}`
+                : `Backup • Rank #${selection.selectionRank}`,
             selectionScore: `Selection score ${selection.selectionScore}`,
             selectionReasons: selection.selectionReasons.slice(0, 2),
             demotionReasons: selection.demotionReasons.slice(0, 2),
