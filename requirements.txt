@@ -1,1 +1,3 @@
--r workers/enrichment/requirements.txt
+# Keep this file flat for Vercel's Python function builder.
+# Local worker installs can still use workers/enrichment/requirements.txt.
+scrapling[fetchers]

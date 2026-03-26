@@ -64,7 +64,8 @@ For Vercel production:
 - keep `ENRICHMENT_PROVIDER=scrapling`
 - leave `SCRAPLING_WORKER_TRANSPORT=auto` or set it to `http`
 - set `APP_URL` to your production app URL if you do not want to rely on `VERCEL_URL`
-- keep the root `requirements.txt` file committed so Vercel installs `scrapling[fetchers]` for the Python function
+- keep the root `requirements.txt` file committed as a flat file so Vercel installs `scrapling[fetchers]` for the Python function
+- keep `workers/enrichment/requirements.txt` in sync with the root file for local worker installs
 
 To disable the worker at any time:
 
