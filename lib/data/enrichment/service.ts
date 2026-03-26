@@ -16,9 +16,9 @@ import {
   discoverCompanyWebsite,
   mergeWebsiteDiscoveryEvidence,
 } from "@/lib/data/enrichment/discovery";
+import { scanCompanyWebsiteWithProvider } from "@/lib/data/enrichment/provider";
 import { parseImportedNoteArtifacts } from "@/lib/data/intake/notes";
 import { deriveContactRoleFromTitle } from "@/lib/data/intake/validation";
-import { scanCompanyWebsite } from "@/lib/data/enrichment/web";
 import type {
   Company,
   CompanyEnrichmentSnapshot,
@@ -862,7 +862,8 @@ async function enrichSingleCompany(
     company.presence.websiteUrl ??
     noteArtifacts.suggestedWebsite ??
     websiteDiscovery.discoveredWebsite;
-  const websiteScan = await scanCompanyWebsite(resolvedWebsite, {
+  const websiteScan = await scanCompanyWebsiteWithProvider({
+    website: resolvedWebsite,
     preferredPageUrls: websiteDiscovery.supportingPageUrls,
   });
   const enrichedWebsiteDiscovery = mergeWebsiteDiscoveryEvidence({
