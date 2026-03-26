@@ -6,6 +6,17 @@ import type {
 
 const WEBSITE_PROTOCOL_PATTERN = /^[a-z]+:\/\//i;
 const BASIC_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const WEBSITE_HOST_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
+const WEBSITE_PUNYCODE_TLD_PATTERN = /^xn--[a-z0-9-]{2,59}$/i;
+const WEBSITE_ALPHA_TLD_PATTERN = /^[a-z]{2,24}$/i;
+const IPV4_HOST_PATTERN = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+const RESERVED_WEBSITE_HOSTNAMES = new Set([
+  "localhost",
+  "html",
+  "http",
+  "https",
+  "www",
+]);
 
 function trimToUndefined(value: string | undefined) {
   const trimmed = value?.trim();
@@ -23,6 +34,54 @@ function parseOptionalNumber(value: string | number | undefined) {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
+function isValidIpv4Hostname(hostname: string) {
+  if (!IPV4_HOST_PATTERN.test(hostname)) {
+    return false;
+  }
+
+  return hostname.split(".").every((segment) => {
+    const value = Number(segment);
+
+    return Number.isInteger(value) && value >= 0 && value <= 255;
+  });
+}
+
+export function isPlausiblePublicWebsiteHostname(hostname: string | undefined) {
+  const normalizedHostname = hostname?.trim().toLowerCase().replace(/\.+$/, "");
+
+  if (!normalizedHostname || RESERVED_WEBSITE_HOSTNAMES.has(normalizedHostname)) {
+    return false;
+  }
+
+  if (isValidIpv4Hostname(normalizedHostname)) {
+    return true;
+  }
+
+  const labels = normalizedHostname.split(".");
+
+  if (labels.length < 2) {
+    return false;
+  }
+
+  if (
+    !labels.every((label) => WEBSITE_HOST_LABEL_PATTERN.test(label)) ||
+    labels.some((label) => label.startsWith("-") || label.endsWith("-"))
+  ) {
+    return false;
+  }
+
+  const topLevelDomain = labels.at(-1);
+
+  if (!topLevelDomain) {
+    return false;
+  }
+
+  return (
+    WEBSITE_ALPHA_TLD_PATTERN.test(topLevelDomain) ||
+    WEBSITE_PUNYCODE_TLD_PATTERN.test(topLevelDomain)
+  );
+}
+
 export function normalizeWebsiteUrl(value: string | undefined) {
   const trimmed = trimToUndefined(value);
   if (!trimmed) {
@@ -35,9 +94,19 @@ export function normalizeWebsiteUrl(value: string | undefined) {
 
   try {
     const url = new URL(withProtocol);
+    const protocol = url.protocol.toLowerCase();
+
+    if (protocol !== "http:" && protocol !== "https:") {
+      return undefined;
+    }
+
+    if (!isPlausiblePublicWebsiteHostname(url.hostname)) {
+      return undefined;
+    }
+
     const pathname = url.pathname === "/" ? "" : url.pathname.replace(/\/+$/, "");
 
-    return `${url.protocol}//${url.host.toLowerCase()}${pathname}`;
+    return `${protocol}//${url.host.toLowerCase()}${pathname}`;
   } catch {
     return undefined;
   }

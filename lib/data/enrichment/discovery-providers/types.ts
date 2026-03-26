@@ -15,11 +15,19 @@ export interface WebsiteDiscoveryCandidate {
   queryLabel: string;
 }
 
+export interface WebsiteDiscoveryDiscardedCandidate {
+  rawUrl: string;
+  queryLabel: string;
+  reason: string;
+  title?: string;
+}
+
 export interface WebsiteDiscoverySearchRun {
   provider: WebsiteDiscoveryProvider;
   providerLabel: string;
   queries: WebsiteDiscoverySearchQuery[];
   candidates: WebsiteDiscoveryCandidate[];
+  discardedCandidates: WebsiteDiscoveryDiscardedCandidate[];
   errors: string[];
 }
 

@@ -228,15 +228,39 @@ function buildConfirmationReason(params: {
   }
 }
 
+function buildDiscardedCandidateDebugNotes(
+  discardedCandidates: Array<{
+    rawUrl: string;
+    queryLabel: string;
+    reason: string;
+  }>,
+) {
+  return dedupeStrings(
+    discardedCandidates.map(
+      (candidate) =>
+        `Discarded discovery candidate "${candidate.rawUrl}" from ${candidate.queryLabel}: ${candidate.reason}`,
+    ),
+  );
+}
+
 function scoreSearchCandidate(
   company: Company,
   candidate: WebsiteDiscoveryCandidate,
 ) {
+  const normalizedCandidateUrl = normalizeWebsiteUrl(candidate.url);
+
+  if (!normalizedCandidateUrl) {
+    return {
+      score: 0,
+      signals: ["Candidate URL was not a plausible public website."],
+    };
+  }
+
   const companyTokens = buildCompanyTokens(company);
   const referenceTokens = extractReferenceTokens(
     company.presence.googleBusinessProfileUrl,
   );
-  const url = new URL(candidate.url);
+  const url = new URL(normalizedCandidateUrl);
   const host = url.hostname.replace(/^www\./, "").toLowerCase();
   const haystack = `${candidate.title} ${candidate.snippet} ${host}`.toLowerCase();
   const normalizedCompanyName = normalizeNameForComparison(company.name);
@@ -447,6 +471,7 @@ function createDiscoverySnapshot(params: {
   contactPageUrls?: string[];
   staffPageUrls?: string[];
   extractedEvidence?: string[];
+  debugNotes?: string[];
   preferredSupportingPage?: CompanyWebsiteDiscoverySnapshot["preferredSupportingPage"];
   operatorReview?: CompanyWebsiteDiscoverySnapshot["operatorReview"];
   lastError?: string;
@@ -486,6 +511,7 @@ function createDiscoverySnapshot(params: {
     contactPageUrls: params.contactPageUrls ?? [],
     staffPageUrls: params.staffPageUrls ?? [],
     extractedEvidence: params.extractedEvidence ?? [],
+    debugNotes: params.debugNotes ?? [],
     preferredSupportingPage: params.preferredSupportingPage,
     operatorReview: params.operatorReview,
     source:
@@ -622,6 +648,7 @@ export function mergeWebsiteDiscoveryEvidence(params: {
   contactPageUrls?: string[];
   staffPageUrls?: string[];
   extractedEvidence?: string[];
+  debugNotes?: string[];
   preferredSupportingPage?: CompanyWebsiteDiscoverySnapshot["preferredSupportingPage"];
   confirmationStatus?: CompanyWebsiteDiscoverySnapshot["confirmationStatus"];
   confirmationReason?: string;
@@ -660,6 +687,10 @@ export function mergeWebsiteDiscoveryEvidence(params: {
       ...params.snapshot.extractedEvidence,
       ...(params.extractedEvidence ?? []),
     ]),
+    debugNotes: dedupeStrings([
+      ...(params.snapshot.debugNotes ?? []),
+      ...(params.debugNotes ?? []),
+    ]),
     preferredSupportingPage:
       params.preferredSupportingPage ?? params.snapshot.preferredSupportingPage,
     operatorReview: params.operatorReview ?? params.snapshot.operatorReview,
@@ -683,6 +714,9 @@ export async function discoverCompanyWebsite(
   try {
     const provider = createWebsiteDiscoveryProvider();
     const searchRun = await provider.search(company);
+    const discoveryDebugNotes = buildDiscardedCandidateDebugNotes(
+      searchRun.discardedCandidates,
+    );
     const searchSource = createDiscoverySource(now, {
       provider: `website_discovery_${searchRun.provider}`,
       label: searchRun.providerLabel,
@@ -726,6 +760,7 @@ export async function discoverCompanyWebsite(
             ? "Search-backed website discovery failed before a candidate could be verified"
             : "No credible website candidates were found from search-backed discovery",
         ],
+        debugNotes: discoveryDebugNotes,
         lastError: searchRun.errors[0],
         source: searchSource,
       });
@@ -791,6 +826,7 @@ export async function discoverCompanyWebsite(
           ),
         ),
         extractedEvidence: bestCandidate?.extractedEvidence ?? [],
+        debugNotes: discoveryDebugNotes,
         source: createDiscoverySource(now, {
           url: bestCandidate?.url,
           provider: searchSource.provider,
@@ -821,6 +857,7 @@ export async function discoverCompanyWebsite(
           getSupportingPageUrlsByKind(bestCandidate.supportingPageCandidates, "staff"),
         ),
         extractedEvidence: bestCandidate.extractedEvidence,
+        debugNotes: discoveryDebugNotes,
         source: createDiscoverySource(now, {
           url: bestCandidate.url,
           provider: searchSource.provider,
@@ -850,6 +887,7 @@ export async function discoverCompanyWebsite(
         "staff",
       ),
       extractedEvidence: bestCandidate.extractedEvidence,
+      debugNotes: discoveryDebugNotes,
       source: createDiscoverySource(now, {
         url: bestCandidate.url,
         provider: searchSource.provider,
@@ -865,6 +903,7 @@ export async function discoverCompanyWebsite(
       matchedSignals: [
         "Search-backed website discovery failed before a candidate could be verified",
       ],
+      debugNotes: [],
       lastError:
         error instanceof Error
           ? error.message

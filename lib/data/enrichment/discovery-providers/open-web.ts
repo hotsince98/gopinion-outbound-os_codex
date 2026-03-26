@@ -2,6 +2,7 @@ import { normalizeWebsiteUrl } from "@/lib/data/intake/validation";
 import type { Company } from "@/lib/domain";
 import type {
   WebsiteDiscoveryCandidate,
+  WebsiteDiscoveryDiscardedCandidate,
   WebsiteDiscoveryProviderAdapter,
   WebsiteDiscoverySearchQuery,
 } from "@/lib/data/enrichment/discovery-providers/types";
@@ -56,6 +57,14 @@ function normalizePhone(value: string | undefined) {
   return value?.replace(/[^\d]/g, "");
 }
 
+function summarizeDiscardedCandidate(
+  candidate: WebsiteDiscoveryDiscardedCandidate,
+) {
+  const titleSuffix = candidate.title ? ` [${candidate.title}]` : "";
+
+  return `"${candidate.rawUrl}" (${candidate.reason}) from ${candidate.queryLabel}${titleSuffix}`;
+}
+
 function extractReferenceTokens(value: string | undefined) {
   if (!value) {
     return [];
@@ -86,25 +95,87 @@ function extractReferenceTokens(value: string | undefined) {
   );
 }
 
-function normalizeCandidateUrl(rawUrl: string) {
+function looksLikeBareDomain(value: string) {
+  return /^(?:www\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+(?:[/?#].*)?$/i.test(
+    value,
+  );
+}
+
+function resolveCandidateHref(rawUrl: string) {
+  const decoded = decodeHtmlEntities(rawUrl).trim();
+
+  if (!decoded) {
+    return {
+      rejectionReason: "Search result href was empty.",
+    };
+  }
+
+  if (/^(?:javascript|mailto|tel|sms|data):/i.test(decoded)) {
+    return {
+      rejectionReason: "Search result href used a non-website protocol.",
+    };
+  }
+
+  if (/^https?:\/\//i.test(decoded)) {
+    return { candidateUrl: decoded };
+  }
+
+  if (decoded.startsWith("//")) {
+    return { candidateUrl: `https:${decoded}` };
+  }
+
   try {
-    const decoded = decodeURIComponent(rawUrl);
-    const asSearchRedirect = new URL(decoded, SEARCH_ENGINE_URL);
+    const resolved = new URL(decoded, SEARCH_ENGINE_URL);
     const redirected =
-      asSearchRedirect.searchParams.get("uddg") ??
-      asSearchRedirect.searchParams.get("rut") ??
-      decoded;
-    const normalized = normalizeWebsiteUrl(redirected);
+      resolved.searchParams.get("uddg") ??
+      resolved.searchParams.get("rut") ??
+      resolved.searchParams.get("u");
+
+    if (redirected) {
+      return { candidateUrl: decodeURIComponent(redirected) };
+    }
+  } catch {
+    return {
+      rejectionReason: "Search result href could not be parsed.",
+    };
+  }
+
+  if (looksLikeBareDomain(decoded)) {
+    return { candidateUrl: decoded };
+  }
+
+  return {
+    rejectionReason: "Search result href was not an absolute website URL.",
+  };
+}
+
+function normalizeCandidateUrl(rawUrl: string) {
+  const resolved = resolveCandidateHref(rawUrl);
+
+  if (!resolved.candidateUrl) {
+    return {
+      rejectionReason: resolved.rejectionReason ?? "Candidate URL could not be resolved.",
+    };
+  }
+
+  try {
+    const normalized = normalizeWebsiteUrl(resolved.candidateUrl);
 
     if (!normalized) {
-      return undefined;
+      return {
+        rejectionReason: "Candidate URL did not normalize to a plausible public website.",
+      };
     }
 
     const url = new URL(normalized);
 
-    return `${url.protocol}//${url.host.toLowerCase()}`;
+    return {
+      normalizedUrl: `${url.protocol}//${url.host.toLowerCase()}`,
+    };
   } catch {
-    return undefined;
+    return {
+      rejectionReason: "Candidate URL could not be normalized.",
+    };
   }
 }
 
@@ -210,17 +281,35 @@ function buildDiscoveryQueries(company: Company) {
 
 function extractSearchCandidates(html: string, queryLabel: string) {
   const results: WebsiteDiscoveryCandidate[] = [];
+  const discardedCandidates: WebsiteDiscoveryDiscardedCandidate[] = [];
   const anchorPattern = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
   let match: RegExpExecArray | null;
 
   while ((match = anchorPattern.exec(html))) {
-    const normalizedUrl = normalizeCandidateUrl(match[1]);
+    const title = stripHtml(match[2] ?? "");
+    const normalizedCandidate = normalizeCandidateUrl(match[1]);
 
-    if (!normalizedUrl || isBlockedDomain(normalizedUrl)) {
+    if (!normalizedCandidate.normalizedUrl) {
+      discardedCandidates.push({
+        rawUrl: match[1] ?? "",
+        title: title || undefined,
+        queryLabel,
+        reason:
+          normalizedCandidate.rejectionReason ??
+          "Candidate URL could not be normalized.",
+      });
       continue;
     }
 
-    const title = stripHtml(match[2] ?? "");
+    if (isBlockedDomain(normalizedCandidate.normalizedUrl)) {
+      discardedCandidates.push({
+        rawUrl: match[1] ?? "",
+        title: title || undefined,
+        queryLabel,
+        reason: "Candidate resolved to a blocked directory, listing, or search domain.",
+      });
+      continue;
+    }
 
     if (title.length < 3) {
       continue;
@@ -228,17 +317,20 @@ function extractSearchCandidates(html: string, queryLabel: string) {
 
     const snippet = stripHtml(html.slice(match.index, match.index + 520));
     results.push({
-      url: normalizedUrl,
+      url: normalizedCandidate.normalizedUrl,
       title,
       snippet,
       queryLabel,
     });
   }
 
-  return results.filter(
-    (candidate, index, collection) =>
-      collection.findIndex((current) => current.url === candidate.url) === index,
-  );
+  return {
+    candidates: results.filter(
+      (candidate, index, collection) =>
+        collection.findIndex((current) => current.url === candidate.url) === index,
+    ),
+    discardedCandidates,
+  };
 }
 
 async function fetchSearchCandidatesForQuery(query: WebsiteDiscoverySearchQuery) {
@@ -273,14 +365,29 @@ export const openWebWebsiteDiscoveryProvider: WebsiteDiscoveryProviderAdapter = 
     const settledSearches = await Promise.allSettled(
       queries.map((query) => fetchSearchCandidatesForQuery(query)),
     );
+    const discardedCandidates = settledSearches.flatMap((result) =>
+      result.status === "fulfilled" ? result.value.discardedCandidates : [],
+    );
+
+    if (discardedCandidates.length > 0) {
+      const preview = discardedCandidates
+        .slice(0, 5)
+        .map((candidate) => summarizeDiscardedCandidate(candidate))
+        .join("; ");
+
+      console.warn(
+        `[website-discovery/open-web] Discarded ${discardedCandidates.length} malformed or blocked candidate URL(s): ${preview}`,
+      );
+    }
 
     return {
       provider: "open_web",
       providerLabel: "Open-web search discovery",
       queries,
       candidates: settledSearches.flatMap((result) =>
-        result.status === "fulfilled" ? result.value : [],
+        result.status === "fulfilled" ? result.value.candidates : [],
       ),
+      discardedCandidates,
       errors: settledSearches.flatMap((result) =>
         result.status === "rejected"
           ? [result.reason instanceof Error ? result.reason.message : "Search fetch failed"]

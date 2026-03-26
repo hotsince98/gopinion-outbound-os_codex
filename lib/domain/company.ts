@@ -154,6 +154,7 @@ export interface CompanyWebsiteDiscoverySnapshot {
   contactPageUrls: string[];
   staffPageUrls: string[];
   extractedEvidence: string[];
+  debugNotes?: string[];
   preferredSupportingPage?: {
     url: string;
     kind: "contact" | "about" | "staff";

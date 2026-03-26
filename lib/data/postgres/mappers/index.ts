@@ -65,6 +65,7 @@ function normalizeCompanyEnrichment(
           extractedEvidence: listOrEmpty(
             enrichment.websiteDiscovery.extractedEvidence,
           ),
+          debugNotes: listOrEmpty(enrichment.websiteDiscovery.debugNotes),
           preferredSupportingPage: enrichment.websiteDiscovery.preferredSupportingPage
             ? {
                 ...enrichment.websiteDiscovery.preferredSupportingPage,
