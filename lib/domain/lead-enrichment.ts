@@ -46,9 +46,19 @@ export interface LeadEnrichmentRecordResult {
   foundNames: string[];
   pagesChecked: string[];
   website?: string;
+  websiteDiscoveryCandidate?: string;
   websiteDiscoveryStatus?: NonNullable<
     CompanyEnrichmentSnapshot["websiteDiscovery"]
   >["status"];
+  websiteDiscoveryConfirmationStatus?: NonNullable<
+    CompanyEnrichmentSnapshot["websiteDiscovery"]
+  >["confirmationStatus"];
+  websiteDiscoveryConfidenceLevel?: NonNullable<
+    CompanyEnrichmentSnapshot["websiteDiscovery"]
+  >["confidenceLevel"];
+  websiteDiscoveryConfidenceScore?: NonNullable<
+    CompanyEnrichmentSnapshot["websiteDiscovery"]
+  >["confidenceScore"];
   websiteDiscoverySummary?: string;
   discoveryEvidence: string[];
   staffPageUrls: string[];

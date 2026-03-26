@@ -32,7 +32,13 @@ import {
   getSourceLabel,
   getSuggestedNextAction,
   getTierFilterOptions,
+  getWebsiteDiscoveryCandidateLabel,
+  getWebsiteDiscoveryConfirmationBadge,
   getWebsiteDiscoveryLabel,
+  getWebsiteDiscoveryReason,
+  getWebsiteDiscoveryReviewedAtLabel,
+  getWebsiteDiscoveryReviewSourceLabel,
+  getWebsiteDiscoverySourceLabel,
   getWorkflowBadge,
   getWorkflowReason,
   listCompanyBundles,
@@ -121,6 +127,18 @@ export interface CompanyDetailView {
     description: string;
     angle: string;
     cta: string;
+  };
+  websiteDiscovery: {
+    label: string;
+    candidate: string;
+    candidateUrl?: string;
+    officialWebsite?: string;
+    canReviewCandidate: boolean;
+    reason: string;
+    sourceLabel: string;
+    reviewSourceLabel?: string;
+    reviewedAtLabel?: string;
+    confirmationBadge: SelectorBadge;
   };
   preferredSupportingPage: {
     url?: string;
@@ -348,6 +366,22 @@ export async function getCompaniesWorkspaceView(
           cta:
             selectedBundle.recommendedOffer?.primaryCta ??
             "CTA is still pending.",
+        },
+        websiteDiscovery: {
+          label: getWebsiteDiscoveryLabel(selectedBundle.company),
+          candidate: getWebsiteDiscoveryCandidateLabel(selectedBundle.company),
+          candidateUrl:
+            selectedBundle.company.enrichment?.websiteDiscovery?.candidateWebsite,
+          officialWebsite:
+            selectedBundle.company.presence.websiteUrl ??
+            selectedBundle.company.enrichment?.websiteDiscovery?.discoveredWebsite,
+          canReviewCandidate:
+            selectedBundle.company.enrichment?.websiteDiscovery?.confirmationStatus === "needs_review",
+          reason: getWebsiteDiscoveryReason(selectedBundle.company),
+          sourceLabel: getWebsiteDiscoverySourceLabel(selectedBundle.company),
+          reviewSourceLabel: getWebsiteDiscoveryReviewSourceLabel(selectedBundle.company),
+          reviewedAtLabel: getWebsiteDiscoveryReviewedAtLabel(selectedBundle.company),
+          confirmationBadge: getWebsiteDiscoveryConfirmationBadge(selectedBundle.company),
         },
         preferredSupportingPage: {
           url: getPreferredSupportingPage(selectedBundle.company)?.url,

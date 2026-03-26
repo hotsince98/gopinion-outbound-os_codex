@@ -4,6 +4,7 @@ import {
   deriveWorkflowState,
   getCompanyBundle,
   hasAnyContactPath,
+  hasReviewableWebsiteCandidate,
   hasWebsiteCandidate,
   isContactCampaignEligible,
   listCompanyBundles,
@@ -49,6 +50,7 @@ export {
   deriveWorkflowState,
   getCompanyBundle,
   hasAnyContactPath,
+  hasReviewableWebsiteCandidate,
   hasWebsiteCandidate,
   isContactCampaignEligible,
   listCompanyBundles,
@@ -166,6 +168,13 @@ export function getEnrichmentSummary(company: Company) {
     return `Fetch issue: ${company.enrichment.lastError}`;
   }
 
+  if (
+    discovery?.confirmationStatus === "needs_review" &&
+    discovery.candidateWebsite
+  ) {
+    return `Website candidate needs review: ${discovery.candidateWebsite}`;
+  }
+
   if (discovery?.extractedEvidence.length) {
     return discovery.extractedEvidence.slice(0, 2).join(" • ");
   }
@@ -275,6 +284,62 @@ export function getWebsiteDiscoveryLabel(company: Company) {
       : "Website discovery not started";
   }
 
+  const confidenceDetail = `${formatLabel(discovery.confidenceLevel)} confidence`;
+
+  switch (discovery.confirmationStatus) {
+    case "record_provided":
+      return [
+        `Website on record: ${discovery.discoveredWebsite ?? company.presence.websiteUrl ?? "pending verification"}`,
+        confidenceDetail,
+        supportingDetails,
+        evidence,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" • ");
+    case "auto_confirmed":
+      return [
+        `Auto-confirmed website: ${discovery.discoveredWebsite ?? discovery.candidateWebsite ?? "pending verification"}`,
+        confidenceDetail,
+        supportingDetails,
+        evidence,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" • ");
+    case "operator_confirmed":
+      return [
+        `Operator-confirmed website: ${discovery.operatorReview?.officialWebsite ?? discovery.discoveredWebsite ?? discovery.candidateWebsite ?? "pending verification"}`,
+        confidenceDetail,
+        supportingDetails,
+        evidence,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" • ");
+    case "needs_review":
+      return [
+        `Website candidate needs review: ${discovery.candidateWebsite ?? "candidate pending"}`,
+        confidenceDetail,
+        supportingDetails,
+        evidence,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" • ");
+    case "rejected":
+      return [
+        `Rejected candidate: ${discovery.candidateWebsite ?? "candidate pending"}`,
+        confidenceDetail,
+        supportingDetails,
+        evidence,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" • ");
+    case "failed":
+      return discovery.lastError
+        ? `Discovery failed: ${discovery.lastError}`
+        : "Discovery failed";
+    case "not_found":
+      return "Discovery could not find a confident site";
+  }
+
   switch (discovery.status) {
     case "record_provided":
       return [
@@ -302,6 +367,91 @@ export function getWebsiteDiscoveryLabel(company: Company) {
     default:
       return "Website discovery not started";
   }
+}
+
+export function getWebsiteDiscoveryConfirmationBadge(company: Company): SelectorBadge {
+  const discovery = company.enrichment?.websiteDiscovery;
+
+  switch (discovery?.confirmationStatus) {
+    case "record_provided":
+      return { label: "Website on record", tone: "muted" };
+    case "auto_confirmed":
+      return { label: "Auto-confirmed site", tone: "success" };
+    case "operator_confirmed":
+      return { label: "Operator-confirmed site", tone: "success" };
+    case "needs_review":
+      return { label: "Site needs review", tone: "warning" };
+    case "rejected":
+      return { label: "Candidate rejected", tone: "danger" };
+    case "failed":
+      return { label: "Discovery failed", tone: "danger" };
+    case "not_found":
+      return { label: "No site found", tone: "warning" };
+    default:
+      return { label: "Discovery pending", tone: "muted" };
+  }
+}
+
+export function getWebsiteDiscoveryCandidateLabel(company: Company) {
+  const discovery = company.enrichment?.websiteDiscovery;
+
+  return (
+    discovery?.operatorReview?.officialWebsite ??
+    discovery?.candidateWebsite ??
+    discovery?.discoveredWebsite ??
+    company.presence.websiteUrl ??
+    "No website candidate yet"
+  );
+}
+
+export function getWebsiteDiscoveryReason(company: Company) {
+  const discovery = company.enrichment?.websiteDiscovery;
+
+  if (!discovery) {
+    return "Website discovery has not run yet.";
+  }
+
+  return (
+    discovery.confirmationReason ??
+    discovery.operatorReview?.note ??
+    discovery.matchedSignals[0] ??
+    discovery.extractedEvidence[0] ??
+    discovery.lastError ??
+    "Discovery reason pending."
+  );
+}
+
+export function getWebsiteDiscoverySourceLabel(company: Company) {
+  const discovery = company.enrichment?.websiteDiscovery;
+
+  if (!discovery) {
+    return "Discovery source pending";
+  }
+
+  return discovery.source.label ?? formatLabel(discovery.source.provider);
+}
+
+export function getWebsiteDiscoveryReviewSourceLabel(company: Company) {
+  const operatorReview = company.enrichment?.websiteDiscovery?.operatorReview;
+
+  if (!operatorReview) {
+    return undefined;
+  }
+
+  return operatorReview.source.label ?? formatLabel(operatorReview.source.provider);
+}
+
+export function getWebsiteDiscoveryReviewedAtLabel(company: Company) {
+  const reviewedAt = company.enrichment?.websiteDiscovery?.operatorReview?.reviewedAt;
+
+  if (!reviewedAt) {
+    return undefined;
+  }
+
+  return `Reviewed ${new Date(reviewedAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })}`;
 }
 
 export function getPreferredSupportingPage(company: Company) {
@@ -618,6 +768,12 @@ export function getWorkflowReason(bundle: CompanyBundle) {
   }
 
   if (workflowState === "needs_enrichment") {
+    if (
+      bundle.company.enrichment?.websiteDiscovery?.confirmationStatus === "rejected"
+    ) {
+      return "Needs enrichment because the previous website candidate was rejected and no official site is confirmed yet.";
+    }
+
     if (!hasWebsiteCandidate(bundle.company)) {
       return "Needs enrichment because no verified website is on record yet.";
     }
@@ -626,6 +782,10 @@ export function getWorkflowReason(bundle: CompanyBundle) {
   }
 
   if (workflowState === "needs_review") {
+    if (hasReviewableWebsiteCandidate(bundle.company)) {
+      return "Needs review because discovery found a likely official website that still needs confirmation.";
+    }
+
     if (!bundle.primaryContact) {
       return "Needs review because a primary outreach contact has not been selected yet.";
     }
@@ -677,11 +837,28 @@ export function getSuggestedNextAction(bundle: CompanyBundle) {
   }
 
   if (workflowState === "needs_enrichment") {
+    if (hasReviewableWebsiteCandidate(bundle.company)) {
+      return "Confirm the website candidate, then rerun enrichment with the official site.";
+    }
+
     return hasWebsiteCandidate(bundle.company)
       ? outreachAngle
         ? `Run enrichment and confirm the ${outreachAngle.label.toLowerCase()} angle from the public site`
         : "Run enrichment and confirm the best outreach path from the public site"
       : "Run website discovery, then enrich the company profile";
+  }
+
+  if (
+    workflowState === "needs_review" &&
+    hasReviewableWebsiteCandidate(bundle.company)
+  ) {
+    return "Confirm the website candidate, then rerun enrichment with the official site.";
+  }
+
+  if (
+    bundle.company.enrichment?.websiteDiscovery?.confirmationStatus === "rejected"
+  ) {
+    return "Search again or manually confirm a better official website before rerunning enrichment.";
   }
 
   if (bundle.company.enrichment?.manualReviewRequired) {

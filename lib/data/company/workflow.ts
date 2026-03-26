@@ -48,6 +48,13 @@ export function hasWebsiteCandidate(company: Company) {
   );
 }
 
+export function hasReviewableWebsiteCandidate(company: Company) {
+  return Boolean(
+    company.enrichment?.websiteDiscovery?.confirmationStatus === "needs_review" &&
+      company.enrichment.websiteDiscovery.candidateWebsite,
+  );
+}
+
 export function hasAnyContactPath(bundle: CompanyBundle) {
   return Boolean(
     bundle.contacts.some((contact) => Boolean(contact.email || contact.phone)) ||
@@ -70,13 +77,25 @@ export function deriveWorkflowState(bundle: CompanyBundle): WorkflowState {
   }
 
   const websiteCandidate = hasWebsiteCandidate(bundle.company);
+  const reviewableWebsiteCandidate = hasReviewableWebsiteCandidate(bundle.company);
   const anyContactPath = hasAnyContactPath(bundle);
   const discoveryStatus = bundle.company.enrichment?.websiteDiscovery?.status;
+  const discoveryConfirmationStatus =
+    bundle.company.enrichment?.websiteDiscovery?.confirmationStatus;
   const discoveryFailed =
     discoveryStatus === "failed" || discoveryStatus === "not_found";
 
   if (
+    discoveryConfirmationStatus === "rejected" &&
     !websiteCandidate &&
+    !anyContactPath
+  ) {
+    return "needs_enrichment";
+  }
+
+  if (
+    !websiteCandidate &&
+    !reviewableWebsiteCandidate &&
     !anyContactPath &&
     discoveryFailed &&
     bundle.company.enrichment?.lastAttemptedAt

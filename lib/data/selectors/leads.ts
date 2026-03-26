@@ -34,7 +34,11 @@ import {
   getSourceLabel,
   getSuggestedNextAction,
   getTierFilterOptions,
+  getWebsiteDiscoveryCandidateLabel,
+  getWebsiteDiscoveryConfirmationBadge,
   getWebsiteDiscoveryLabel,
+  getWebsiteDiscoveryReason,
+  getWebsiteDiscoverySourceLabel,
   getWorkflowBadge,
   getWorkflowReason,
   hasAnyContactPath,
@@ -93,6 +97,8 @@ export interface LeadsQueueTab {
 export interface LeadRowView {
   companyId: string;
   companyName: string;
+  officialWebsite?: string;
+  candidateWebsite?: string;
   market: string;
   subindustry: string;
   icpLabel: string;
@@ -115,6 +121,11 @@ export interface LeadRowView {
   sourceLabel: string;
   websiteLabel: string;
   websiteDiscovery: string;
+  websiteDiscoveryBadge: SelectorBadge;
+  websiteDiscoveryCandidate: string;
+  websiteDiscoveryReason: string;
+  websiteDiscoverySource: string;
+  canReviewWebsiteCandidate: boolean;
   preferredSupportingPageLabel: string;
   preferredSupportingPageSource: string;
   noteHintSummary: string;
@@ -543,6 +554,10 @@ export async function getLeadsWorkspaceView(
     return {
       companyId: bundle.company.id,
       companyName: bundle.company.name,
+      officialWebsite:
+        bundle.company.presence.websiteUrl ??
+        bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite,
+      candidateWebsite: bundle.company.enrichment?.websiteDiscovery?.candidateWebsite,
       market: `${bundle.company.location.city}, ${bundle.company.location.state}`,
       subindustry: getIndustryLabel(bundle.company),
       icpLabel: getIcpLabel(bundle.company),
@@ -568,6 +583,12 @@ export async function getLeadsWorkspaceView(
         bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite ??
         "No website on record",
       websiteDiscovery: getWebsiteDiscoveryLabel(bundle.company),
+      websiteDiscoveryBadge: getWebsiteDiscoveryConfirmationBadge(bundle.company),
+      websiteDiscoveryCandidate: getWebsiteDiscoveryCandidateLabel(bundle.company),
+      websiteDiscoveryReason: getWebsiteDiscoveryReason(bundle.company),
+      websiteDiscoverySource: getWebsiteDiscoverySourceLabel(bundle.company),
+      canReviewWebsiteCandidate:
+        bundle.company.enrichment?.websiteDiscovery?.confirmationStatus === "needs_review",
       preferredSupportingPageLabel: getPreferredSupportingPageLabel(bundle.company),
       preferredSupportingPageSource: getPreferredSupportingPageSourceLabel(bundle.company),
       noteHintSummary: getNoteHintSummary(bundle.company),

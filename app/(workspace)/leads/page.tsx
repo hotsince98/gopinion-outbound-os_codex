@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
+import { WebsiteDiscoveryReviewActions } from "@/components/leads/website-discovery-review-actions";
 import { FilterPanel } from "@/components/ui/filter-panel";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
@@ -68,11 +69,21 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         <p className="text-sm text-muted">{row.segmentLabel}</p>
       </div>,
       <div key={`${row.companyId}-enrichment`} className="space-y-2">
-        <StatusBadge
-          label={row.enrichmentBadge.label}
-          tone={row.enrichmentBadge.tone}
-        />
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge
+            label={row.enrichmentBadge.label}
+            tone={row.enrichmentBadge.tone}
+          />
+          <StatusBadge
+            label={row.websiteDiscoveryBadge.label}
+            tone={row.websiteDiscoveryBadge.tone}
+          />
+        </div>
         <p className="text-sm text-copy">{row.websiteDiscovery}</p>
+        <p className="text-sm text-copy">{row.websiteDiscoveryCandidate}</p>
+        <p className="text-sm text-muted">
+          {row.websiteDiscoverySource} • {row.websiteDiscoveryReason}
+        </p>
         <p className="text-sm text-muted">
           {row.preferredSupportingPageLabel} • {row.preferredSupportingPageSource}
         </p>
@@ -136,6 +147,11 @@ export default async function LeadsPage({ searchParams }: PageProps) {
           {row.lastEnrichedLabel}
         </p>
         <p className="text-sm leading-6 text-copy">{row.nextAction}</p>
+        <WebsiteDiscoveryReviewActions
+          companyId={row.companyId}
+          candidateWebsite={row.canReviewWebsiteCandidate ? row.candidateWebsite : undefined}
+          officialWebsite={row.officialWebsite}
+        />
         <div className="flex flex-wrap gap-3">
           <Link
             href={`/companies?companyId=${row.companyId}`}

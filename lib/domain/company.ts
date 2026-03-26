@@ -68,6 +68,25 @@ export const websiteDiscoveryStatuses = [
 export type WebsiteDiscoveryStatus =
   (typeof websiteDiscoveryStatuses)[number];
 
+export const websiteDiscoveryConfirmationStatuses = [
+  "record_provided",
+  "auto_confirmed",
+  "operator_confirmed",
+  "needs_review",
+  "rejected",
+  "not_found",
+  "failed",
+] as const;
+export type WebsiteDiscoveryConfirmationStatus =
+  (typeof websiteDiscoveryConfirmationStatuses)[number];
+
+export const websiteDiscoveryReviewDecisionStates = [
+  "accepted",
+  "rejected",
+] as const;
+export type WebsiteDiscoveryReviewDecisionState =
+  (typeof websiteDiscoveryReviewDecisionStates)[number];
+
 export const preferredSupportingPageSources = [
   "discovery",
   "operator_confirmed",
@@ -123,9 +142,12 @@ export type CompanyOutreachAngleReviewPath =
 
 export interface CompanyWebsiteDiscoverySnapshot {
   status: WebsiteDiscoveryStatus;
+  confirmationStatus: WebsiteDiscoveryConfirmationStatus;
+  confirmationReason?: string;
   confidenceLevel: EnrichmentConfidenceLevel;
   confidenceScore: number;
   discoveredWebsite?: string;
+  candidateWebsite?: string;
   candidateUrls: string[];
   matchedSignals: string[];
   supportingPageUrls: string[];
@@ -138,6 +160,13 @@ export interface CompanyWebsiteDiscoverySnapshot {
     source: PreferredSupportingPageSource;
     reason: string;
     updatedAt?: IsoDateString;
+  };
+  operatorReview?: {
+    status: WebsiteDiscoveryReviewDecisionState;
+    officialWebsite?: string;
+    note?: string;
+    reviewedAt?: IsoDateString;
+    source: SourceReference;
   };
   source: SourceReference;
   lastCheckedAt?: IsoDateString;

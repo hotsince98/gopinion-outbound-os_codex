@@ -19,7 +19,10 @@ import {
 } from "@/lib/data/enrichment/discovery";
 import { scanCompanyWebsiteWithProvider } from "@/lib/data/enrichment/provider";
 import { parseImportedNoteArtifacts } from "@/lib/data/intake/notes";
-import { deriveContactRoleFromTitle } from "@/lib/data/intake/validation";
+import {
+  deriveContactRoleFromTitle,
+  normalizeWebsiteUrl,
+} from "@/lib/data/intake/validation";
 import type {
   Company,
   CompanyEnrichmentSnapshot,
@@ -199,6 +202,9 @@ function buildWebsiteDiscoverySummary(
   const evidencePreview = dedupeStrings(
     websiteDiscovery?.extractedEvidence.slice(0, 2) ?? [],
   ).join(" • ");
+  const confidencePreview = websiteDiscovery
+    ? `${websiteDiscovery.confidenceLevel} confidence (${websiteDiscovery.confidenceScore}/100)`
+    : undefined;
   const preferredSupportingPageLabel = websiteDiscovery?.preferredSupportingPage
     ? `Preferred ${websiteDiscovery.preferredSupportingPage.kind} page (${websiteDiscovery.preferredSupportingPage.source.replaceAll("_", " ")}): ${websiteDiscovery.preferredSupportingPage.url}`
     : undefined;
@@ -209,10 +215,57 @@ function buildWebsiteDiscoverySummary(
       : "Website discovery has not run yet";
   }
 
+  if (
+    websiteDiscovery.confirmationStatus === "needs_review" &&
+    websiteDiscovery.candidateWebsite
+  ) {
+    return [
+      `Website candidate needs review: ${websiteDiscovery.candidateWebsite}`,
+      websiteDiscovery.confirmationReason,
+      confidencePreview,
+      preferredSupportingPageLabel,
+      evidencePreview,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(" • ");
+  }
+
+  if (
+    websiteDiscovery.confirmationStatus === "operator_confirmed" &&
+    websiteDiscovery.discoveredWebsite
+  ) {
+    return [
+      `Operator-confirmed website: ${websiteDiscovery.discoveredWebsite}`,
+      websiteDiscovery.confirmationReason,
+      confidencePreview,
+      preferredSupportingPageLabel,
+      evidencePreview,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(" • ");
+  }
+
+  if (
+    websiteDiscovery.confirmationStatus === "rejected" &&
+    websiteDiscovery.candidateWebsite
+  ) {
+    return [
+      `Rejected website candidate: ${websiteDiscovery.candidateWebsite}`,
+      websiteDiscovery.confirmationReason,
+      confidencePreview,
+      preferredSupportingPageLabel,
+      evidencePreview,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(" • ");
+  }
+
   switch (websiteDiscovery.status) {
     case "record_provided":
       return [
         `Website is already on record: ${websiteDiscovery.discoveredWebsite ?? resolvedWebsite ?? "pending verification"}`,
+        websiteDiscovery.confirmationReason,
+        confidencePreview,
         websiteDiscovery.staffPageUrls.length > 0
           ? `${websiteDiscovery.staffPageUrls.length} staff/team page${
               websiteDiscovery.staffPageUrls.length === 1 ? "" : "s"
@@ -230,7 +283,9 @@ function buildWebsiteDiscoverySummary(
         .join(" • ");
     case "discovered":
       return [
-        `Website discovery found ${websiteDiscovery.discoveredWebsite ?? "a likely public site"}`,
+        `Auto-confirmed website: ${websiteDiscovery.discoveredWebsite ?? "a likely public site"}`,
+        websiteDiscovery.confirmationReason,
+        confidencePreview,
         websiteDiscovery.staffPageUrls.length > 0
           ? `${websiteDiscovery.staffPageUrls.length} staff/team page${
               websiteDiscovery.staffPageUrls.length === 1 ? "" : "s"
@@ -247,7 +302,9 @@ function buildWebsiteDiscoverySummary(
         .filter((value): value is string => Boolean(value))
         .join(" • ");
     case "not_found":
-      return "Website discovery could not find a confident public site";
+      return websiteDiscovery.candidateWebsite
+        ? `Website candidate still needs review: ${websiteDiscovery.candidateWebsite}`
+        : "Website discovery could not find a confident public site";
     case "failed":
       return websiteDiscovery.lastError
         ? `Website discovery failed: ${websiteDiscovery.lastError}`
@@ -698,6 +755,10 @@ function updateCompanyReadiness(params: {
   const hasWebsiteCandidate = Boolean(
     params.normalizedWebsite ?? params.websiteDiscovery?.discoveredWebsite,
   );
+  const hasReviewableWebsiteCandidate = Boolean(
+    params.websiteDiscovery?.confirmationStatus === "needs_review" &&
+      params.websiteDiscovery.candidateWebsite,
+  );
   const hasCampaignEligiblePath = Boolean(params.primaryContact?.quality?.campaignEligible);
   const enrichmentSource =
     hasWebsiteCandidate && params.primaryContact
@@ -757,6 +818,7 @@ function updateCompanyReadiness(params: {
   const nextStatus: Company["status"] = hasCampaignEligiblePath
     ? "campaign_ready"
     : hasWebsiteCandidate ||
+        hasReviewableWebsiteCandidate ||
         params.bestSubindustry ||
         params.bestPhone ||
         params.primaryContact
@@ -775,6 +837,9 @@ function updateCompanyReadiness(params: {
       ? "Campaign can start from a role inbox, but a named owner still needs review"
       : undefined,
     nextStatus === "new" ? "Website enrichment still needs operator follow-up" : undefined,
+    hasReviewableWebsiteCandidate
+      ? "Search discovery found a likely official website that still needs confirmation"
+      : undefined,
   ]);
   const scoringReasons = dedupeStrings([
     ...params.company.scoring.reasons,
@@ -782,9 +847,15 @@ function updateCompanyReadiness(params: {
       ? `Website enrichment scanned ${params.sourceUrls.length} page${params.sourceUrls.length === 1 ? "" : "s"}`
       : hasWebsiteCandidate
         ? "Website was identified but still needs manual verification"
-        : "Website enrichment could not verify the public site",
+        : hasReviewableWebsiteCandidate
+          ? "Search discovery found a likely official website that still needs operator confirmation"
+          : "Website enrichment could not verify the public site",
     params.websiteDiscovery?.status === "discovered"
       ? `Website discovery identified ${params.websiteDiscovery.discoveredWebsite}`
+      : undefined,
+    params.websiteDiscovery?.confirmationStatus === "needs_review" &&
+    params.websiteDiscovery.candidateWebsite
+      ? `Website candidate awaiting review: ${params.websiteDiscovery.candidateWebsite}`
       : undefined,
     params.websiteDiscovery?.staffPageUrls.length
       ? `Supporting staff/team pages found: ${params.websiteDiscovery.staffPageUrls.length}`
@@ -856,13 +927,26 @@ async function enrichSingleCompany(
     (hint) => hint.kind === "website",
   )?.source;
   const previousWebsiteDiscovery = company.enrichment?.websiteDiscovery;
+  const normalizedRecordedWebsite = normalizeWebsiteUrl(company.presence.websiteUrl);
+  const normalizedPreviousWebsite = normalizeWebsiteUrl(
+    previousWebsiteDiscovery?.discoveredWebsite ??
+      previousWebsiteDiscovery?.candidateWebsite,
+  );
   const baseWebsiteDiscovery = company.presence.websiteUrl
-    ? buildRecordProvidedDiscoverySnapshot({
-        website: company.presence.websiteUrl,
-        now,
-        source: company.source,
-        matchedSignals: ["Website was already present on the company record"],
-      })
+    ? normalizedRecordedWebsite &&
+      normalizedPreviousWebsite &&
+      normalizedRecordedWebsite === normalizedPreviousWebsite
+      ? mergeWebsiteDiscoveryEvidence({
+          snapshot: previousWebsiteDiscovery!,
+          now,
+          lastError: undefined,
+        })
+      : buildRecordProvidedDiscoverySnapshot({
+          website: company.presence.websiteUrl,
+          now,
+          source: company.source,
+          matchedSignals: ["Website was already present on the company record"],
+        })
     : noteArtifacts.suggestedWebsite
       ? buildRecordProvidedDiscoverySnapshot({
           website: noteArtifacts.suggestedWebsite,
@@ -894,6 +978,9 @@ async function enrichSingleCompany(
           staffPageUrls: previousWebsiteDiscovery.staffPageUrls,
           extractedEvidence: previousWebsiteDiscovery.extractedEvidence,
           preferredSupportingPage: previousWebsiteDiscovery.preferredSupportingPage,
+          confirmationStatus: previousWebsiteDiscovery.confirmationStatus,
+          confirmationReason: previousWebsiteDiscovery.confirmationReason,
+          operatorReview: previousWebsiteDiscovery.operatorReview,
           lastError: baseWebsiteDiscovery.lastError,
         })
       : baseWebsiteDiscovery;
@@ -1069,6 +1156,10 @@ async function enrichSingleCompany(
 
   await dataAccess.companies.update(updatedCompany);
 
+  const hasReviewableWebsiteCandidate = Boolean(
+    enrichedWebsiteDiscovery.confirmationStatus === "needs_review" &&
+      enrichedWebsiteDiscovery.candidateWebsite,
+  );
   const noUsablePath =
     !normalizedWebsite &&
     !bestPhone &&
@@ -1079,15 +1170,20 @@ async function enrichSingleCompany(
       ? "ready"
       : noUsablePath &&
           ["failed", "not_found"].includes(websiteDiscovery.status)
+        && !hasReviewableWebsiteCandidate
         && enrichedWebsiteDiscovery.staffPageUrls.length === 0
         && enrichedWebsiteDiscovery.contactPageUrls.length === 0
         ? "blocked"
+        : hasReviewableWebsiteCandidate
+          ? "needs_review"
         : updatedCompany.status === "enriched"
           ? "needs_review"
           : "needs_enrichment";
   const readinessReason =
     status === "blocked"
       ? "Still blocked because no website, phone, or primary contact path was verified."
+      : hasReviewableWebsiteCandidate
+        ? `Needs review because discovery found a likely website candidate (${enrichedWebsiteDiscovery.candidateWebsite}) that still needs confirmation.`
       : rankedContacts.primaryContact?.quality?.campaignEligible
         ? rankedContacts.primaryContact.fullName
           ? "Ready because a named company-domain contact was selected."
@@ -1105,7 +1201,9 @@ async function enrichSingleCompany(
       status === "ready"
         ? "Company is now campaign-eligible."
         : status === "needs_review"
-          ? "Website enrichment improved the record, but an operator should review it."
+          ? hasReviewableWebsiteCandidate
+            ? "Discovery found a likely official website, but an operator should confirm it before crawling."
+            : "Website enrichment improved the record, but an operator should review it."
           : status === "blocked"
             ? "The record is still blocked because no usable public contact path was found."
             : status === "needs_enrichment"
@@ -1117,7 +1215,14 @@ async function enrichSingleCompany(
     foundPhones,
     pagesChecked: websiteScan.pagesChecked,
     website: normalizedWebsite,
+    websiteDiscoveryCandidate:
+      enrichedWebsiteDiscovery.candidateWebsite ??
+      enrichedWebsiteDiscovery.discoveredWebsite,
     websiteDiscoveryStatus: enrichedWebsiteDiscovery.status,
+    websiteDiscoveryConfirmationStatus:
+      enrichedWebsiteDiscovery.confirmationStatus,
+    websiteDiscoveryConfidenceLevel: enrichedWebsiteDiscovery.confidenceLevel,
+    websiteDiscoveryConfidenceScore: enrichedWebsiteDiscovery.confidenceScore,
     websiteDiscoverySummary: buildWebsiteDiscoverySummary(
       enrichedWebsiteDiscovery,
       normalizedWebsite,

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
+import { WebsiteDiscoveryReviewActions } from "@/components/leads/website-discovery-review-actions";
 import { runLeadEnrichmentAction } from "@/app/(workspace)/leads/enrichment/actions";
 import { initialLeadEnrichmentActionState } from "@/app/(workspace)/leads/enrichment/action-state";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -152,6 +153,21 @@ export function LeadEnrichmentWorkspace({
                   {result.websiteDiscoverySummary ? (
                     <p className="mt-2 text-sm text-muted">
                       {result.websiteDiscoverySummary}
+                    </p>
+                  ) : null}
+                  {result.websiteDiscoveryCandidate ? (
+                    <p className="mt-2 text-sm text-copy">
+                      Website candidate: {result.websiteDiscoveryCandidate}
+                    </p>
+                  ) : null}
+                  {result.websiteDiscoveryConfirmationStatus ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Discovery status:{" "}
+                      {result.websiteDiscoveryConfirmationStatus.replaceAll("_", " ")} •{" "}
+                      {result.websiteDiscoveryConfidenceLevel ?? "none"} confidence
+                      {result.websiteDiscoveryConfidenceScore != null
+                        ? ` (${result.websiteDiscoveryConfidenceScore}/100)`
+                        : ""}
                     </p>
                   ) : null}
                   {result.discoveryEvidence[0] ? (
@@ -345,19 +361,44 @@ export function LeadEnrichmentWorkspace({
                     </td>
                     <td className="px-4 py-4 align-top">
                       <div className="space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          <StatusBadge
+                            label={row.websiteDiscoveryBadge.label}
+                            tone={row.websiteDiscoveryBadge.tone}
+                          />
+                          <StatusBadge
+                            label={row.confidenceBadge.label}
+                            tone={row.confidenceBadge.tone}
+                          />
+                        </div>
                         <p className="text-sm text-copy">
                           {row.website ?? "No website on record"}
                         </p>
                         <p className="text-sm text-muted">{row.websiteDiscovery}</p>
+                        <p className="text-sm text-copy">
+                          {row.websiteDiscoveryCandidate}
+                        </p>
+                        <p className="text-sm text-muted">
+                          {row.websiteDiscoverySource}
+                        </p>
+                        <p className="text-sm text-muted">
+                          {row.websiteDiscoveryReason}
+                        </p>
                         <p className="text-sm text-copy">
                           {row.preferredSupportingPageLabel}
                         </p>
                         <p className="text-sm text-muted">
                           {row.preferredSupportingPageSource}
                         </p>
-                        <StatusBadge
-                          label={row.confidenceBadge.label}
-                          tone={row.confidenceBadge.tone}
+                        <WebsiteDiscoveryReviewActions
+                          companyId={row.companyId}
+                          candidateWebsite={
+                            row.canReviewWebsiteCandidate
+                              ? row.candidateWebsite
+                              : undefined
+                          }
+                          officialWebsite={row.website}
+                          compactLabel="Mark official"
                         />
                       </div>
                     </td>

@@ -39,6 +39,20 @@ function normalizeCompanyEnrichment(
     websiteDiscovery: enrichment.websiteDiscovery
       ? {
           ...enrichment.websiteDiscovery,
+          confirmationStatus:
+            enrichment.websiteDiscovery.confirmationStatus ??
+            (enrichment.websiteDiscovery.status === "record_provided"
+              ? "record_provided"
+              : enrichment.websiteDiscovery.status === "discovered"
+                ? "auto_confirmed"
+                : enrichment.websiteDiscovery.status === "failed"
+                  ? "failed"
+                  : "not_found"),
+          confirmationReason:
+            enrichment.websiteDiscovery.confirmationReason ?? undefined,
+          candidateWebsite:
+            enrichment.websiteDiscovery.candidateWebsite ??
+            enrichment.websiteDiscovery.discoveredWebsite,
           candidateUrls: listOrEmpty(enrichment.websiteDiscovery.candidateUrls),
           matchedSignals: listOrEmpty(enrichment.websiteDiscovery.matchedSignals),
           supportingPageUrls: listOrEmpty(
@@ -54,6 +68,11 @@ function normalizeCompanyEnrichment(
           preferredSupportingPage: enrichment.websiteDiscovery.preferredSupportingPage
             ? {
                 ...enrichment.websiteDiscovery.preferredSupportingPage,
+              }
+            : undefined,
+          operatorReview: enrichment.websiteDiscovery.operatorReview
+            ? {
+                ...enrichment.websiteDiscovery.operatorReview,
               }
             : undefined,
         }

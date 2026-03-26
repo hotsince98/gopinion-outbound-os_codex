@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
 import { PreferredSupportingPageCard } from "@/components/companies/preferred-supporting-page-card";
+import { WebsiteDiscoveryReviewPanel } from "@/components/companies/website-discovery-review-panel";
 import { DetailList } from "@/components/ui/detail-list";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPanel } from "@/components/ui/filter-panel";
@@ -294,7 +295,20 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 </p>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-3">
+                <WebsiteDiscoveryReviewPanel
+                  companyId={view.selectedCompany.companyId}
+                  candidateWebsite={view.selectedCompany.websiteDiscovery.candidateUrl}
+                  officialWebsite={view.selectedCompany.websiteDiscovery.officialWebsite}
+                  canRejectCandidate={view.selectedCompany.websiteDiscovery.canReviewCandidate}
+                  confirmationLabel={view.selectedCompany.websiteDiscovery.confirmationBadge.label}
+                  confirmationTone={view.selectedCompany.websiteDiscovery.confirmationBadge.tone}
+                  sourceLabel={view.selectedCompany.websiteDiscovery.sourceLabel}
+                  reason={view.selectedCompany.websiteDiscovery.reason}
+                  reviewSourceLabel={view.selectedCompany.websiteDiscovery.reviewSourceLabel}
+                  reviewedAtLabel={view.selectedCompany.websiteDiscovery.reviewedAtLabel}
+                />
+
                 <PreferredSupportingPageCard
                   companyId={view.selectedCompany.companyId}
                   currentUrl={view.selectedCompany.preferredSupportingPage.url}

@@ -22,7 +22,11 @@ import {
   getPreferredSupportingPageSourceLabel,
   getRecommendedOfferName,
   getSegmentLabel,
+  getWebsiteDiscoveryCandidateLabel,
+  getWebsiteDiscoveryConfirmationBadge,
   getWebsiteDiscoveryLabel,
+  getWebsiteDiscoveryReason,
+  getWebsiteDiscoverySourceLabel,
   getWorkflowBadge,
   getWorkflowReason,
   hasWebsiteCandidate,
@@ -37,7 +41,13 @@ export interface LeadEnrichmentQueueRowView {
   companyName: string;
   market: string;
   website?: string;
+  candidateWebsite?: string;
   websiteDiscovery: string;
+  websiteDiscoveryBadge: SelectorBadge;
+  websiteDiscoveryCandidate: string;
+  websiteDiscoveryReason: string;
+  websiteDiscoverySource: string;
+  canReviewWebsiteCandidate: boolean;
   noteHintSummary: string;
   importedLabel: string;
   lastEnrichedLabel: string;
@@ -141,7 +151,14 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
         website:
           bundle.company.presence.websiteUrl ??
           bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite,
+        candidateWebsite: bundle.company.enrichment?.websiteDiscovery?.candidateWebsite,
         websiteDiscovery: getWebsiteDiscoveryLabel(bundle.company),
+        websiteDiscoveryBadge: getWebsiteDiscoveryConfirmationBadge(bundle.company),
+        websiteDiscoveryCandidate: getWebsiteDiscoveryCandidateLabel(bundle.company),
+        websiteDiscoveryReason: getWebsiteDiscoveryReason(bundle.company),
+        websiteDiscoverySource: getWebsiteDiscoverySourceLabel(bundle.company),
+        canReviewWebsiteCandidate:
+          bundle.company.enrichment?.websiteDiscovery?.confirmationStatus === "needs_review",
         noteHintSummary: getNoteHintSummary(bundle.company),
         importedLabel: getImportDateLabel(bundle.company),
         lastEnrichedLabel: getLastEnrichedLabel(bundle.company),
