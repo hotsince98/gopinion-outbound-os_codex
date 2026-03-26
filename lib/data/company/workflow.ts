@@ -1,4 +1,5 @@
 import {
+  getCompanyHost,
   rankContactsForPrimarySelection,
   type RankedContactSelection,
 } from "@/lib/data/contacts/quality";
@@ -127,8 +128,12 @@ export function getCompanyBundle(
   lookups = createSnapshotLookups(snapshot),
 ): CompanyBundle {
   const contacts = snapshot.contacts.filter((contact) => contact.companyId === company.id);
+  const companyHost = getCompanyHost(
+    company.presence.websiteUrl ?? company.enrichment?.websiteDiscovery?.discoveredWebsite,
+  );
   const rankedContacts = rankContactsForPrimarySelection(contacts, {
     preferredContactId: company.primaryContactId,
+    companyHost,
   });
   const recommendedOffer = company.recommendedOfferIds
     .map((offerId) => lookups.offerById.get(offerId))

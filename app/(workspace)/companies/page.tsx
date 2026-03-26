@@ -13,7 +13,10 @@ import { SectionCard } from "@/components/ui/section-card";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableShell } from "@/components/ui/table-shell";
-import { getCompaniesWorkspaceView } from "@/lib/data/selectors/companies";
+import {
+  getCompaniesWorkspaceView,
+  type CompanyListRowView,
+} from "@/lib/data/selectors/companies";
 import { buildPathWithQuery } from "@/lib/utils";
 
 export const metadata = {
@@ -25,6 +28,56 @@ export const dynamic = "force-dynamic";
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+function CompanyQueueCard(props: Readonly<{
+  row: CompanyListRowView;
+  href: string;
+}>) {
+  const { row } = props;
+
+  return (
+    <div className="surface-muted min-w-0 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-2">
+          <Link
+            href={props.href}
+            className="break-words font-medium text-copy transition hover:text-accent"
+          >
+            {row.companyName}
+          </Link>
+          <p className="text-sm text-muted">
+            {row.market} • {row.subindustry}
+          </p>
+          <p className="text-sm text-copy">{row.reviewSnapshot}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge label={row.priorityBadge.label} tone={row.priorityBadge.tone} />
+          <StatusBadge
+            label={row.angleUrgencyBadge.label}
+            tone={row.angleUrgencyBadge.tone}
+          />
+          <StatusBadge label={row.readinessBadge.label} tone={row.readinessBadge.tone} />
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <div className="space-y-2">
+          <p className="text-sm text-copy">{row.fitScore}</p>
+          <p className="text-sm font-medium text-copy">{row.recommendedOffer}</p>
+          <p className="text-sm text-copy">{row.angleLabel}</p>
+          <p className="text-sm text-muted">{row.angleReason}</p>
+        </div>
+        <div className="space-y-2">
+          <p className="text-sm text-copy">{row.contactCoverage}</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">
+            {row.decisionMakerConfidence}
+          </p>
+          <p className="text-sm text-muted">{row.campaignStatus}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default async function CompaniesPage({ searchParams }: PageProps) {
   const view = await getCompaniesWorkspaceView(await searchParams);
@@ -128,7 +181,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
       </div>
 
       <FilterPanel>
-        <form className="grid gap-4 lg:grid-cols-[1.5fr_repeat(3,minmax(0,1fr))_auto] lg:items-end">
+        <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[1.5fr_repeat(3,minmax(0,1fr))_auto] 2xl:items-end">
           <label className="space-y-2">
             <span className="micro-label">Search</span>
             <input
@@ -194,24 +247,39 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         </form>
       </FilterPanel>
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid gap-6 2xl:grid-cols-[1.15fr_0.85fr]">
         <SectionCard
           title="Company intelligence queue"
           description={`${view.resultLabel}. Select a company to inspect its fit, reputation posture, and decision-maker coverage.`}
         >
-          <TableShell
-            columns={[
-              "Company",
-              "Reviews",
-              "Fit / priority",
-              "Recommended offer",
-              "Contact coverage",
-              "Readiness",
-            ]}
-            rows={rows}
-            emptyTitle={view.emptyState.title}
-            emptyDescription={view.emptyState.description}
-          />
+          <div className="grid gap-4 2xl:hidden">
+            {view.rows.length > 0
+              ? view.rows.map((row) => (
+                  <CompanyQueueCard
+                    key={row.companyId}
+                    row={row}
+                    href={buildPathWithQuery("/companies", view.query, {
+                      companyId: row.companyId,
+                    })}
+                  />
+                ))
+              : null}
+          </div>
+          <div className="hidden 2xl:block">
+            <TableShell
+              columns={[
+                "Company",
+                "Reviews",
+                "Fit / priority",
+                "Recommended offer",
+                "Contact coverage",
+                "Readiness",
+              ]}
+              rows={rows}
+              emptyTitle={view.emptyState.title}
+              emptyDescription={view.emptyState.description}
+            />
+          </div>
         </SectionCard>
 
         <SectionCard
@@ -324,7 +392,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-3">
+              <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
                 <WebsiteDiscoveryReviewPanel
                   companyId={view.selectedCompany.companyId}
                   candidateWebsite={view.selectedCompany.websiteDiscovery.candidateUrl}
@@ -367,7 +435,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-4 xl:grid-cols-2">
                 <div className="surface-muted p-4">
                   <p className="micro-label">Provider transparency</p>
                   <div className="mt-3">
@@ -401,7 +469,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 />
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-4 xl:grid-cols-2">
                 <div className="surface-muted p-4">
                   <p className="micro-label">Likely pains / notes</p>
                   <div className="mt-3 space-y-2">
@@ -436,23 +504,27 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                         key={contact.id}
                         className="rounded-2xl border border-white/8 bg-black/10 p-4"
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-medium text-copy">{contact.name}</p>
+                              <p className="break-words text-sm font-medium text-copy">{contact.name}</p>
                               {contact.isPrimary ? (
                                 <StatusBadge label="Primary" tone="success" />
                               ) : null}
+                              <StatusBadge
+                                label={contact.organizationBadge.label}
+                                tone={contact.organizationBadge.tone}
+                              />
                             </div>
                             <p className="mt-1 text-sm text-muted">{contact.role}</p>
                             {contact.email ? (
-                              <p className="mt-1 text-sm text-copy">{contact.email}</p>
+                              <p className="mt-1 break-all text-sm text-copy">{contact.email}</p>
                             ) : null}
                             {contact.phone ? (
                               <p className="mt-1 text-sm text-muted">{contact.phone}</p>
                             ) : null}
                           </div>
-                          <div className="text-right">
+                          <div className="min-w-0 text-left lg:text-right">
                             <p className="text-xs uppercase tracking-[0.18em] text-muted">
                               {contact.confidence}
                             </p>
@@ -465,7 +537,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                             <p className="mt-1 text-sm text-muted">{contact.status}</p>
                           </div>
                         </div>
-                        <p className="mt-3 text-sm leading-6 text-muted">{contact.source}</p>
+                        <p className="mt-3 break-words text-sm leading-6 text-muted">{contact.source}</p>
                         {contact.readinessReason ? (
                           <p className="mt-2 text-sm leading-6 text-copy">
                             {contact.readinessReason}

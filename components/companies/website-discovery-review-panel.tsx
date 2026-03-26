@@ -39,7 +39,7 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
   const canRerun = Boolean(props.officialWebsite);
 
   return (
-    <div className="surface-muted p-4">
+    <div className="surface-muted min-w-0 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <p className="micro-label">Website discovery review</p>
         <StatusBadge
@@ -50,13 +50,13 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
           <StatusBadge label={props.confidenceLabel} tone="muted" />
         ) : null}
       </div>
-      <p className="mt-3 text-base font-medium text-copy">
+      <p className="mt-3 break-words text-base font-medium text-copy">
         {reviewTarget ?? "No website candidate available yet"}
       </p>
       {props.reason ? (
-        <p className="mt-2 text-sm leading-6 text-copy">{props.reason}</p>
+        <p className="mt-2 break-words text-sm leading-6 text-copy">{props.reason}</p>
       ) : null}
-      <p className="mt-3 text-sm leading-6 text-muted">
+      <p className="mt-3 break-words text-sm leading-6 text-muted">
         {props.sourceLabel ?? "Discovery source pending"}
         {props.reviewSourceLabel ? ` • ${props.reviewSourceLabel}` : ""}
         {props.reviewedAtLabel ? ` • ${props.reviewedAtLabel}` : ""}

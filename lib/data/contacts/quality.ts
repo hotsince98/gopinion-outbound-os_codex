@@ -377,12 +377,23 @@ function canBePrimaryContact(contact: Contact) {
 function assessContactForPrimarySelection(
   contact: Contact,
   preferredContactId: Contact["id"] | undefined,
+  companyHost: string | undefined,
   angleKey?: CompanyOutreachAngleKey,
 ) {
   let selectionScore = getContactRankScore(contact);
   const selectionReasons: string[] = [];
   const demotionReasons: string[] = [];
   const roleBonus = getRoleSelectionBonus(contact, angleKey);
+  const sameOrganizationDomain =
+    Boolean(contact.email && companyHost && isSameCompanyDomain(contact.email, companyHost));
+
+  if (sameOrganizationDomain) {
+    selectionScore += 16;
+    selectionReasons.push("Contact uses the verified organization domain");
+  } else if (contact.email && companyHost) {
+    selectionScore -= 28;
+    demotionReasons.push("Email domain does not match the verified organization");
+  }
 
   if (contact.quality?.campaignEligible ?? contact.outreachReady) {
     selectionScore += 12;
@@ -469,6 +480,7 @@ export function rankContactsForPrimarySelection(
   contacts: readonly Contact[],
   options?: {
     preferredContactId?: Contact["id"];
+    companyHost?: string;
     angleKey?: CompanyOutreachAngleKey;
   },
 ): RankedContactSelection[] {
@@ -476,6 +488,7 @@ export function rankContactsForPrimarySelection(
     assessContactForPrimarySelection(
       contact,
       options?.preferredContactId,
+      options?.companyHost,
       options?.angleKey,
     ),
   );
@@ -549,6 +562,7 @@ export function selectPrimaryContact(
   contacts: readonly Contact[],
   options?: {
     preferredContactId?: Contact["id"];
+    companyHost?: string;
     angleKey?: CompanyOutreachAngleKey;
   },
 ) {
@@ -560,11 +574,13 @@ export function selectPrimaryContact(
 export function applyPrimaryContactSelection(params: {
   contacts: readonly Contact[];
   preferredContactId?: Contact["id"];
+  companyHost?: string;
   angleKey?: CompanyOutreachAngleKey;
   now: string;
 }) {
   const rankedContacts = rankContactsForPrimarySelection(params.contacts, {
     preferredContactId: params.preferredContactId,
+    companyHost: params.companyHost,
     angleKey: params.angleKey,
   });
   const updatedContacts = rankedContacts.map((selection) => ({

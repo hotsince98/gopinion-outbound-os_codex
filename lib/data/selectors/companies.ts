@@ -5,6 +5,7 @@ import {
   getCampaignStatusLabel,
   getCompanyStatusBadge,
   getContactCoverageLabel,
+  getContactOrganizationBadgeForCompany,
   getContactQualityBadge,
   getContactSourceLabel,
   getContactWarnings,
@@ -98,6 +99,7 @@ export interface CompanyContactDetail {
   confidence: string;
   status: string;
   source: string;
+  organizationBadge: SelectorBadge;
   isPrimary: boolean;
   selectionLabel: string;
   selectionScore: string;
@@ -463,6 +465,10 @@ export async function getCompaniesWorkspaceView(
             confidence: `Contact confidence ${contact.confidence.score.toFixed(2)}`,
             status: contact.status.replaceAll("_", " "),
             source: getContactSourceLabel(contact),
+            organizationBadge: getContactOrganizationBadgeForCompany(
+              selectedBundle.company,
+              contact,
+            ),
             isPrimary: selection.isPrimary,
             selectionLabel: selection.isPrimary
               ? `Primary • Rank #${selection.selectionRank}`

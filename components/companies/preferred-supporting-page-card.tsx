@@ -28,7 +28,7 @@ export function PreferredSupportingPageCard(props: Readonly<{
   }, [router, state.status]);
 
   return (
-    <div className="surface-muted p-4">
+    <div className="surface-muted min-w-0 p-4">
       <p className="micro-label">Preferred supporting page</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <StatusBadge
@@ -36,9 +36,9 @@ export function PreferredSupportingPageCard(props: Readonly<{
           tone={props.sourceLabel === "Operator confirmed" ? "success" : "accent"}
         />
       </div>
-      <p className="mt-3 text-sm text-copy">{props.label}</p>
+      <p className="mt-3 break-words text-sm text-copy">{props.label}</p>
       {props.reason ? (
-        <p className="mt-2 text-sm leading-6 text-muted">{props.reason}</p>
+        <p className="mt-2 break-words text-sm leading-6 text-muted">{props.reason}</p>
       ) : null}
       <form action={formAction} className="mt-4 space-y-3">
         <input type="hidden" name="companyId" value={props.companyId} />

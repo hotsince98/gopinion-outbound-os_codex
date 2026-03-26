@@ -503,6 +503,10 @@ async function ensurePrimaryContactContext(
   const applied = applyPrimaryContactSelection({
     contacts,
     preferredContactId: bundle.company.primaryContactId,
+    companyHost: getCompanyHost(
+      bundle.company.presence.websiteUrl ??
+        bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite,
+    ),
     now,
   });
 
@@ -526,6 +530,10 @@ async function ensurePrimaryContactContext(
 
   const rankedContacts = rankContactsForPrimarySelection(applied.contacts, {
     preferredContactId: company.primaryContactId,
+    companyHost: getCompanyHost(
+      company.presence.websiteUrl ??
+        company.enrichment?.websiteDiscovery?.discoveredWebsite,
+    ),
   });
 
   return {

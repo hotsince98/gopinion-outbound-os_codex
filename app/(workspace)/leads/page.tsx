@@ -11,7 +11,10 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableShell } from "@/components/ui/table-shell";
-import { getLeadsWorkspaceView } from "@/lib/data/selectors/leads";
+import {
+  getLeadsWorkspaceView,
+  type LeadRowView,
+} from "@/lib/data/selectors/leads";
 import { buildPathWithQuery } from "@/lib/utils";
 
 export const metadata = {
@@ -23,6 +26,127 @@ export const dynamic = "force-dynamic";
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+function LeadQueueCard({ row }: Readonly<{ row: LeadRowView }>) {
+  return (
+    <div className="surface-muted min-w-0 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/companies?companyId=${row.companyId}`}
+              className="break-words font-medium text-copy transition hover:text-accent"
+            >
+              {row.companyName}
+            </Link>
+            <StatusBadge label={row.queueBadge.label} tone={row.queueBadge.tone} />
+          </div>
+          <p className="break-words text-sm text-muted">
+            {row.market} • {row.subindustry} • {row.icpLabel}
+          </p>
+          <p className="break-words text-xs uppercase tracking-[0.18em] text-muted">
+            {row.importedLabel} • {row.sourceLabel}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge label={row.priorityBadge.label} tone={row.priorityBadge.tone} />
+          <StatusBadge
+            label={row.angleUrgencyBadge.label}
+            tone={row.angleUrgencyBadge.tone}
+          />
+          <StatusBadge label={row.statusBadge.label} tone={row.statusBadge.tone} />
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <div className="min-w-0 space-y-3">
+          <p className="text-sm font-medium text-copy">{row.angleLabel}</p>
+          <p className="text-sm text-muted">{row.angleReason}</p>
+          <p className="text-sm text-copy">First offer: {row.recommendedOffer}</p>
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge
+              label={row.websiteDiscoveryBadge.label}
+              tone={row.websiteDiscoveryBadge.tone}
+            />
+            <StatusBadge
+              label={row.websiteDiscoveryConfidenceBadge.label}
+              tone={row.websiteDiscoveryConfidenceBadge.tone}
+            />
+          </div>
+          <p className="break-words text-sm text-copy">{row.websiteDiscovery}</p>
+          <p className="break-words text-sm text-muted">
+            {row.websiteDiscoverySource} • {row.websiteDiscoveryReason}
+          </p>
+          <ProviderRunSummary
+            badge={row.providerBadge}
+            label={row.providerLabel}
+            fallback={row.providerFallbackLabel}
+            evidence={row.providerEvidence}
+            pageUsage={row.supportingPageUsage}
+          />
+        </div>
+
+        <div className="min-w-0 space-y-3">
+          <p className="text-sm text-copy">{row.workflowReason}</p>
+          <ConfidenceBreakdown
+            items={[
+              { label: "Website discovery", badge: row.websiteDiscoveryConfidenceBadge },
+              { label: "Primary contact quality", badge: row.contactConfidenceBadge },
+              { label: "Angle confidence", badge: row.angleConfidenceBadge },
+              { label: "Readiness confidence", badge: row.readinessConfidenceBadge },
+            ]}
+          />
+          <ContactRankingStack
+            totalLabel={row.contactCountLabel}
+            items={row.contactCandidates}
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3 border-t border-white/8 pt-4">
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge
+            label={row.recommendedCampaignStatusBadge.label}
+            tone={row.recommendedCampaignStatusBadge.tone}
+          />
+          <StatusBadge
+            label={row.assignmentDecisionBadge.label}
+            tone={row.assignmentDecisionBadge.tone}
+          />
+          <StatusBadge
+            label={row.angleReviewPathBadge.label}
+            tone={row.angleReviewPathBadge.tone}
+          />
+        </div>
+        <p className="text-sm text-copy">{row.recommendedCampaignName}</p>
+        <p className="text-sm text-muted">{row.assignmentDecisionReason}</p>
+        <p className="break-words text-sm text-copy">{row.websiteLabel}</p>
+        <p className="text-sm text-muted">{row.enrichmentSummary}</p>
+        <p className="text-sm text-muted">{row.missingFieldsLabel}</p>
+        <p className="text-sm leading-6 text-copy">{row.nextAction}</p>
+        <WebsiteDiscoveryReviewActions
+          companyId={row.companyId}
+          candidateWebsite={row.canReviewWebsiteCandidate ? row.candidateWebsite : undefined}
+          officialWebsite={row.officialWebsite}
+        />
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href={`/companies?companyId=${row.companyId}`}
+            className="text-sm font-medium text-accent transition hover:text-copy"
+          >
+            Open company profile
+          </Link>
+          <Link
+            href="/leads/enrichment"
+            className="text-sm font-medium text-warning transition hover:text-copy"
+          >
+            Open enrichment queue
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default async function LeadsPage({ searchParams }: PageProps) {
   const view = await getLeadsWorkspaceView(await searchParams);
@@ -255,7 +379,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
             value={view.filters.values.queue === "all" ? "" : view.filters.values.queue}
           />
 
-          <div className="grid gap-4 xl:grid-cols-[1.5fr_repeat(5,minmax(0,1fr))] xl:items-end">
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1.5fr_repeat(5,minmax(0,1fr))] 2xl:items-end">
             <label className="space-y-2">
               <span className="micro-label">Search</span>
               <input
@@ -343,7 +467,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
             </label>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             <label className="space-y-2">
               <span className="micro-label">Imported</span>
               <select
@@ -435,7 +559,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
             </label>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] 2xl:items-end">
             <label className="space-y-2">
               <span className="micro-label">Website</span>
               <select
@@ -506,20 +630,27 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         title="Lead queue"
         description={`${view.resultLabel}. Work recent imports, website gaps, and review-ready records without losing the stronger-review segments that need a different angle instead of exclusion.`}
       >
-        <TableShell
-          columns={[
-            "Company",
-            "Priority / angle",
-            "Enrichment",
-            "Workflow",
-            "First offer / routing",
-            "Primary contact",
-            "Next action",
-          ]}
-          rows={rows}
-          emptyTitle={view.emptyState.title}
-          emptyDescription={view.emptyState.description}
-        />
+        <div className="grid gap-4 2xl:hidden">
+          {view.rows.length > 0 ? (
+            view.rows.map((row) => <LeadQueueCard key={row.companyId} row={row} />)
+          ) : null}
+        </div>
+        <div className="hidden 2xl:block">
+          <TableShell
+            columns={[
+              "Company",
+              "Priority / angle",
+              "Enrichment",
+              "Workflow",
+              "First offer / routing",
+              "Primary contact",
+              "Next action",
+            ]}
+            rows={rows}
+            emptyTitle={view.emptyState.title}
+            emptyDescription={view.emptyState.description}
+          />
+        </div>
       </SectionCard>
     </div>
   );

@@ -10,7 +10,10 @@ import { ProviderRunSummary } from "@/components/enrichment/provider-run-summary
 import { runLeadEnrichmentAction } from "@/app/(workspace)/leads/enrichment/actions";
 import { initialLeadEnrichmentActionState } from "@/app/(workspace)/leads/enrichment/action-state";
 import { StatusBadge } from "@/components/ui/status-badge";
-import type { LeadEnrichmentWorkspaceView } from "@/lib/data/selectors/lead-enrichment";
+import type {
+  LeadEnrichmentQueueRowView,
+  LeadEnrichmentWorkspaceView,
+} from "@/lib/data/selectors/lead-enrichment";
 
 function ResultTone({
   status,
@@ -29,6 +32,148 @@ function ResultTone({
     case "failed":
       return <StatusBadge label="Failed" tone="danger" />;
   }
+}
+
+function EnrichmentQueueCard(props: Readonly<{
+  row: LeadEnrichmentQueueRowView;
+  checked: boolean;
+  isPending: boolean;
+  onToggle: (checked: boolean) => void;
+}>) {
+  const { row } = props;
+
+  return (
+    <div className="surface-muted min-w-0 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/companies?companyId=${row.companyId}`}
+              className="break-words font-medium text-copy transition hover:text-accent"
+            >
+              {row.companyName}
+            </Link>
+            <StatusBadge label={row.readinessBadge.label} tone={row.readinessBadge.tone} />
+          </div>
+          <p className="text-sm text-muted">
+            {row.market} • {row.subindustry}
+          </p>
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">
+            {row.importedLabel} • {row.lastEnrichedLabel}
+          </p>
+        </div>
+        <label className="inline-flex items-center gap-2 text-sm text-muted">
+          <input
+            type="checkbox"
+            name="selectedCompanyIds"
+            value={row.companyId}
+            checked={props.checked}
+            onChange={(event) => props.onToggle(event.currentTarget.checked)}
+            className="h-4 w-4 rounded border-white/15 bg-transparent"
+          />
+          Select
+        </label>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <div className="min-w-0 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge
+              label={row.websiteDiscoveryBadge.label}
+              tone={row.websiteDiscoveryBadge.tone}
+            />
+            <StatusBadge
+              label={row.websiteDiscoveryConfidenceBadge.label}
+              tone={row.websiteDiscoveryConfidenceBadge.tone}
+            />
+          </div>
+          <p className="break-words text-sm text-copy">
+            {row.website ?? "No website on record"}
+          </p>
+          <p className="break-words text-sm text-muted">{row.websiteDiscovery}</p>
+          <p className="break-words text-sm text-copy">{row.websiteDiscoveryCandidate}</p>
+          <p className="break-words text-sm text-muted">
+            {row.websiteDiscoverySource} • {row.websiteDiscoveryReason}
+          </p>
+          <ProviderRunSummary
+            badge={row.providerBadge}
+            label={row.providerLabel}
+            fallback={row.providerFallbackLabel}
+            evidence={row.providerEvidence}
+            pageUsage={row.supportingPageUsage}
+          />
+          <p className="break-words text-sm text-copy">{row.preferredSupportingPageLabel}</p>
+          <p className="text-sm text-muted">{row.preferredSupportingPageSource}</p>
+        </div>
+
+        <div className="min-w-0 space-y-3">
+          <p className="text-sm text-copy">{row.angleLabel}</p>
+          <p className="text-sm text-muted">{row.angleReason}</p>
+          <p className="text-sm text-copy">First offer: {row.recommendedOffer}</p>
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge
+              label={row.angleUrgencyBadge.label}
+              tone={row.angleUrgencyBadge.tone}
+            />
+            <StatusBadge
+              label={row.angleReviewPathBadge.label}
+              tone={row.angleReviewPathBadge.tone}
+            />
+          </div>
+          <p className="text-sm text-muted">{row.segmentLabel}</p>
+          <p className="text-sm text-muted">{row.noteHintSummary}</p>
+          <p className="text-sm text-muted">{row.enrichmentSummary}</p>
+          <ConfidenceBreakdown
+            items={[
+              { label: "Website discovery", badge: row.websiteDiscoveryConfidenceBadge },
+              { label: "Primary contact quality", badge: row.contactConfidenceBadge },
+              { label: "Angle confidence", badge: row.angleConfidenceBadge },
+              { label: "Readiness confidence", badge: row.readinessConfidenceBadge },
+            ]}
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+        <div className="min-w-0 space-y-3">
+          <p className="text-sm text-copy">{row.decisionMaker}</p>
+          <p className="text-sm text-muted">{row.contactCoverage}</p>
+          <ContactRankingStack totalLabel={row.contactCountLabel} items={row.contactCandidates} />
+        </div>
+        <div className="min-w-0 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge
+              label={row.recommendedCampaignStatusBadge.label}
+              tone={row.recommendedCampaignStatusBadge.tone}
+            />
+            <StatusBadge
+              label={row.assignmentDecisionBadge.label}
+              tone={row.assignmentDecisionBadge.tone}
+            />
+          </div>
+          <p className="text-sm text-copy">{row.recommendedCampaignName}</p>
+          <p className="text-sm text-copy">{row.readinessReason}</p>
+          <p className="text-sm text-muted">{row.assignmentDecisionReason}</p>
+          <p className="text-sm text-muted">{row.missingFieldsLabel}</p>
+          <WebsiteDiscoveryReviewActions
+            companyId={row.companyId}
+            candidateWebsite={row.canReviewWebsiteCandidate ? row.candidateWebsite : undefined}
+            officialWebsite={row.website}
+            compactLabel="Mark official"
+          />
+          <button
+            type="submit"
+            name="singleCompanyId"
+            value={row.companyId}
+            disabled={props.isPending}
+            className="rounded-full border border-warning/30 bg-warning/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-warning/50 hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Enrich this lead
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function LeadEnrichmentWorkspace({
@@ -103,7 +248,7 @@ export function LeadEnrichmentWorkspace({
         >
           <p className="text-sm font-medium text-copy">{state.message}</p>
           {state.summary ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-5">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
               <div className="surface-muted p-4">
                 <p className="micro-label">Ready</p>
                 <p className="mt-2 text-2xl font-semibold text-copy">
@@ -323,7 +468,19 @@ export function LeadEnrichmentWorkspace({
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-white/8 bg-black/10">
+        <div className="grid gap-4 2xl:hidden">
+          {view.rows.map((row) => (
+            <EnrichmentQueueCard
+              key={row.companyId}
+              row={row}
+              checked={selectedCompanyIds.includes(row.companyId)}
+              isPending={isPending}
+              onToggle={(checked) => toggleSelected(row.companyId, checked)}
+            />
+          ))}
+        </div>
+
+        <div className="hidden overflow-hidden rounded-2xl border border-white/8 bg-black/10 2xl:block">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-white/8">
               <thead className="bg-white/[0.03]">

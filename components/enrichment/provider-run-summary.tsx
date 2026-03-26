@@ -11,14 +11,14 @@ export function ProviderRunSummary(props: Readonly<{
   pageUsage: string;
 }>) {
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge label={props.badge.label} tone={props.badge.tone} />
       </div>
-      <p className="text-sm text-copy">{props.label}</p>
-      <p className="text-sm text-muted">{props.pageUsage}</p>
-      <p className="text-sm text-muted">{props.fallback}</p>
-      <p className="text-sm text-copy">{props.evidence}</p>
+      <p className="break-words text-sm text-copy">{props.label}</p>
+      <p className="break-words text-sm text-muted">{props.pageUsage}</p>
+      <p className="break-words text-sm text-muted">{props.fallback}</p>
+      <p className="break-words text-sm text-copy">{props.evidence}</p>
     </div>
   );
 }

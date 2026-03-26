@@ -1,5 +1,6 @@
 import { initialIcpProfiles } from "@/lib/data/config/icp";
 import { priorityTierDefinitions } from "@/lib/data/config/priority-tiers";
+import { getCompanyHost, isSameCompanyDomain } from "@/lib/data/contacts/quality";
 import {
   deriveWorkflowState,
   getCompanyBundle,
@@ -53,6 +54,7 @@ export interface RankedContactPreview {
   roleLabel: string;
   sourceLabel: string;
   qualityBadge: SelectorBadge;
+  organizationBadge: SelectorBadge;
   reason: string;
   whyLower?: string;
   warnings: string[];
@@ -709,10 +711,49 @@ function getContactSlotLabel(rank: number) {
   return "Backup";
 }
 
+function getContactOrganizationBadge(
+  contact: Contact,
+  companyHost: string | undefined,
+): SelectorBadge {
+  if (contact.email && companyHost && isSameCompanyDomain(contact.email, companyHost)) {
+    return { label: "Verified org domain", tone: "success" };
+  }
+
+  if (contact.email && companyHost) {
+    return { label: "Outside org domain", tone: "danger" };
+  }
+
+  if (contact.phone && !contact.email) {
+    return { label: "Phone fallback", tone: "warning" };
+  }
+
+  return { label: "Org match pending", tone: "muted" };
+}
+
+export function getContactOrganizationBadgeForCompany(
+  company: Company,
+  contact: Contact | undefined,
+): SelectorBadge {
+  if (!contact) {
+    return { label: "Org match pending", tone: "muted" };
+  }
+
+  const companyHost = getCompanyHost(
+    company.presence.websiteUrl ?? company.enrichment?.websiteDiscovery?.discoveredWebsite,
+  );
+
+  return getContactOrganizationBadge(contact, companyHost);
+}
+
 export function getRankedContactPreviews(
   bundle: CompanyBundle,
   limit = 4,
 ): RankedContactPreview[] {
+  const companyHost = getCompanyHost(
+    bundle.company.presence.websiteUrl ??
+      bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite,
+  );
+
   return bundle.rankedContacts.slice(0, limit).map((selection) => {
     const contact = selection.contact;
 
@@ -727,6 +768,7 @@ export function getRankedContactPreviews(
       roleLabel: formatRoleLabel(contact),
       sourceLabel: getContactSourceLabel(contact),
       qualityBadge: getContactQualityBadge(contact),
+      organizationBadge: getContactOrganizationBadge(contact, companyHost),
       reason:
         selection.selectionReasons[0] ??
         contact.quality?.selectionReasons[0] ??
@@ -749,11 +791,21 @@ export function getRankedContactCountLabel(bundle: CompanyBundle) {
     return "0 contacts found";
   }
 
+  const companyHost = getCompanyHost(
+    bundle.company.presence.websiteUrl ??
+      bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite,
+  );
+  const sameOrganizationCount = bundle.contacts.filter(
+    (contact) => contact.email && companyHost && isSameCompanyDomain(contact.email, companyHost),
+  ).length;
   const secondaryCount = Math.max(total - 1, 0);
   const backupCount = Math.max(total - 2, 0);
 
   return [
     `${total} contact${total === 1 ? "" : "s"} found`,
+    companyHost
+      ? `${sameOrganizationCount}/${total} on verified domain`
+      : undefined,
     total > 0 ? "1 primary" : undefined,
     secondaryCount > 0 ? "1 secondary" : undefined,
     backupCount > 0 ? `${backupCount} backup${backupCount === 1 ? "" : "s"}` : undefined,

@@ -538,6 +538,9 @@ function buildInitialContacts(params: {
 
   return applyPrimaryContactSelection({
     contacts: dedupedContacts,
+    companyHost: params.normalizedWebsite
+      ? new URL(params.normalizedWebsite).hostname.replace(/^www\./, "").toLowerCase()
+      : undefined,
     now: params.now,
   });
 }

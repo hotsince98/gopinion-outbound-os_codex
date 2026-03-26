@@ -749,6 +749,13 @@ function rankContactDrafts(params: {
   return applyPrimaryContactSelection({
     contacts: persistedContacts,
     preferredContactId: params.company.primaryContactId,
+    companyHost:
+      params.host ??
+      getCompanyHost(
+        params.company.presence.websiteUrl ??
+          params.company.enrichment?.websiteDiscovery?.discoveredWebsite,
+      ) ??
+      getCompanyHost(params.company.enrichment?.websiteDiscovery?.candidateWebsite),
     angleKey: params.angleKey,
     now: params.now,
   });
