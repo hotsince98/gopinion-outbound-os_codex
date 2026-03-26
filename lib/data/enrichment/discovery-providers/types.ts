@@ -9,14 +9,18 @@ export interface WebsiteDiscoverySearchQuery {
 }
 
 export interface WebsiteDiscoveryCandidate {
+  rawUrl: string;
+  normalizedUrl: string;
   url: string;
   title: string;
   snippet: string;
   queryLabel: string;
+  acceptanceReason: string;
 }
 
 export interface WebsiteDiscoveryDiscardedCandidate {
   rawUrl: string;
+  normalizedUrl?: string;
   queryLabel: string;
   reason: string;
   title?: string;

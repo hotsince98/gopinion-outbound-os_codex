@@ -458,6 +458,7 @@ export function getWebsiteDiscoveryReason(company: Company) {
     discovery.confirmationReason ??
     discovery.operatorReview?.note ??
     discovery.matchedSignals[0] ??
+    discovery.debugNotes?.[0] ??
     discovery.extractedEvidence[0] ??
     discovery.lastError ??
     "Discovery reason pending."

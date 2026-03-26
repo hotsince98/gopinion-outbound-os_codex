@@ -231,6 +231,7 @@ function buildConfirmationReason(params: {
 function buildDiscardedCandidateDebugNotes(
   discardedCandidates: Array<{
     rawUrl: string;
+    normalizedUrl?: string;
     queryLabel: string;
     reason: string;
   }>,
@@ -238,7 +239,25 @@ function buildDiscardedCandidateDebugNotes(
   return dedupeStrings(
     discardedCandidates.map(
       (candidate) =>
-        `Discarded discovery candidate "${candidate.rawUrl}" from ${candidate.queryLabel}: ${candidate.reason}`,
+        `Discarded discovery candidate "${candidate.rawUrl}"${
+          candidate.normalizedUrl ? ` -> ${candidate.normalizedUrl}` : ""
+        } from ${candidate.queryLabel}: ${candidate.reason}`,
+    ),
+  );
+}
+
+function buildAcceptedCandidateDebugNotes(
+  candidates: Array<{
+    rawUrl: string;
+    normalizedUrl: string;
+    queryLabel: string;
+    acceptanceReason: string;
+  }>,
+) {
+  return dedupeStrings(
+    candidates.map(
+      (candidate) =>
+        `Accepted discovery candidate "${candidate.rawUrl}" -> "${candidate.normalizedUrl}" from ${candidate.queryLabel}: ${candidate.acceptanceReason}`,
     ),
   );
 }
@@ -714,9 +733,10 @@ export async function discoverCompanyWebsite(
   try {
     const provider = createWebsiteDiscoveryProvider();
     const searchRun = await provider.search(company);
-    const discoveryDebugNotes = buildDiscardedCandidateDebugNotes(
-      searchRun.discardedCandidates,
-    );
+    const discoveryDebugNotes = dedupeStrings([
+      ...buildAcceptedCandidateDebugNotes(searchRun.candidates),
+      ...buildDiscardedCandidateDebugNotes(searchRun.discardedCandidates),
+    ]);
     const searchSource = createDiscoverySource(now, {
       provider: `website_discovery_${searchRun.provider}`,
       label: searchRun.providerLabel,
