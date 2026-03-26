@@ -825,8 +825,56 @@ function formatProviderLabel(provider: "basic" | "scrapling" | undefined) {
   }
 }
 
-export function getEnrichmentProviderBadge(company: Company): SelectorBadge {
+function formatTransportLabel(transport: "http" | "process" | undefined) {
+  switch (transport) {
+    case "http":
+      return "HTTP endpoint";
+    case "process":
+      return "local worker";
+    default:
+      return "transport pending";
+  }
+}
+
+function getNormalizedProviderRun(company: Company) {
   const providerRun = company.enrichment?.providerRun;
+
+  if (!providerRun) {
+    return undefined;
+  }
+
+  const inferredFallbackEvidence = providerRun.evidence.find(
+    (item) =>
+      item.startsWith("Scrapling worker fallback:") ||
+      item.startsWith("Scrapling fallback reason:") ||
+      item.startsWith("Scrapling transport: HTTP endpoint failed") ||
+      item.startsWith("Scrapling transport: local worker failed"),
+  );
+  const fallbackReason =
+    providerRun.fallbackReason ??
+    inferredFallbackEvidence
+      ?.replace(/^Scrapling worker fallback:\s*/u, "")
+      .replace(/^Scrapling fallback reason:\s*/u, "");
+  const fallbackUsed =
+    providerRun.fallbackUsed ||
+    (!!fallbackReason && providerRun.requestedProvider === "scrapling");
+
+  return {
+    ...providerRun,
+    actualProvider:
+      fallbackUsed && providerRun.requestedProvider === "scrapling"
+        ? "basic"
+        : providerRun.actualProvider,
+    fallbackUsed,
+    fallbackReason,
+    transportSucceeded:
+      providerRun.transportSucceeded ??
+      (!fallbackUsed && providerRun.requestedProvider === "scrapling"),
+  };
+}
+
+export function getEnrichmentProviderBadge(company: Company): SelectorBadge {
+  const providerRun = getNormalizedProviderRun(company);
 
   if (!providerRun) {
     return { label: "Provider pending", tone: "muted" };
@@ -842,39 +890,58 @@ export function getEnrichmentProviderBadge(company: Company): SelectorBadge {
 }
 
 export function getEnrichmentProviderLabel(company: Company) {
-  const providerRun = company.enrichment?.providerRun;
+  const providerRun = getNormalizedProviderRun(company);
 
   if (!providerRun) {
     return "No provider run captured yet";
   }
 
   if (providerRun.fallbackUsed) {
-    return `Requested ${formatProviderLabel(providerRun.requestedProvider)} • ran ${formatProviderLabel(providerRun.actualProvider)} fallback`;
+    return `Requested ${formatProviderLabel(providerRun.requestedProvider)} • ran ${formatProviderLabel(providerRun.actualProvider)} fallback via ${formatTransportLabel(providerRun.transportUsed)}`;
   }
 
-  return `Ran ${formatProviderLabel(providerRun.actualProvider)} provider`;
+  if (!providerRun.transportUsed) {
+    return `Ran ${formatProviderLabel(providerRun.actualProvider)} provider`;
+  }
+
+  return `Requested ${formatProviderLabel(providerRun.requestedProvider)} • ran ${formatProviderLabel(providerRun.actualProvider)} via ${formatTransportLabel(providerRun.transportUsed)}`;
 }
 
 export function getEnrichmentProviderFallbackLabel(company: Company) {
-  const providerRun = company.enrichment?.providerRun;
+  const providerRun = getNormalizedProviderRun(company);
 
   if (!providerRun?.fallbackUsed) {
-    return "No provider fallback was needed";
+    return providerRun?.transportUsed
+      ? `Transport used: ${formatTransportLabel(providerRun.transportUsed)}${providerRun.transportTarget ? ` • ${providerRun.transportTarget}` : ""}`
+      : "No provider fallback was needed";
   }
 
-  return providerRun.fallbackReason
-    ? `Fallback reason: ${providerRun.fallbackReason}`
+  const transportLabel = providerRun.transportUsed
+    ? `Transport failed via ${formatTransportLabel(providerRun.transportUsed)}`
     : `Fell back from ${formatProviderLabel(providerRun.requestedProvider)} to ${formatProviderLabel(providerRun.actualProvider)}`;
+
+  return providerRun.fallbackReason
+    ? `${transportLabel}: ${providerRun.fallbackReason}`
+    : transportLabel;
 }
 
 export function getEnrichmentProviderEvidenceLabel(company: Company) {
-  const evidence = company.enrichment?.providerRun?.evidence ?? [];
+  const providerRun = getNormalizedProviderRun(company);
+  const evidence = providerRun?.evidence ?? [];
 
   if (evidence.length === 0) {
     return "No provider evidence captured yet";
   }
 
-  return evidence.slice(0, 2).join(" • ");
+  const details = [
+    providerRun?.transportUsed
+      ? `Transport ${formatTransportLabel(providerRun.transportUsed)}${providerRun.transportSucceeded === false ? " failed" : providerRun.transportSucceeded ? " succeeded" : ""}`
+      : undefined,
+    providerRun?.transportTarget ? `Target ${providerRun.transportTarget}` : undefined,
+    ...evidence,
+  ];
+
+  return dedupeStrings(details).slice(0, 3).join(" • ");
 }
 
 function getUsedSupportingPageUrls(company: Company) {

@@ -122,6 +122,14 @@ function getConfiguredAppOrigin() {
     return `https://${process.env.VERCEL_URL.trim()}`;
   }
 
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.trim()}`;
+  }
+
+  if (process.env.VERCEL_BRANCH_URL?.trim()) {
+    return `https://${process.env.VERCEL_BRANCH_URL.trim()}`;
+  }
+
   return undefined;
 }
 
@@ -136,7 +144,7 @@ function getConfiguredTimeoutMs() {
 }
 
 function buildFallbackEvidenceMessage(message: string) {
-  return `Scrapling worker fallback: ${message}`;
+  return `Scrapling fallback reason: ${message}`;
 }
 
 function getResolvedTransport(): Exclude<ScraplingWorkerTransport, "auto"> {
@@ -146,7 +154,16 @@ function getResolvedTransport(): Exclude<ScraplingWorkerTransport, "auto"> {
     return configured;
   }
 
-  return process.env.VERCEL === "1" || process.env.VERCEL_ENV ? "http" : "process";
+  const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
+  const appEnv = process.env.APP_ENV?.trim().toLowerCase();
+  const isHostedRuntime =
+    nodeEnv === "production" ||
+    appEnv === "production" ||
+    Boolean(process.env.VERCEL) ||
+    Boolean(process.env.VERCEL_ENV) ||
+    Boolean(process.env.VERCEL_URL);
+
+  return isHostedRuntime ? "http" : "process";
 }
 
 function getResolvedWorkerEndpointUrl() {
@@ -194,6 +211,22 @@ function parseWorkerResponse(raw: string): ScraplingWorkerResponse {
       ? parsed.external_presence_hints
       : [],
   };
+}
+
+function buildTransportEvidence(params: {
+  transportUsed: Exclude<ScraplingWorkerTransport, "auto">;
+  transportTarget: string;
+  transportSucceeded: boolean;
+}) {
+  return params.transportUsed === "http"
+    ? [
+        `Scrapling transport: HTTP endpoint ${params.transportSucceeded ? "succeeded" : "failed"}`,
+        `Scrapling endpoint: ${params.transportTarget}`,
+      ]
+    : [
+        `Scrapling transport: local worker ${params.transportSucceeded ? "succeeded" : "failed"}`,
+        `Scrapling worker entry: ${params.transportTarget}`,
+      ];
 }
 
 async function runScraplingWorker(
@@ -323,6 +356,10 @@ async function callScraplingWorkerHttp(
 
 function mapWorkerResultToWebsiteScanResult(
   result: ScraplingWorkerResponse,
+  transport: {
+    transportUsed: Exclude<ScraplingWorkerTransport, "auto">;
+    transportTarget: string;
+  },
 ): WebsiteScanResult {
   const pagesChecked = dedupeStrings(result.pages_crawled.map((page) => page.url));
   const sourceUrls = dedupeStrings(
@@ -349,6 +386,11 @@ function mapWorkerResultToWebsiteScanResult(
     ...staffPageUrls,
   ]);
   const evidenceSummary = dedupeStrings([
+    ...buildTransportEvidence({
+      transportUsed: transport.transportUsed,
+      transportTarget: transport.transportTarget,
+      transportSucceeded: true,
+    }),
     ...result.source_evidence,
     ...result.confidence_hints,
     ...result.external_presence_hints,
@@ -361,6 +403,9 @@ function mapWorkerResultToWebsiteScanResult(
     actualProvider: "scrapling",
     fallbackUsed: false,
     fallbackReason: undefined,
+    transportUsed: transport.transportUsed,
+    transportTarget: transport.transportTarget,
+    transportSucceeded: true,
     providerEvidence: evidenceSummary,
     pagesChecked,
     sourceUrls,
@@ -387,9 +432,18 @@ function mapWorkerResultToWebsiteScanResult(
 async function scanWebsiteWithFallback(
   params: WebsiteEnrichmentScanParams,
   fallbackReason: string,
+  transport: {
+    transportUsed: Exclude<ScraplingWorkerTransport, "auto">;
+    transportTarget: string;
+  },
 ) {
   const fallback = await basicWebsiteEnrichmentProvider.scanWebsite(params);
   const providerEvidence = dedupeStrings([
+    ...buildTransportEvidence({
+      transportUsed: transport.transportUsed,
+      transportTarget: transport.transportTarget,
+      transportSucceeded: false,
+    }),
     buildFallbackEvidenceMessage(fallbackReason),
     ...(fallback.providerEvidence ?? fallback.evidenceSummary),
   ]);
@@ -400,6 +454,9 @@ async function scanWebsiteWithFallback(
     actualProvider: "basic",
     fallbackUsed: true,
     fallbackReason,
+    transportUsed: transport.transportUsed,
+    transportTarget: transport.transportTarget,
+    transportSucceeded: false,
     providerEvidence,
     evidenceSummary: providerEvidence,
   } satisfies WebsiteScanResult;
@@ -408,25 +465,39 @@ async function scanWebsiteWithFallback(
 export const scraplingWebsiteEnrichmentProvider: WebsiteEnrichmentProviderAdapter = {
   provider: "scrapling",
   async scanWebsite(params: WebsiteEnrichmentScanParams) {
+    const transport = getResolvedTransport();
+    let transportTarget =
+      transport === "http" ? getConfiguredWorkerEndpoint() : getConfiguredWorkerEntry();
+
     try {
+      if (transport === "http") {
+        transportTarget = getResolvedWorkerEndpointUrl();
+      }
+
       const workerPayload = {
         website: params.website,
         preferred_page_urls: params.preferredPageUrls ?? [],
         likely_page_paths: [...DEFAULT_SCRAPLING_PAGE_PATHS],
       } satisfies ScraplingWorkerRequest;
-      const transport = getResolvedTransport();
       const result =
         transport === "http"
           ? await callScraplingWorkerHttp(workerPayload)
           : await runScraplingWorker(workerPayload);
 
-      return mapWorkerResultToWebsiteScanResult(result);
+      return mapWorkerResultToWebsiteScanResult(result, {
+        transportUsed: transport,
+        transportTarget,
+      });
     } catch (error) {
       return scanWebsiteWithFallback(
         params,
         error instanceof Error
           ? error.message
           : "The Scrapling worker was unavailable, so the basic provider was used instead.",
+        {
+          transportUsed: transport,
+          transportTarget,
+        },
       );
     }
   },

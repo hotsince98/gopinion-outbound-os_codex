@@ -65,6 +65,10 @@ export const companyEnrichmentProviderKeys = [
 export type CompanyEnrichmentProviderKey =
   (typeof companyEnrichmentProviderKeys)[number];
 
+export const companyEnrichmentTransportKeys = ["http", "process"] as const;
+export type CompanyEnrichmentTransportKey =
+  (typeof companyEnrichmentTransportKeys)[number];
+
 export const websiteDiscoveryStatuses = [
   "not_checked",
   "record_provided",
@@ -217,6 +221,9 @@ export interface CompanyEnrichmentProviderRunSnapshot {
   actualProvider: CompanyEnrichmentProviderKey;
   fallbackUsed: boolean;
   fallbackReason?: string;
+  transportUsed?: CompanyEnrichmentTransportKey;
+  transportTarget?: string;
+  transportSucceeded?: boolean;
   evidence: string[];
   lastRunAt?: IsoDateString;
 }

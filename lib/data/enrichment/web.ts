@@ -19,6 +19,9 @@ export interface WebsiteScanResult {
   actualProvider?: "basic" | "scrapling";
   fallbackUsed?: boolean;
   fallbackReason?: string;
+  transportUsed?: "http" | "process";
+  transportTarget?: string;
+  transportSucceeded?: boolean;
   providerEvidence?: string[];
   pagesChecked: string[];
   sourceUrls: string[];

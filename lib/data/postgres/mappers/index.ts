@@ -20,6 +20,46 @@ function listOrEmpty<T>(value: readonly T[] | null | undefined): T[] {
   return value ? [...value] : [];
 }
 
+function normalizeProviderRun(
+  providerRun: CompanyEnrichmentSnapshot["providerRun"],
+) {
+  if (!providerRun) {
+    return undefined;
+  }
+
+  const evidence = listOrEmpty(providerRun.evidence);
+  const inferredFallbackEvidence = evidence.find(
+    (item) =>
+      item.startsWith("Scrapling worker fallback:") ||
+      item.startsWith("Scrapling fallback reason:") ||
+      item.startsWith("Scrapling transport: HTTP endpoint failed") ||
+      item.startsWith("Scrapling transport: local worker failed"),
+  );
+  const fallbackReason =
+    providerRun.fallbackReason ??
+    inferredFallbackEvidence
+      ?.replace(/^Scrapling worker fallback:\s*/u, "")
+      .replace(/^Scrapling fallback reason:\s*/u, "");
+  const fallbackUsed =
+    providerRun.fallbackUsed ||
+    (!!fallbackReason && providerRun.requestedProvider === "scrapling");
+  const actualProvider =
+    fallbackUsed && providerRun.requestedProvider === "scrapling"
+      ? "basic"
+      : providerRun.actualProvider;
+  const transportSucceeded =
+    providerRun.transportSucceeded ?? (!fallbackUsed && providerRun.requestedProvider === "scrapling");
+
+  return {
+    ...providerRun,
+    actualProvider,
+    fallbackUsed,
+    fallbackReason,
+    transportSucceeded,
+    evidence,
+  };
+}
+
 function normalizeCompanyEnrichment(
   enrichment: CompanyEnrichmentSnapshot | null | undefined,
 ): CompanyEnrichmentSnapshot | undefined {
@@ -34,12 +74,7 @@ function normalizeCompanyEnrichment(
     foundEmails: listOrEmpty(enrichment.foundEmails),
     foundPhones: listOrEmpty(enrichment.foundPhones),
     foundNames: listOrEmpty(enrichment.foundNames),
-    providerRun: enrichment.providerRun
-      ? {
-          ...enrichment.providerRun,
-          evidence: listOrEmpty(enrichment.providerRun.evidence),
-        }
-      : undefined,
+    providerRun: normalizeProviderRun(enrichment.providerRun),
     noteHints: listOrEmpty(enrichment.noteHints),
     missingFields: listOrEmpty(enrichment.missingFields),
     websiteDiscovery: enrichment.websiteDiscovery

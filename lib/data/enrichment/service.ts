@@ -351,6 +351,9 @@ function buildProviderRunSnapshot(params: {
     actualProvider?: "basic" | "scrapling";
     fallbackUsed?: boolean;
     fallbackReason?: string;
+    transportUsed?: "http" | "process";
+    transportTarget?: string;
+    transportSucceeded?: boolean;
     providerEvidence?: string[];
   };
   now: string;
@@ -363,6 +366,9 @@ function buildProviderRunSnapshot(params: {
     actualProvider,
     fallbackUsed: params.websiteScan.fallbackUsed ?? requestedProvider !== actualProvider,
     fallbackReason: params.websiteScan.fallbackReason,
+    transportUsed: params.websiteScan.transportUsed,
+    transportTarget: params.websiteScan.transportTarget,
+    transportSucceeded: params.websiteScan.transportSucceeded,
     evidence: dedupeStrings(params.websiteScan.providerEvidence ?? []),
     lastRunAt: params.now,
   } satisfies NonNullable<CompanyEnrichmentSnapshot["providerRun"]>;
@@ -902,6 +908,10 @@ function updateCompanyReadiness(params: {
       ? `Enrichment provider run: ${params.providerRun.actualProvider}${
           params.providerRun.fallbackUsed && params.providerRun.requestedProvider !== params.providerRun.actualProvider
             ? ` (requested ${params.providerRun.requestedProvider}, fallback used)`
+            : ""
+        }${
+          params.providerRun.transportUsed
+            ? ` via ${params.providerRun.transportUsed}`
             : ""
         }`
       : undefined,
