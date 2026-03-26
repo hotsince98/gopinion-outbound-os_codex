@@ -5,19 +5,34 @@ from urllib.parse import urlparse
 
 from scrapling.fetchers import Fetcher
 
-from extractors import build_confidence_hints
-from extractors import classify_page_kind
-from extractors import dedupe_strings
-from extractors import extract_category_clues
-from extractors import extract_emails
-from extractors import extract_external_presence_hints
-from extractors import extract_named_people
-from extractors import extract_phones
-from extractors import extract_role_inboxes
-from extractors import normalize_text_lines
-from models import PageCrawlResult
-from models import WorkerOutput
-from models import WorkerRequest
+try:
+    from .extractors import build_confidence_hints
+    from .extractors import classify_page_kind
+    from .extractors import dedupe_strings
+    from .extractors import extract_category_clues
+    from .extractors import extract_emails
+    from .extractors import extract_external_presence_hints
+    from .extractors import extract_named_people
+    from .extractors import extract_phones
+    from .extractors import extract_role_inboxes
+    from .extractors import normalize_text_lines
+    from .models import PageCrawlResult
+    from .models import WorkerOutput
+    from .models import WorkerRequest
+except ImportError:
+    from extractors import build_confidence_hints
+    from extractors import classify_page_kind
+    from extractors import dedupe_strings
+    from extractors import extract_category_clues
+    from extractors import extract_emails
+    from extractors import extract_external_presence_hints
+    from extractors import extract_named_people
+    from extractors import extract_phones
+    from extractors import extract_role_inboxes
+    from extractors import normalize_text_lines
+    from models import PageCrawlResult
+    from models import WorkerOutput
+    from models import WorkerRequest
 
 
 def normalize_website(url: str | None) -> str | None:

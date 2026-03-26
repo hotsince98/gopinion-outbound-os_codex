@@ -3,9 +3,14 @@ from __future__ import annotations
 import json
 import sys
 
-from models import WorkerOutput
-from models import WorkerRequest
-from scrapling_client import crawl_company_website
+try:
+    from .models import WorkerOutput
+    from .models import WorkerRequest
+    from .scrapling_client import crawl_company_website
+except ImportError:
+    from models import WorkerOutput
+    from models import WorkerRequest
+    from scrapling_client import crawl_company_website
 
 
 def parse_request(raw_payload: str) -> WorkerRequest:

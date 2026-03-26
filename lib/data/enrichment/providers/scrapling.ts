@@ -14,6 +14,8 @@ interface ScraplingWorkerRequest {
   likely_page_paths?: string[];
 }
 
+type ScraplingWorkerTransport = "auto" | "process" | "http";
+
 interface ScraplingWorkerPersonResult {
   full_name: string;
   title?: string;
@@ -87,11 +89,40 @@ function getConfiguredPythonBin() {
   return process.env.SCRAPLING_PYTHON_BIN?.trim() || "python3";
 }
 
+function getConfiguredTransport(): ScraplingWorkerTransport {
+  const value = process.env.SCRAPLING_WORKER_TRANSPORT?.trim().toLowerCase();
+
+  if (value === "process" || value === "http") {
+    return value;
+  }
+
+  return "auto";
+}
+
 function getConfiguredWorkerEntry() {
   return (
     process.env.SCRAPLING_WORKER_ENTRY?.trim() ||
     path.join(process.cwd(), "workers", "enrichment", "main.py")
   );
+}
+
+function getConfiguredWorkerEndpoint() {
+  return process.env.SCRAPLING_WORKER_ENDPOINT?.trim() || "/api/enrichment/scrapling";
+}
+
+function getConfiguredAppOrigin() {
+  const explicitOrigin =
+    process.env.SCRAPLING_WORKER_ORIGIN?.trim() || process.env.APP_URL?.trim();
+
+  if (explicitOrigin) {
+    return explicitOrigin.replace(/\/$/, "");
+  }
+
+  if (process.env.VERCEL_URL?.trim()) {
+    return `https://${process.env.VERCEL_URL.trim()}`;
+  }
+
+  return undefined;
 }
 
 function getConfiguredTimeoutMs() {
@@ -106,6 +137,34 @@ function getConfiguredTimeoutMs() {
 
 function buildFallbackEvidenceMessage(message: string) {
   return `Scrapling worker fallback: ${message}`;
+}
+
+function getResolvedTransport(): Exclude<ScraplingWorkerTransport, "auto"> {
+  const configured = getConfiguredTransport();
+
+  if (configured !== "auto") {
+    return configured;
+  }
+
+  return process.env.VERCEL === "1" || process.env.VERCEL_ENV ? "http" : "process";
+}
+
+function getResolvedWorkerEndpointUrl() {
+  const endpoint = getConfiguredWorkerEndpoint();
+
+  if (/^https?:\/\//i.test(endpoint)) {
+    return endpoint;
+  }
+
+  const origin = getConfiguredAppOrigin();
+
+  if (!origin) {
+    throw new Error(
+      "SCRAPLING_WORKER_ENDPOINT is relative, but no APP_URL, SCRAPLING_WORKER_ORIGIN, or VERCEL_URL is available to resolve it.",
+    );
+  }
+
+  return new URL(endpoint, origin).toString();
 }
 
 function parseWorkerResponse(raw: string): ScraplingWorkerResponse {
@@ -220,6 +279,48 @@ async function runScraplingWorker(
   });
 }
 
+async function callScraplingWorkerHttp(
+  payload: ScraplingWorkerRequest,
+): Promise<ScraplingWorkerResponse> {
+  const endpoint = getResolvedWorkerEndpointUrl();
+  const timeoutMs = getConfiguredTimeoutMs();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const raw = await response.text();
+
+    if (!response.ok) {
+      const parsed = raw ? parseWorkerResponse(raw) : undefined;
+      const detail = parsed?.errors[0] ?? parsed?.warnings[0] ?? response.statusText;
+      throw new Error(`HTTP ${response.status} from Scrapling worker endpoint: ${detail}`);
+    }
+
+    return parseWorkerResponse(raw);
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Timed out after ${timeoutMs}ms while waiting for Scrapling HTTP worker.`);
+    }
+
+    throw error instanceof Error
+      ? error
+      : new Error("Scrapling HTTP worker request failed.");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function mapWorkerResultToWebsiteScanResult(
   result: ScraplingWorkerResponse,
 ): WebsiteScanResult {
@@ -308,11 +409,16 @@ export const scraplingWebsiteEnrichmentProvider: WebsiteEnrichmentProviderAdapte
   provider: "scrapling",
   async scanWebsite(params: WebsiteEnrichmentScanParams) {
     try {
-      const result = await runScraplingWorker({
+      const workerPayload = {
         website: params.website,
         preferred_page_urls: params.preferredPageUrls ?? [],
         likely_page_paths: [...DEFAULT_SCRAPLING_PAGE_PATHS],
-      });
+      } satisfies ScraplingWorkerRequest;
+      const transport = getResolvedTransport();
+      const result =
+        transport === "http"
+          ? await callScraplingWorkerHttp(workerPayload)
+          : await runScraplingWorker(workerPayload);
 
       return mapWorkerResultToWebsiteScanResult(result);
     } catch (error) {

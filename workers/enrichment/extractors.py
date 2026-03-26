@@ -3,9 +3,14 @@ from __future__ import annotations
 import re
 from urllib.parse import urlparse
 
-from models import PageKind
-from models import PersonFinding
-from models import WorkerOutput
+try:
+    from .models import PageKind
+    from .models import PersonFinding
+    from .models import WorkerOutput
+except ImportError:
+    from models import PageKind
+    from models import PersonFinding
+    from models import WorkerOutput
 
 EMAIL_PATTERN = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
 PHONE_PATTERN = re.compile(
