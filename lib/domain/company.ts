@@ -194,6 +194,21 @@ export interface CompanyWebsiteDiscoverySnapshot {
     score: number;
     strongSignalCount: number;
     verificationStage: "not_run" | "homepage" | "lightweight_crawl";
+    verificationAttemptedUrl?: string;
+    verificationAttemptUrls: string[];
+    verificationResolvedUrl?: string;
+    canonicalVerifiedUrl?: string;
+    resolvedUrlBecameCanonical: boolean;
+    canonicalRetrySucceeded: boolean;
+    verificationFailureKind?:
+      | "timeout"
+      | "dns_failure"
+      | "tls_failure"
+      | "blocked_forbidden"
+      | "redirect_loop"
+      | "http_error"
+      | "network_error";
+    verificationFailureDetail?: string;
     verificationPageUrls: string[];
     verificationEvidence: string[];
     signalHits: string[];

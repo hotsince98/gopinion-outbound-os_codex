@@ -18,6 +18,7 @@ import type {
   SourceReference,
 } from "@/lib/domain";
 import type { WebsiteDiscoveryCandidateVerificationStage } from "@/lib/data/enrichment/discovery-providers/types";
+import type { WebsiteDiscoveryVerificationFailureKind } from "@/lib/data/enrichment/discovery-providers/types";
 
 const DIRECTORY_HINT_PATTERNS = [
   /\bdirectory\b/i,
@@ -37,6 +38,14 @@ interface ScoredSearchCandidate extends WebsiteDiscoveryCandidate {
   supportingPageCandidates: SupportingPageCandidate[];
   extractedEvidence: string[];
   verificationStage: WebsiteDiscoveryCandidateVerificationStage;
+  verificationAttemptedUrl?: string;
+  verificationAttemptUrls: string[];
+  verificationResolvedUrl?: string;
+  canonicalVerifiedUrl?: string;
+  resolvedUrlBecameCanonical: boolean;
+  canonicalRetrySucceeded: boolean;
+  verificationFailureKind?: WebsiteDiscoveryVerificationFailureKind;
+  verificationFailureDetail?: string;
   verificationPageUrls: string[];
   verificationEvidence: string[];
 }
@@ -63,8 +72,26 @@ interface CandidateVerificationResult extends CandidateSignalSummary {
   supportingPageCandidates: SupportingPageCandidate[];
   extractedEvidence: string[];
   verificationStage: WebsiteDiscoveryCandidateVerificationStage;
+  verificationAttemptedUrl?: string;
+  verificationAttemptUrls: string[];
+  verificationResolvedUrl?: string;
+  canonicalVerifiedUrl?: string;
+  resolvedUrlBecameCanonical: boolean;
+  canonicalRetrySucceeded: boolean;
+  verificationFailureKind?: WebsiteDiscoveryVerificationFailureKind;
+  verificationFailureDetail?: string;
   verificationPageUrls: string[];
   verificationEvidence: string[];
+}
+
+interface CandidatePageFetchResult {
+  html: string;
+  attemptedUrl: string;
+  attemptedUrls: string[];
+  resolvedUrl: string;
+  canonicalUrl: string;
+  resolvedUrlBecameCanonical: boolean;
+  canonicalRetrySucceeded: boolean;
 }
 
 function dedupeStrings(values: Array<string | undefined>) {
@@ -509,6 +536,17 @@ function buildCandidateDiagnosticDebugNotes(
           candidate.score > 0
             ? ` (score ${candidate.score}/100, strong signals ${candidate.strongSignalCount})`
             : ""
+        }${
+          candidate.canonicalRetrySucceeded
+            ? `, canonical retry succeeded to ${candidate.canonicalVerifiedUrl ?? candidate.verificationResolvedUrl}`
+            : candidate.canonicalVerifiedUrl &&
+                candidate.canonicalVerifiedUrl !== candidate.verificationAttemptedUrl
+              ? `, canonical URL ${candidate.canonicalVerifiedUrl}`
+              : ""
+        }${
+          candidate.verificationFailureKind
+            ? `, failure ${candidate.verificationFailureKind}: ${candidate.verificationFailureDetail ?? candidate.reason}`
+            : ""
         }`,
     ),
   );
@@ -530,7 +568,13 @@ function dedupeCandidateDiagnostics(
           current.reason === candidate.reason &&
           current.score === candidate.score &&
           current.strongSignalCount === candidate.strongSignalCount &&
-          current.verificationStage === candidate.verificationStage,
+          current.verificationStage === candidate.verificationStage &&
+          current.verificationAttemptedUrl === candidate.verificationAttemptedUrl &&
+          current.verificationResolvedUrl === candidate.verificationResolvedUrl &&
+          current.canonicalVerifiedUrl === candidate.canonicalVerifiedUrl &&
+          current.canonicalRetrySucceeded === candidate.canonicalRetrySucceeded &&
+          current.verificationFailureKind === candidate.verificationFailureKind &&
+          current.verificationFailureDetail === candidate.verificationFailureDetail,
       ) === index,
   );
 }
@@ -721,7 +765,158 @@ function scoreSearchCandidate(
   return summarizeSignalEvaluations(evaluations);
 }
 
-async function fetchCandidatePage(candidateUrl: string) {
+function getCanonicalHostFamily(candidateUrl: string) {
+  try {
+    return new URL(
+      normalizeWebsiteUrl(candidateUrl) ?? candidateUrl,
+    ).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+function buildCanonicalRetryUrls(candidateUrl: string) {
+  const normalizedCandidateUrl = normalizeWebsiteUrl(candidateUrl) ?? candidateUrl;
+
+  try {
+    const parsed = new URL(normalizedCandidateUrl);
+    const bareHost = parsed.hostname.replace(/^www\./, "").toLowerCase();
+    const defaultPath = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/+$/, "");
+    const suffix = `${defaultPath}${parsed.search}`;
+    const alternateHost = parsed.hostname.toLowerCase().startsWith("www.")
+      ? bareHost
+      : `www.${bareHost}`;
+    const alternateProtocol = parsed.protocol === "https:" ? "http:" : "https:";
+    const variants = [
+      `${parsed.protocol}//${parsed.host.toLowerCase()}${suffix}`,
+      `${parsed.protocol}//${alternateHost}${suffix}`,
+      `${alternateProtocol}//${parsed.host.toLowerCase()}${suffix}`,
+      `${alternateProtocol}//${alternateHost}${suffix}`,
+    ];
+
+    return dedupeStrings(
+      variants.map((variant) => normalizeWebsiteUrl(variant) ?? variant),
+    );
+  } catch {
+    return [normalizedCandidateUrl];
+  }
+}
+
+function classifyVerificationFailure(
+  error: unknown,
+): {
+  kind: WebsiteDiscoveryVerificationFailureKind;
+  detail: string;
+} {
+  const message = error instanceof Error ? error.message : String(error);
+  const errorName =
+    error instanceof Error && error.name ? error.name.toLowerCase() : "";
+  const errorCause =
+    error && typeof error === "object" && "cause" in error ? error.cause : undefined;
+  const causeCode =
+    errorCause && typeof errorCause === "object" && "code" in errorCause
+      ? String(errorCause.code)
+      : undefined;
+  const detail = message.trim() || "Unknown verification error";
+
+  if (
+    errorName.includes("timeout") ||
+    /timeout|timed out/i.test(detail) ||
+    causeCode === "UND_ERR_CONNECT_TIMEOUT"
+  ) {
+    return {
+      kind: "timeout",
+      detail,
+    };
+  }
+
+  if (
+    causeCode === "ENOTFOUND" ||
+    causeCode === "EAI_AGAIN" ||
+    /enotfound|getaddrinfo|dns|name not resolved/i.test(detail)
+  ) {
+    return {
+      kind: "dns_failure",
+      detail,
+    };
+  }
+
+  if (
+    causeCode?.startsWith("ERR_TLS_") ||
+    [
+      "CERT_HAS_EXPIRED",
+      "DEPTH_ZERO_SELF_SIGNED_CERT",
+      "ERR_SSL_WRONG_VERSION_NUMBER",
+      "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+    ].includes(causeCode ?? "") ||
+    /tls|ssl|certificate/i.test(detail)
+  ) {
+    return {
+      kind: "tls_failure",
+      detail,
+    };
+  }
+
+  const httpStatusMatch = detail.match(/^HTTP\s+(\d{3})$/i);
+
+  if (httpStatusMatch) {
+    const statusCode = Number(httpStatusMatch[1]);
+
+    if (statusCode === 401 || statusCode === 403) {
+      return {
+        kind: "blocked_forbidden",
+        detail,
+      };
+    }
+
+    return {
+      kind: "http_error",
+      detail,
+    };
+  }
+
+  if (/redirect/i.test(detail) && /loop|exceeded|count/i.test(detail)) {
+    return {
+      kind: "redirect_loop",
+      detail,
+    };
+  }
+
+  return {
+    kind: "network_error",
+    detail,
+  };
+}
+
+function buildVerificationFailureError(params: {
+  attemptedUrl: string;
+  attemptedUrls: string[];
+  failureKind: WebsiteDiscoveryVerificationFailureKind;
+  failureDetail: string;
+}) {
+  return Object.assign(new Error(params.failureDetail), {
+    attemptedUrl: params.attemptedUrl,
+    attemptedUrls: params.attemptedUrls,
+    verificationFailureKind: params.failureKind,
+    verificationFailureDetail: params.failureDetail,
+  });
+}
+
+function canAdoptResolvedCanonicalUrl(
+  attemptedUrl: string,
+  resolvedUrl: string,
+) {
+  const attemptedFamily = getCanonicalHostFamily(attemptedUrl);
+  const resolvedFamily = getCanonicalHostFamily(resolvedUrl);
+
+  return Boolean(
+    attemptedFamily &&
+      resolvedFamily &&
+      attemptedFamily === resolvedFamily,
+  );
+}
+
+async function fetchPageVariant(candidateUrl: string) {
   const response = await fetch(candidateUrl, {
     cache: "no-store",
     redirect: "follow",
@@ -743,14 +938,64 @@ async function fetchCandidatePage(candidateUrl: string) {
     throw new Error(`Unexpected content type ${contentType}`);
   }
 
-  return await response.text();
+  return {
+    html: await response.text(),
+    resolvedUrl: normalizeWebsiteUrl(response.url) ?? normalizeWebsiteUrl(candidateUrl) ?? candidateUrl,
+  };
+}
+
+async function fetchCandidatePage(candidateUrl: string): Promise<CandidatePageFetchResult> {
+  const normalizedCandidateUrl = normalizeWebsiteUrl(candidateUrl) ?? candidateUrl;
+  const attemptedUrls = buildCanonicalRetryUrls(normalizedCandidateUrl);
+  let lastFailure:
+    | {
+        kind: WebsiteDiscoveryVerificationFailureKind;
+        detail: string;
+      }
+    | undefined;
+
+  for (const attemptUrl of attemptedUrls) {
+    try {
+      const page = await fetchPageVariant(attemptUrl);
+      const canonicalUrl = canAdoptResolvedCanonicalUrl(
+        normalizedCandidateUrl,
+        page.resolvedUrl,
+      )
+        ? page.resolvedUrl
+        : normalizeWebsiteUrl(attemptUrl) ?? attemptUrl;
+
+      return {
+        html: page.html,
+        attemptedUrl: normalizedCandidateUrl,
+        attemptedUrls,
+        resolvedUrl: page.resolvedUrl,
+        canonicalUrl,
+        resolvedUrlBecameCanonical: canonicalUrl !== normalizedCandidateUrl,
+        canonicalRetrySucceeded:
+          attemptUrl !== normalizedCandidateUrl &&
+          canAdoptResolvedCanonicalUrl(normalizedCandidateUrl, canonicalUrl),
+      };
+    } catch (error) {
+      lastFailure = classifyVerificationFailure(error);
+    }
+  }
+
+  throw buildVerificationFailureError({
+    attemptedUrl: normalizedCandidateUrl,
+    attemptedUrls,
+    failureKind: lastFailure?.kind ?? "network_error",
+    failureDetail:
+      lastFailure?.detail ??
+      "Verification crawl failed without a classified error.",
+  });
 }
 
 function verifyCandidateHomepage(
   company: Company,
   candidate: WebsiteDiscoveryCandidate,
-  html: string,
+  page: CandidatePageFetchResult,
 ): CandidateVerificationResult {
+  const html = page.html;
   const text = stripHtml(html).toLowerCase();
   const companyTokens = buildCompanyTokens(company);
   const normalizedCompanyName = normalizeNameForComparison(company.name);
@@ -761,7 +1006,7 @@ function verifyCandidateHomepage(
   const title = stripHtml(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "");
   const supportingPageCandidates = extractLikelyInternalPageCandidates(
     html,
-    candidate.url,
+    page.canonicalUrl,
     10,
   );
   const tokenMatches = companyTokens.filter((token) => text.includes(token));
@@ -889,9 +1134,21 @@ function verifyCandidateHomepage(
         : undefined,
     ]),
     verificationStage: "homepage",
-    verificationPageUrls: [candidate.url],
+    verificationAttemptedUrl: page.attemptedUrl,
+    verificationAttemptUrls: page.attemptedUrls,
+    verificationResolvedUrl: page.resolvedUrl,
+    canonicalVerifiedUrl: page.canonicalUrl,
+    resolvedUrlBecameCanonical: page.resolvedUrlBecameCanonical,
+    canonicalRetrySucceeded: page.canonicalRetrySucceeded,
     verificationEvidence: dedupeStrings([
       "Verification crawl checked the homepage.",
+      `Verification attempted ${page.attemptedUrl}.`,
+      page.canonicalRetrySucceeded
+        ? `Canonical retry succeeded and verified ${page.canonicalUrl}.`
+        : undefined,
+      page.resolvedUrlBecameCanonical
+        ? `Final resolved URL ${page.resolvedUrl} became the canonical verified URL.`
+        : undefined,
       businessNameMatch ? "Homepage matched the business name." : undefined,
       phoneMatch ? "Homepage matched the imported phone number." : undefined,
       addressMatch ? "Homepage matched the imported street address." : undefined,
@@ -902,6 +1159,7 @@ function verifyCandidateHomepage(
         ? "Homepage showed dealership or brand evidence."
         : undefined,
     ]),
+    verificationPageUrls: [page.canonicalUrl],
   };
 }
 
@@ -951,11 +1209,11 @@ function selectSupportingPagesForVerification(
 function verifyCandidateSupportingPage(params: {
   company: Company;
   page: SupportingPageCandidate;
-  html: string;
+  fetchedPage: CandidatePageFetchResult;
 }): CandidateVerificationResult {
-  const text = stripHtml(params.html).toLowerCase();
+  const text = stripHtml(params.fetchedPage.html).toLowerCase();
   const title = stripHtml(
-    params.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "",
+    params.fetchedPage.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "",
   );
   const companyTokens = buildCompanyTokens(params.company);
   const normalizedCompanyName = normalizeNameForComparison(params.company.name);
@@ -1068,9 +1326,22 @@ function verifyCandidateSupportingPage(params: {
         : undefined,
     ]),
     verificationStage: "lightweight_crawl",
-    verificationPageUrls: [params.page.url],
+    verificationAttemptedUrl: params.fetchedPage.attemptedUrl,
+    verificationAttemptUrls: params.fetchedPage.attemptedUrls,
+    verificationResolvedUrl: params.fetchedPage.resolvedUrl,
+    canonicalVerifiedUrl: params.fetchedPage.canonicalUrl,
+    resolvedUrlBecameCanonical: params.fetchedPage.resolvedUrlBecameCanonical,
+    canonicalRetrySucceeded: params.fetchedPage.canonicalRetrySucceeded,
+    verificationPageUrls: [params.fetchedPage.canonicalUrl],
     verificationEvidence: dedupeStrings([
       `${pageLabel} was checked during lightweight verification crawl.`,
+      `Verification attempted ${params.fetchedPage.attemptedUrl}.`,
+      params.fetchedPage.canonicalRetrySucceeded
+        ? `${pageLabel} only worked after canonical retry and resolved to ${params.fetchedPage.canonicalUrl}.`
+        : undefined,
+      params.fetchedPage.resolvedUrlBecameCanonical
+        ? `${pageLabel} resolved to canonical URL ${params.fetchedPage.canonicalUrl}.`
+        : undefined,
       businessNameMatch ? `${pageLabel} matched the business name.` : undefined,
       phoneMatch ? `${pageLabel} matched the imported phone number.` : undefined,
       addressMatch ? `${pageLabel} matched the imported street address.` : undefined,
@@ -1091,14 +1362,16 @@ async function runCandidateVerificationCrawl(
   ];
 
   try {
-    const homepageHtml = await fetchCandidatePage(candidate.url);
+    const homepagePage = await fetchCandidatePage(candidate.url);
     const homepageVerification = verifyCandidateHomepage(
       company,
       candidate,
-      homepageHtml,
+      homepagePage,
     );
     let verifiedCandidate = {
       ...candidate,
+      normalizedUrl: homepageVerification.canonicalVerifiedUrl ?? candidate.normalizedUrl,
+      url: homepageVerification.canonicalVerifiedUrl ?? candidate.url,
       score: candidate.score + homepageVerification.score,
       signals: dedupeStrings([...candidate.signals, ...homepageVerification.signals]),
       signalHits: dedupeStrings([
@@ -1126,6 +1399,17 @@ async function runCandidateVerificationCrawl(
         ...verificationAttemptNotes,
         ...homepageVerification.verificationEvidence,
       ]),
+      verificationAttemptedUrl: homepageVerification.verificationAttemptedUrl,
+      verificationAttemptUrls: dedupeStrings([
+        ...candidate.verificationAttemptUrls,
+        ...homepageVerification.verificationAttemptUrls,
+      ]),
+      verificationResolvedUrl: homepageVerification.verificationResolvedUrl,
+      canonicalVerifiedUrl: homepageVerification.canonicalVerifiedUrl,
+      resolvedUrlBecameCanonical: homepageVerification.resolvedUrlBecameCanonical,
+      canonicalRetrySucceeded: homepageVerification.canonicalRetrySucceeded,
+      verificationFailureKind: homepageVerification.verificationFailureKind,
+      verificationFailureDetail: homepageVerification.verificationFailureDetail,
     } satisfies ScoredSearchCandidate;
 
     if (!shouldRunLightweightVerificationCrawl(candidate)) {
@@ -1149,21 +1433,38 @@ async function runCandidateVerificationCrawl(
     const supportingPageResults = await Promise.all(
       pagesToVerify.map(async (page) => {
         try {
-          const html = await fetchCandidatePage(page.url);
+          const fetchedPage = await fetchCandidatePage(page.url);
 
           return verifyCandidateSupportingPage({
             company,
             page,
-            html,
+            fetchedPage,
           });
         } catch (error) {
+          const verificationFailureKind =
+            error && typeof error === "object" && "verificationFailureKind" in error
+              ? (error.verificationFailureKind as WebsiteDiscoveryVerificationFailureKind)
+              : classifyVerificationFailure(error).kind;
+          const verificationFailureDetail =
+            error && typeof error === "object" && "verificationFailureDetail" in error
+              ? String(error.verificationFailureDetail)
+              : classifyVerificationFailure(error).detail;
+          const attemptedUrl =
+            error && typeof error === "object" && "attemptedUrl" in error
+              ? String(error.attemptedUrl)
+              : page.url;
+          const attemptedUrls =
+            error && typeof error === "object" && "attemptedUrls" in error
+              ? ((error.attemptedUrls as string[]) ?? [])
+              : [page.url];
+
           return {
             score: 0,
             signals: [],
             signalHits: [],
             signalMisses: [
               `${getSupportingPageVerificationLabel(page.kind)} could not be fetched during lightweight verification crawl${
-                error instanceof Error ? ` (${error.message})` : ""
+                verificationFailureDetail ? ` (${verificationFailureDetail})` : ""
               }.`,
             ],
             strongSignalCount: 0,
@@ -1172,7 +1473,15 @@ async function runCandidateVerificationCrawl(
               `${getSupportingPageVerificationLabel(page.kind)} could not be fetched during lightweight verification crawl.`,
             ],
             verificationStage: "lightweight_crawl",
-            verificationPageUrls: [page.url],
+            verificationAttemptedUrl: attemptedUrl,
+            verificationAttemptUrls: attemptedUrls,
+            verificationResolvedUrl: undefined,
+            canonicalVerifiedUrl: undefined,
+            resolvedUrlBecameCanonical: false,
+            canonicalRetrySucceeded: false,
+            verificationFailureKind,
+            verificationFailureDetail,
+            verificationPageUrls: [],
             verificationEvidence: [
               `${getSupportingPageVerificationLabel(page.kind)} was selected for lightweight verification crawl but could not be fetched.`,
             ],
@@ -1255,29 +1564,53 @@ async function runCandidateVerificationCrawl(
         ...combinedVerificationEvidence,
         verificationPenaltyMiss,
       ]),
+      verificationAttemptUrls: dedupeStrings([
+        ...verifiedCandidate.verificationAttemptUrls,
+        ...supportingPageResults.flatMap((result) => result.verificationAttemptUrls),
+      ]),
     };
 
     return verifiedCandidate;
   } catch (error) {
+    const verificationFailureKind =
+      error && typeof error === "object" && "verificationFailureKind" in error
+        ? (error.verificationFailureKind as WebsiteDiscoveryVerificationFailureKind)
+        : classifyVerificationFailure(error).kind;
+    const verificationFailureDetail =
+      error && typeof error === "object" && "verificationFailureDetail" in error
+        ? String(error.verificationFailureDetail)
+        : classifyVerificationFailure(error).detail;
+    const attemptedUrl =
+      error && typeof error === "object" && "attemptedUrl" in error
+        ? String(error.attemptedUrl)
+        : candidate.url;
+    const attemptedUrls =
+      error && typeof error === "object" && "attemptedUrls" in error
+        ? ((error.attemptedUrls as string[]) ?? [])
+        : [candidate.url];
+
     return {
       ...candidate,
       verificationStage: "homepage",
+      verificationAttemptedUrl: attemptedUrl,
+      verificationAttemptUrls: attemptedUrls,
+      verificationResolvedUrl: undefined,
+      canonicalVerifiedUrl: undefined,
+      resolvedUrlBecameCanonical: false,
+      canonicalRetrySucceeded: false,
+      verificationFailureKind,
+      verificationFailureDetail,
       verificationPageUrls: dedupeStrings([
         ...candidate.verificationPageUrls,
-        candidate.url,
       ]),
       verificationEvidence: dedupeStrings([
         ...candidate.verificationEvidence,
         ...verificationAttemptNotes,
-        `Verification crawl could not fetch the homepage${
-          error instanceof Error ? ` (${error.message})` : ""
-        }.`,
+        `Verification crawl could not fetch the homepage (${verificationFailureKind}: ${verificationFailureDetail}).`,
       ]),
       signalMisses: dedupeStrings([
         ...candidate.signalMisses,
-        `Homepage could not be fetched during verification crawl${
-          error instanceof Error ? ` (${error.message})` : ""
-        }.`,
+        `Homepage could not be fetched during verification crawl (${verificationFailureKind}: ${verificationFailureDetail}).`,
       ]),
       extractedEvidence: dedupeStrings([
         ...candidate.extractedEvidence,
@@ -1368,6 +1701,14 @@ function buildScoredCandidateDiagnostic(candidate: ScoredSearchCandidate) {
     score: candidate.score,
     strongSignalCount: candidate.strongSignalCount,
     verificationStage: candidate.verificationStage,
+    verificationAttemptedUrl: candidate.verificationAttemptedUrl,
+    verificationAttemptUrls: candidate.verificationAttemptUrls,
+    verificationResolvedUrl: candidate.verificationResolvedUrl,
+    canonicalVerifiedUrl: candidate.canonicalVerifiedUrl,
+    resolvedUrlBecameCanonical: candidate.resolvedUrlBecameCanonical,
+    canonicalRetrySucceeded: candidate.canonicalRetrySucceeded,
+    verificationFailureKind: candidate.verificationFailureKind,
+    verificationFailureDetail: candidate.verificationFailureDetail,
     verificationPageUrls: candidate.verificationPageUrls,
     verificationEvidence: candidate.verificationEvidence,
     signalHits: candidate.signalHits,
@@ -1766,6 +2107,14 @@ export async function discoverCompanyWebsite(
         supportingPageCandidates: [],
         extractedEvidence: [],
         verificationStage: "not_run" as WebsiteDiscoveryCandidateVerificationStage,
+        verificationAttemptedUrl: undefined,
+        verificationAttemptUrls: [],
+        verificationResolvedUrl: undefined,
+        canonicalVerifiedUrl: undefined,
+        resolvedUrlBecameCanonical: false,
+        canonicalRetrySucceeded: false,
+        verificationFailureKind: undefined,
+        verificationFailureDetail: undefined,
         verificationPageUrls: [],
         verificationEvidence: [],
       } satisfies ScoredSearchCandidate;
@@ -1821,6 +2170,26 @@ export async function discoverCompanyWebsite(
             ...existing.verificationEvidence,
             ...nextCandidate.verificationEvidence,
           ]),
+          verificationAttemptedUrl:
+            existing.verificationAttemptedUrl ?? nextCandidate.verificationAttemptedUrl,
+          verificationAttemptUrls: dedupeStrings([
+            ...existing.verificationAttemptUrls,
+            ...nextCandidate.verificationAttemptUrls,
+          ]),
+          verificationResolvedUrl:
+            nextCandidate.verificationResolvedUrl ?? existing.verificationResolvedUrl,
+          canonicalVerifiedUrl:
+            nextCandidate.canonicalVerifiedUrl ?? existing.canonicalVerifiedUrl,
+          resolvedUrlBecameCanonical:
+            existing.resolvedUrlBecameCanonical ||
+            nextCandidate.resolvedUrlBecameCanonical,
+          canonicalRetrySucceeded:
+            existing.canonicalRetrySucceeded || nextCandidate.canonicalRetrySucceeded,
+          verificationFailureKind:
+            nextCandidate.verificationFailureKind ?? existing.verificationFailureKind,
+          verificationFailureDetail:
+            nextCandidate.verificationFailureDetail ??
+            existing.verificationFailureDetail,
         });
       }
     }
@@ -1860,7 +2229,10 @@ export async function discoverCompanyWebsite(
       ),
     );
     const verifiedCandidatesByUrl = new Map(
-      verifiedCandidates.map((candidate) => [candidate.url, candidate] as const),
+      candidatesToVerify.map((candidate, index) => [
+        candidate.url,
+        verifiedCandidates[index] ?? candidate,
+      ] as const),
     );
     const rankedCandidates = candidates.map(
       (candidate) => verifiedCandidatesByUrl.get(candidate.url) ?? candidate,

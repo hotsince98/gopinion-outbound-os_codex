@@ -58,6 +58,14 @@ function normalizeWebsiteDiscoveryCandidateDiagnostics(
               candidate.verificationStage === "not_run" ||
               candidate.verificationStage === "homepage" ||
               candidate.verificationStage === "lightweight_crawl") &&
+            (candidate.verificationFailureKind === undefined ||
+              candidate.verificationFailureKind === "timeout" ||
+              candidate.verificationFailureKind === "dns_failure" ||
+              candidate.verificationFailureKind === "tls_failure" ||
+              candidate.verificationFailureKind === "blocked_forbidden" ||
+              candidate.verificationFailureKind === "redirect_loop" ||
+              candidate.verificationFailureKind === "http_error" ||
+              candidate.verificationFailureKind === "network_error") &&
             (candidate.decision === "accepted" ||
               candidate.decision === "rejected" ||
               candidate.decision === "needs_review"),
@@ -80,6 +88,14 @@ function normalizeWebsiteDiscoveryCandidateDiagnostics(
               ? candidate.strongSignalCount
               : 0,
           verificationStage: candidate.verificationStage ?? "not_run",
+          verificationAttemptedUrl: candidate.verificationAttemptedUrl ?? undefined,
+          verificationAttemptUrls: listOrEmpty(candidate.verificationAttemptUrls),
+          verificationResolvedUrl: candidate.verificationResolvedUrl ?? undefined,
+          canonicalVerifiedUrl: candidate.canonicalVerifiedUrl ?? undefined,
+          resolvedUrlBecameCanonical: Boolean(candidate.resolvedUrlBecameCanonical),
+          canonicalRetrySucceeded: Boolean(candidate.canonicalRetrySucceeded),
+          verificationFailureKind: candidate.verificationFailureKind ?? undefined,
+          verificationFailureDetail: candidate.verificationFailureDetail ?? undefined,
           verificationPageUrls: listOrEmpty(candidate.verificationPageUrls),
           verificationEvidence: listOrEmpty(candidate.verificationEvidence),
           signalHits: listOrEmpty(candidate.signalHits),

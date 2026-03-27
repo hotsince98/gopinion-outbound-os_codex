@@ -25,6 +25,17 @@ export const websiteDiscoveryCandidateVerificationStages = [
 ] as const;
 export type WebsiteDiscoveryCandidateVerificationStage =
   (typeof websiteDiscoveryCandidateVerificationStages)[number];
+export const websiteDiscoveryVerificationFailureKinds = [
+  "timeout",
+  "dns_failure",
+  "tls_failure",
+  "blocked_forbidden",
+  "redirect_loop",
+  "http_error",
+  "network_error",
+] as const;
+export type WebsiteDiscoveryVerificationFailureKind =
+  (typeof websiteDiscoveryVerificationFailureKinds)[number];
 
 export interface WebsiteDiscoverySearchQuery {
   label: string;
@@ -55,6 +66,14 @@ export interface WebsiteDiscoveryCandidateDiagnostic {
   score: number;
   strongSignalCount: number;
   verificationStage: WebsiteDiscoveryCandidateVerificationStage;
+  verificationAttemptedUrl?: string;
+  verificationAttemptUrls: string[];
+  verificationResolvedUrl?: string;
+  canonicalVerifiedUrl?: string;
+  resolvedUrlBecameCanonical: boolean;
+  canonicalRetrySucceeded: boolean;
+  verificationFailureKind?: WebsiteDiscoveryVerificationFailureKind;
+  verificationFailureDetail?: string;
   verificationPageUrls: string[];
   verificationEvidence: string[];
   signalHits: string[];

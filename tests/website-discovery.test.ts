@@ -88,13 +88,21 @@ function buildCompany(
   };
 }
 
-function htmlResponse(html: string) {
-  return new Response(html, {
+function htmlResponse(html: string, responseUrl?: string) {
+  const response = new Response(html, {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
     },
   });
+
+  if (responseUrl) {
+    Object.defineProperty(response, "url", {
+      value: responseUrl,
+    });
+  }
+
+  return response;
 }
 
 function getUrl(input: RequestInfo | URL) {
@@ -429,6 +437,83 @@ async function main() {
   }
 
   {
+    const canonicalHomepageHtml = `
+      <html>
+        <head>
+          <title>Parkway Auto Trade | Used Cars in Toronto</title>
+        </head>
+        <body>
+          <h1>Parkway Auto Trade</h1>
+          <p>123 Weston Rd, Toronto, Ontario</p>
+          <p>Call us at (416) 555-0123</p>
+          <a href="/contact">Contact us</a>
+        </body>
+      </html>
+    `;
+
+    await withMockFetch(
+      (url) => {
+        if (url.startsWith("https://duckduckgo.com/html/")) {
+          return htmlResponse("<html><body>No results</body></html>");
+        }
+
+        if (url === "https://www.parkwayautotrade.com") {
+          return htmlResponse(
+            canonicalHomepageHtml,
+            "https://www.parkwayautotrade.com/",
+          );
+        }
+
+        throw Object.assign(new Error(`getaddrinfo ENOTFOUND ${url}`), {
+          cause: { code: "ENOTFOUND" },
+        });
+      },
+      async () => {
+        const company = buildCompany({
+          location: {
+            country: "US",
+          },
+        });
+        const snapshot = await discoverCompanyWebsite(company, NOW);
+
+        assert.equal(
+          snapshot.discoveredWebsite,
+          "https://www.parkwayautotrade.com",
+        );
+        assert.equal(snapshot.confirmationStatus, "auto_confirmed");
+        assert(
+          snapshot.candidateDiagnostics.some(
+            (candidate) =>
+              candidate.normalizedCandidate ===
+                "https://www.parkwayautotrade.com" &&
+              candidate.verificationAttemptedUrl ===
+                "https://parkwayautotrade.com" &&
+              candidate.canonicalVerifiedUrl ===
+                "https://www.parkwayautotrade.com" &&
+              candidate.canonicalRetrySucceeded,
+          ),
+          "stores the final working canonical URL when verification only succeeds on a canonical host variant",
+        );
+
+        const enrichmentInput = resolveWebsiteEnrichmentInput({
+          company,
+          websiteDiscovery: snapshot,
+        });
+
+        assert.deepEqual(
+          enrichmentInput,
+          {
+            website: "https://www.parkwayautotrade.com",
+            status: "confirmed_website",
+            source: "discovery_confirmed",
+          },
+          "reuses the canonical working URL for future enrichment input",
+        );
+      },
+    );
+  }
+
+  {
     const weakHomepageHtml = `
       <html>
         <head>
@@ -509,6 +594,42 @@ async function main() {
               candidate.decision === "rejected",
           ),
           "rejects a weak mid-confidence candidate when the lightweight verification crawl finds no corroborating evidence",
+        );
+      },
+    );
+  }
+
+  {
+    await withMockFetch(
+      (url) => {
+        if (url.startsWith("https://duckduckgo.com/html/")) {
+          return htmlResponse("<html><body>No results</body></html>");
+        }
+
+        throw Object.assign(new Error(`getaddrinfo ENOTFOUND ${url}`), {
+          cause: { code: "ENOTFOUND" },
+        });
+      },
+      async () => {
+        const snapshot = await discoverCompanyWebsite(
+          buildCompany({
+            location: {
+              country: "US",
+            },
+          }),
+          NOW,
+        );
+
+        assert(
+          snapshot.candidateDiagnostics.some(
+            (candidate) =>
+              candidate.normalizedCandidate === "https://parkwayautotrade.com" &&
+              candidate.verificationFailureKind === "dns_failure" &&
+              candidate.verificationAttemptUrls.includes(
+                "https://www.parkwayautotrade.com",
+              ),
+          ),
+          "dead domains keep clear canonical-retry failure diagnostics when all bounded variants fail",
         );
       },
     );

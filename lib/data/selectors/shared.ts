@@ -487,6 +487,24 @@ export function getWebsiteDiscoveryCandidateDiagnostics(company: Company) {
       const verificationEvidence = candidate.verificationEvidence
         .slice(0, 2)
         .join(" • ");
+      const retryLabel = candidate.canonicalRetrySucceeded
+        ? " | canonical retry succeeded"
+        : "";
+      const attemptedLabel = candidate.verificationAttemptedUrl
+        ? ` | attempted: ${candidate.verificationAttemptedUrl}`
+        : "";
+      const resolvedLabel = candidate.canonicalVerifiedUrl
+        ? ` | canonical: ${candidate.canonicalVerifiedUrl}`
+        : candidate.verificationResolvedUrl
+          ? ` | resolved: ${candidate.verificationResolvedUrl}`
+          : "";
+      const failureLabel = candidate.verificationFailureKind
+        ? ` | failure: ${candidate.verificationFailureKind}${
+            candidate.verificationFailureDetail
+              ? ` (${candidate.verificationFailureDetail})`
+              : ""
+          }`
+        : "";
 
       return `${prefix} [${candidate.sourceType}] score ${candidate.score}/100, strong ${candidate.strongSignalCount}, ${verificationLabel}: "${candidate.rawCandidate}"${
         candidate.normalizedCandidate ? ` -> ${candidate.normalizedCandidate}` : ""
@@ -494,7 +512,7 @@ export function getWebsiteDiscoveryCandidateDiagnostics(company: Company) {
         signalHits ? ` | hits: ${signalHits}` : ""
       }${signalMisses ? ` | misses: ${signalMisses}` : ""}${
         verificationEvidence ? ` | verification: ${verificationEvidence}` : ""
-      }`;
+      }${attemptedLabel}${resolvedLabel}${retryLabel}${failureLabel}`;
     });
   }
 

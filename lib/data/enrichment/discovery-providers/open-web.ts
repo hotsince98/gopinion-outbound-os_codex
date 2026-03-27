@@ -525,6 +525,14 @@ function buildCandidateDiagnostic(params: {
   score?: number;
   strongSignalCount?: number;
   verificationStage?: WebsiteDiscoveryCandidateDiagnostic["verificationStage"];
+  verificationAttemptedUrl?: string;
+  verificationAttemptUrls?: string[];
+  verificationResolvedUrl?: string;
+  canonicalVerifiedUrl?: string;
+  resolvedUrlBecameCanonical?: boolean;
+  canonicalRetrySucceeded?: boolean;
+  verificationFailureKind?: WebsiteDiscoveryCandidateDiagnostic["verificationFailureKind"];
+  verificationFailureDetail?: string;
   verificationPageUrls?: string[];
   verificationEvidence?: string[];
   signalHits?: string[];
@@ -542,6 +550,14 @@ function buildCandidateDiagnostic(params: {
     score: params.score ?? 0,
     strongSignalCount: params.strongSignalCount ?? 0,
     verificationStage: params.verificationStage ?? "not_run",
+    verificationAttemptedUrl: params.verificationAttemptedUrl,
+    verificationAttemptUrls: params.verificationAttemptUrls ?? [],
+    verificationResolvedUrl: params.verificationResolvedUrl,
+    canonicalVerifiedUrl: params.canonicalVerifiedUrl,
+    resolvedUrlBecameCanonical: params.resolvedUrlBecameCanonical ?? false,
+    canonicalRetrySucceeded: params.canonicalRetrySucceeded ?? false,
+    verificationFailureKind: params.verificationFailureKind,
+    verificationFailureDetail: params.verificationFailureDetail,
     verificationPageUrls: params.verificationPageUrls ?? [],
     verificationEvidence: params.verificationEvidence ?? [],
     signalHits: params.signalHits ?? [],
