@@ -476,14 +476,25 @@ export function getWebsiteDiscoveryCandidateDiagnostics(company: Company) {
           : candidate.decision === "needs_review"
             ? "Review"
             : "Rejected";
+      const verificationLabel =
+        candidate.verificationStage === "lightweight_crawl"
+          ? `lightweight verification crawl (${candidate.verificationPageUrls.length} pages)`
+          : candidate.verificationStage === "homepage"
+            ? `homepage verification (${candidate.verificationPageUrls.length} page)`
+            : "candidate only";
       const signalHits = candidate.signalHits.slice(0, 3).join(" • ");
       const signalMisses = candidate.signalMisses.slice(0, 2).join(" • ");
+      const verificationEvidence = candidate.verificationEvidence
+        .slice(0, 2)
+        .join(" • ");
 
-      return `${prefix} [${candidate.sourceType}] score ${candidate.score}/100, strong ${candidate.strongSignalCount}: "${candidate.rawCandidate}"${
+      return `${prefix} [${candidate.sourceType}] score ${candidate.score}/100, strong ${candidate.strongSignalCount}, ${verificationLabel}: "${candidate.rawCandidate}"${
         candidate.normalizedCandidate ? ` -> ${candidate.normalizedCandidate}` : ""
       } from ${candidate.queryLabel}: ${candidate.reason}${
         signalHits ? ` | hits: ${signalHits}` : ""
-      }${signalMisses ? ` | misses: ${signalMisses}` : ""}`;
+      }${signalMisses ? ` | misses: ${signalMisses}` : ""}${
+        verificationEvidence ? ` | verification: ${verificationEvidence}` : ""
+      }`;
     });
   }
 

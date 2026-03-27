@@ -54,6 +54,10 @@ function normalizeWebsiteDiscoveryCandidateDiagnostics(
             typeof candidate.queryLabel === "string" &&
             typeof candidate.reason === "string" &&
             typeof candidate.sourceType === "string" &&
+            (candidate.verificationStage === undefined ||
+              candidate.verificationStage === "not_run" ||
+              candidate.verificationStage === "homepage" ||
+              candidate.verificationStage === "lightweight_crawl") &&
             (candidate.decision === "accepted" ||
               candidate.decision === "rejected" ||
               candidate.decision === "needs_review"),
@@ -75,6 +79,9 @@ function normalizeWebsiteDiscoveryCandidateDiagnostics(
             Number.isFinite(candidate.strongSignalCount)
               ? candidate.strongSignalCount
               : 0,
+          verificationStage: candidate.verificationStage ?? "not_run",
+          verificationPageUrls: listOrEmpty(candidate.verificationPageUrls),
+          verificationEvidence: listOrEmpty(candidate.verificationEvidence),
           signalHits: listOrEmpty(candidate.signalHits),
           signalMisses: listOrEmpty(candidate.signalMisses),
           decision: candidate.decision,

@@ -524,6 +524,9 @@ function buildCandidateDiagnostic(params: {
   decision: WebsiteDiscoveryCandidateDiagnostic["decision"];
   score?: number;
   strongSignalCount?: number;
+  verificationStage?: WebsiteDiscoveryCandidateDiagnostic["verificationStage"];
+  verificationPageUrls?: string[];
+  verificationEvidence?: string[];
   signalHits?: string[];
   signalMisses?: string[];
   reason: string;
@@ -538,6 +541,9 @@ function buildCandidateDiagnostic(params: {
     title: params.title,
     score: params.score ?? 0,
     strongSignalCount: params.strongSignalCount ?? 0,
+    verificationStage: params.verificationStage ?? "not_run",
+    verificationPageUrls: params.verificationPageUrls ?? [],
+    verificationEvidence: params.verificationEvidence ?? [],
     signalHits: params.signalHits ?? [],
     signalMisses: params.signalMisses ?? [],
     decision: params.decision,

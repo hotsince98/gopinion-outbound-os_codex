@@ -14,39 +14,39 @@ export interface SupportingPageCandidate {
 }
 
 const STAFF_PATH_PATTERNS = [
-  /\/staff(?:[/.?#-]|$)/i,
-  /\/team(?:[/.?#-]|$)/i,
-  /meet[-_/]?our[-_/]?(?:team|staff)/i,
-  /meet[-_/]?the[-_/]?(?:team|staff)/i,
-  /our[-_/]?(?:team|staff)/i,
-  /sales[-_/]?(?:team|staff)/i,
-  /service[-_/]?(?:team|staff)/i,
-  /parts[-_/]?(?:team|staff)/i,
-  /finance[-_/]?(?:team|staff)/i,
+  /\/staff(?:[\s/.?#-]|$)/i,
+  /\/team(?:[\s/.?#-]|$)/i,
+  /meet[-_\s/]?our[-_\s/]?(?:team|staff)/i,
+  /meet[-_\s/]?the[-_\s/]?(?:team|staff)/i,
+  /our[-_\s/]?(?:team|staff)/i,
+  /sales[-_\s/]?(?:team|staff)/i,
+  /service[-_\s/]?(?:team|staff)/i,
+  /parts[-_\s/]?(?:team|staff)/i,
+  /finance[-_\s/]?(?:team|staff)/i,
   /staff[-_/]?directory/i,
   /team[-_/]?directory/i,
-  /\/departments?(?:[/.?#-]|$)/i,
-  /\/management(?:[/.?#-]|$)/i,
-  /management[-_/]?team/i,
+  /\/departments?(?:[\s/.?#-]|$)/i,
+  /\/management(?:[\s/.?#-]|$)/i,
+  /management[-_\s/]?team/i,
   /leadership/i,
-  /our[-_/]?people/i,
+  /our[-_\s/]?people/i,
   /people/i,
 ];
 
 const CONTACT_PATH_PATTERNS = [
-  /\/contact(?:[/.?#-]|$)/i,
-  /contact[-_/]?us/i,
-  /hours[-_/]?(?:and[-_/]?)?directions/i,
-  /\/directions(?:[/.?#-]|$)/i,
-  /visit[-_/]?us/i,
+  /\/contact(?:[\s/.?#-]|$)/i,
+  /contact[-_\s/]?us/i,
+  /hours[-_\s/]?(?:and[-_\s/]?)?directions/i,
+  /\/directions(?:[\s/.?#-]|$)/i,
+  /visit[-_\s/]?us/i,
 ];
 
 const ABOUT_PATH_PATTERNS = [
-  /\/about(?:[/.?#-]|$)/i,
-  /about[-_/]?us/i,
-  /our[-_/]?story/i,
-  /who[-_/]?we[-_/]?are/i,
-  /why[-_/]?buy[-_/]?from[-_/]?us/i,
+  /\/about(?:[\s/.?#-]|$)/i,
+  /about[-_\s/]?us/i,
+  /our[-_\s/]?story/i,
+  /who[-_\s/]?we[-_\s/]?are/i,
+  /why[-_\s/]?buy[-_\s/]?from[-_\s/]?us/i,
 ];
 
 function decodeHtmlEntities(value: string) {

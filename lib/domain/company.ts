@@ -193,6 +193,9 @@ export interface CompanyWebsiteDiscoverySnapshot {
     title?: string;
     score: number;
     strongSignalCount: number;
+    verificationStage: "not_run" | "homepage" | "lightweight_crawl";
+    verificationPageUrls: string[];
+    verificationEvidence: string[];
     signalHits: string[];
     signalMisses: string[];
     decision: "accepted" | "rejected" | "needs_review";

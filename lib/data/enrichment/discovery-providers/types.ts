@@ -18,6 +18,13 @@ export const websiteDiscoveryCandidateDecisions = [
 ] as const;
 export type WebsiteDiscoveryCandidateDecision =
   (typeof websiteDiscoveryCandidateDecisions)[number];
+export const websiteDiscoveryCandidateVerificationStages = [
+  "not_run",
+  "homepage",
+  "lightweight_crawl",
+] as const;
+export type WebsiteDiscoveryCandidateVerificationStage =
+  (typeof websiteDiscoveryCandidateVerificationStages)[number];
 
 export interface WebsiteDiscoverySearchQuery {
   label: string;
@@ -47,6 +54,9 @@ export interface WebsiteDiscoveryCandidateDiagnostic {
   title?: string;
   score: number;
   strongSignalCount: number;
+  verificationStage: WebsiteDiscoveryCandidateVerificationStage;
+  verificationPageUrls: string[];
+  verificationEvidence: string[];
   signalHits: string[];
   signalMisses: string[];
   decision: WebsiteDiscoveryCandidateDecision;

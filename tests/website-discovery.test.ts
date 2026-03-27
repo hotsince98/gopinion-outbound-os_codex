@@ -249,6 +249,102 @@ async function main() {
   }
 
   {
+    const requestedUrls: string[] = [];
+    const homepageHtml = `
+      <html>
+        <head>
+          <title>Parkway Auto | Used Cars in Toronto</title>
+        </head>
+        <body>
+          <h1>Parkway Auto</h1>
+          <p>Serving Toronto drivers.</p>
+          <a href="/contact">Contact us</a>
+          <a href="/about">About us</a>
+        </body>
+      </html>
+    `;
+    const contactHtml = `
+      <html>
+        <head>
+          <title>Contact Parkway Auto</title>
+        </head>
+        <body>
+          <h1>Contact Parkway Auto</h1>
+          <p>123 Weston Rd, Toronto, Ontario</p>
+          <p>Call us at (416) 555-0123</p>
+          <p>Email sales@parkwayauto.com</p>
+        </body>
+      </html>
+    `;
+    const aboutHtml = `
+      <html>
+        <head>
+          <title>About Parkway Auto</title>
+        </head>
+        <body>
+          <h1>About Parkway Auto</h1>
+          <p>We are a Toronto used car dealership focused on transparent financing.</p>
+        </body>
+      </html>
+    `;
+
+    await withMockFetch(
+      (url) => {
+        requestedUrls.push(url);
+
+        if (url.startsWith("https://duckduckgo.com/html/")) {
+          return htmlResponse("<html><body>No results</body></html>");
+        }
+
+        if (url === "https://parkwayauto.com") {
+          return htmlResponse(homepageHtml);
+        }
+
+        if (url === "https://parkwayauto.com/contact") {
+          return htmlResponse(contactHtml);
+        }
+
+        if (url === "https://parkwayauto.com/about") {
+          return htmlResponse(aboutHtml);
+        }
+
+        throw new Error(`Unexpected fetch URL in lightweight-verification test: ${url}`);
+      },
+      async () => {
+        const company = buildCompany({
+          name: "Parkway",
+          presence: {
+            hasClaimedGoogleBusinessProfile: false,
+            googleBusinessProfileUrl: undefined,
+          },
+        });
+        const snapshot = await discoverCompanyWebsite(company, NOW);
+
+        assert.equal(snapshot.discoveredWebsite, "https://parkwayauto.com");
+        assert.equal(snapshot.confirmationStatus, "auto_confirmed");
+        assert(
+          requestedUrls.includes("https://parkwayauto.com/contact") &&
+            requestedUrls.includes("https://parkwayauto.com/about"),
+          "runs a lightweight verification crawl on likely supporting pages for a review-band candidate",
+        );
+        assert(
+          snapshot.candidateDiagnostics.some(
+            (candidate) =>
+              candidate.normalizedCandidate === "https://parkwayauto.com" &&
+              candidate.sourceType === "direct_domain_inference" &&
+              candidate.verificationStage === "lightweight_crawl" &&
+              candidate.verificationPageUrls.includes(
+                "https://parkwayauto.com/contact",
+              ) &&
+              candidate.decision === "accepted",
+          ),
+          "promotes a mid-confidence inferred domain after lightweight verification finds strong evidence",
+        );
+      },
+    );
+  }
+
+  {
     const weakSearchResultsHtml = `
       <div class="result">
         <a class="result__a" href="/html/?q=Parkway+Auto+Trade">DuckDuckGo internal result</a>
@@ -259,7 +355,7 @@ async function main() {
         <div class="result__snippet">Another internal page.</div>
       </div>
     `;
-    const homepageHtml = `
+    const inferredHomepageHtml = `
       <html>
         <head>
           <title>Parkway Auto Trade | Used Cars in Toronto</title>
@@ -280,16 +376,21 @@ async function main() {
           return htmlResponse(weakSearchResultsHtml);
         }
 
-        if (url === "https://parkwayauto.com") {
-          return htmlResponse(homepageHtml);
+        if (url === "https://parkwayautotrade.com") {
+          return htmlResponse(inferredHomepageHtml);
         }
 
         throw new Error(`Unexpected fetch URL in weak-search test: ${url}`);
       },
       async () => {
-        const snapshot = await discoverCompanyWebsite(buildCompany(), NOW);
+        const company = buildCompany({
+          location: {
+            country: "US",
+          },
+        });
+        const snapshot = await discoverCompanyWebsite(company, NOW);
 
-        assert.equal(snapshot.discoveredWebsite, "https://parkwayauto.com");
+        assert.equal(snapshot.discoveredWebsite, "https://parkwayautotrade.com");
         assert.equal(snapshot.confirmationStatus, "auto_confirmed");
         assert(
           snapshot.candidateDiagnostics.some(
@@ -303,25 +404,111 @@ async function main() {
           snapshot.candidateDiagnostics.some(
             (candidate) =>
               candidate.sourceType === "direct_domain_inference" &&
-              candidate.normalizedCandidate === "https://parkwayauto.com" &&
+              candidate.normalizedCandidate === "https://parkwayautotrade.com" &&
               candidate.decision === "accepted",
           ),
           "auto-confirms a strong inferred domain candidate when weak search results fail",
         );
 
         const enrichmentInput = resolveWebsiteEnrichmentInput({
-          company: buildCompany(),
+          company,
           websiteDiscovery: snapshot,
         });
 
         assert.deepEqual(
           enrichmentInput,
           {
-            website: "https://parkwayauto.com",
+            website: "https://parkwayautotrade.com",
             status: "confirmed_website",
             source: "discovery_confirmed",
           },
           "hands an auto-confirmed inferred domain into the enrichment flow",
+        );
+      },
+    );
+  }
+
+  {
+    const weakHomepageHtml = `
+      <html>
+        <head>
+          <title>Welcome</title>
+        </head>
+        <body>
+          <h1>Welcome</h1>
+          <a href="/contact">Support</a>
+          <a href="/about">Learn more</a>
+        </body>
+      </html>
+    `;
+    const weakSupportingHtml = `
+      <html>
+        <head>
+          <title>General Info</title>
+        </head>
+        <body>
+          <h1>General Info</h1>
+          <p>Portfolio updates coming soon.</p>
+        </body>
+      </html>
+    `;
+
+    await withMockFetch(
+      (url) => {
+        if (url.startsWith("https://duckduckgo.com/html/")) {
+          return htmlResponse("<html><body>No results</body></html>");
+        }
+
+        if (
+          [
+            "https://parkwayauto.com",
+            "https://parkwayauto.ca",
+            "https://parkwayautos.com",
+          ].includes(url)
+        ) {
+          return htmlResponse(weakHomepageHtml);
+        }
+
+        if (
+          [
+            "https://parkwayauto.com/contact",
+            "https://parkwayauto.com/about",
+            "https://parkwayauto.ca/contact",
+            "https://parkwayauto.ca/about",
+            "https://parkwayautos.com/contact",
+            "https://parkwayautos.com/about",
+          ].includes(url)
+        ) {
+          return htmlResponse(weakSupportingHtml);
+        }
+
+        throw new Error(`Unexpected fetch URL in weak-verification test: ${url}`);
+      },
+      async () => {
+        const snapshot = await discoverCompanyWebsite(
+          buildCompany({
+            name: "Parkway",
+            location: {
+              city: "",
+              state: "",
+              streetAddress: "",
+            },
+            presence: {
+              hasClaimedGoogleBusinessProfile: false,
+              googleBusinessProfileUrl: undefined,
+            },
+          }),
+          NOW,
+        );
+
+        assert(
+          snapshot.candidateDiagnostics.some(
+            (candidate) =>
+              candidate.normalizedCandidate === "https://parkwayauto.com" &&
+              candidate.verificationStage === "lightweight_crawl" &&
+              candidate.decision === "rejected",
+          ),
+          "rejects a weak mid-confidence candidate when the lightweight verification crawl finds no corroborating evidence",
         );
       },
     );
@@ -365,14 +552,16 @@ async function main() {
         );
 
         assert.equal(snapshot.confirmationStatus, "needs_review");
-        assert.equal(snapshot.candidateWebsite, "https://parkway.com");
         assert(
           snapshot.candidateDiagnostics.some(
             (candidate) =>
               candidate.sourceType === "direct_domain_inference" &&
-              candidate.normalizedCandidate === "https://parkway.com" &&
+              ["https://parkway.com", "https://parkway.ca"].includes(
+                candidate.normalizedCandidate ?? "",
+              ) &&
               candidate.decision === "needs_review" &&
-              candidate.isGenericGuess,
+              candidate.isGenericGuess &&
+              candidate.verificationStage === "homepage",
           ),
           "generic inferred domains stay in review instead of auto-confirming without enough strong signals",
         );

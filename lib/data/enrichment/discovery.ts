@@ -8,6 +8,7 @@ import {
   extractLikelyInternalPageCandidates,
   getSupportingPageUrlsByKind,
   type SupportingPageCandidate,
+  type SupportingPageKind,
 } from "@/lib/data/enrichment/site-pages";
 import type {
   Company,
@@ -16,6 +17,7 @@ import type {
   EnrichmentConfidenceLevel,
   SourceReference,
 } from "@/lib/domain";
+import type { WebsiteDiscoveryCandidateVerificationStage } from "@/lib/data/enrichment/discovery-providers/types";
 
 const DIRECTORY_HINT_PATTERNS = [
   /\bdirectory\b/i,
@@ -34,6 +36,9 @@ interface ScoredSearchCandidate extends WebsiteDiscoveryCandidate {
   strongSignalCount: number;
   supportingPageCandidates: SupportingPageCandidate[];
   extractedEvidence: string[];
+  verificationStage: WebsiteDiscoveryCandidateVerificationStage;
+  verificationPageUrls: string[];
+  verificationEvidence: string[];
 }
 
 type CandidateSignalStrength = "strong" | "supporting";
@@ -52,6 +57,14 @@ interface CandidateSignalSummary {
   signalHits: string[];
   signalMisses: string[];
   strongSignalCount: number;
+}
+
+interface CandidateVerificationResult extends CandidateSignalSummary {
+  supportingPageCandidates: SupportingPageCandidate[];
+  extractedEvidence: string[];
+  verificationStage: WebsiteDiscoveryCandidateVerificationStage;
+  verificationPageUrls: string[];
+  verificationEvidence: string[];
 }
 
 function dedupeStrings(values: Array<string | undefined>) {
@@ -118,6 +131,10 @@ function getConfidenceLevel(score: number): EnrichmentConfidenceLevel {
 const DISCARD_CANDIDATE_MIN_SCORE = 30;
 const CONDITIONAL_AUTO_CONFIRM_MIN_SCORE = 50;
 const AUTO_CONFIRM_MIN_SCORE = 68;
+const LIGHTWEIGHT_VERIFICATION_MIN_SCORE = DISCARD_CANDIDATE_MIN_SCORE;
+const LIGHTWEIGHT_VERIFICATION_MAX_SCORE =
+  CONDITIONAL_AUTO_CONFIRM_MIN_SCORE - 1;
+const LIGHTWEIGHT_VERIFICATION_PAGE_LIMIT = 2;
 const DIRECT_DOMAIN_REQUIRED_STRONG_SIGNALS = 2;
 const GENERIC_DIRECT_DOMAIN_REQUIRED_STRONG_SIGNALS = 3;
 const DOMAIN_NOISE_WORDS = new Set([
@@ -486,7 +503,7 @@ function buildCandidateDiagnosticDebugNotes(
       (candidate) =>
         `${candidate.decision === "accepted" ? "Accepted" : candidate.decision === "needs_review" ? "Review candidate" : "Rejected"} [${
           candidate.sourceType
-        }] "${candidate.rawCandidate}"${
+        }, verification ${candidate.verificationStage.replaceAll("_", " ")}] "${candidate.rawCandidate}"${
           candidate.normalizedCandidate ? ` -> "${candidate.normalizedCandidate}"` : ""
         } from ${candidate.queryLabel}: ${candidate.reason}${
           candidate.score > 0
@@ -512,7 +529,8 @@ function dedupeCandidateDiagnostics(
           current.decision === candidate.decision &&
           current.reason === candidate.reason &&
           current.score === candidate.score &&
-          current.strongSignalCount === candidate.strongSignalCount,
+          current.strongSignalCount === candidate.strongSignalCount &&
+          current.verificationStage === candidate.verificationStage,
       ) === index,
   );
 }
@@ -544,6 +562,8 @@ function scoreSearchCandidate(
   const haystack = `${previewText} ${host}`.toLowerCase();
   const normalizedCompanyName = normalizeNameForComparison(company.name);
   const phoneDigits = normalizePhone(company.presence.primaryPhone);
+  const normalizedCity = company.location.city.toLowerCase().trim();
+  const normalizedState = company.location.state.toLowerCase().trim();
   const streetFragment = company.location.streetAddress
     ?.split(",")[0]
     ?.toLowerCase()
@@ -561,8 +581,8 @@ function scoreSearchCandidate(
   const matchesBusinessName =
     normalizeNameForComparison(haystack).includes(normalizedCompanyName) ||
     tokenMatches.length >= Math.min(2, companyTokens.length);
-  const cityMatch = haystack.includes(company.location.city.toLowerCase());
-  const stateMatch = haystack.includes(company.location.state.toLowerCase());
+  const cityMatch = Boolean(normalizedCity && haystack.includes(normalizedCity));
+  const stateMatch = Boolean(normalizedState && haystack.includes(normalizedState));
   const addressMatch = Boolean(streetFragment && haystack.includes(streetFragment));
   const referenceMatch = referenceTokens.some((token) => haystack.includes(token));
   const officialClaim =
@@ -701,7 +721,7 @@ function scoreSearchCandidate(
   return summarizeSignalEvaluations(evaluations);
 }
 
-async function fetchCandidateHomepage(candidateUrl: string) {
+async function fetchCandidatePage(candidateUrl: string) {
   const response = await fetch(candidateUrl, {
     cache: "no-store",
     redirect: "follow",
@@ -730,11 +750,13 @@ function verifyCandidateHomepage(
   company: Company,
   candidate: WebsiteDiscoveryCandidate,
   html: string,
-) {
+): CandidateVerificationResult {
   const text = stripHtml(html).toLowerCase();
   const companyTokens = buildCompanyTokens(company);
   const normalizedCompanyName = normalizeNameForComparison(company.name);
   const phoneDigits = normalizePhone(company.presence.primaryPhone);
+  const normalizedCity = company.location.city.toLowerCase().trim();
+  const normalizedState = company.location.state.toLowerCase().trim();
   const street = company.location.streetAddress?.toLowerCase();
   const title = stripHtml(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "");
   const supportingPageCandidates = extractLikelyInternalPageCandidates(
@@ -748,8 +770,8 @@ function verifyCandidateHomepage(
     supportingPageCandidates,
     "contact",
   );
-  const cityMatch = text.includes(company.location.city.toLowerCase());
-  const stateMatch = text.includes(company.location.state.toLowerCase());
+  const cityMatch = Boolean(normalizedCity && text.includes(normalizedCity));
+  const stateMatch = Boolean(normalizedState && text.includes(normalizedState));
   const addressMatch = Boolean(street && text.includes(street.split(",")[0]?.toLowerCase() ?? ""));
   const phoneMatch = Boolean(
     phoneDigits && text.replace(/[^\d]/g, "").includes(phoneDigits.slice(-7)),
@@ -841,6 +863,20 @@ function verifyCandidateHomepage(
     ...signalSummary,
     supportingPageCandidates,
     extractedEvidence: dedupeStrings([
+      businessNameMatch ? "Homepage content clearly matched the business name." : undefined,
+      cityMatch || stateMatch
+        ? `Homepage referenced ${[
+            cityMatch ? company.location.city : undefined,
+            stateMatch ? company.location.state : undefined,
+          ]
+            .filter(Boolean)
+            .join(" / ")}.`
+        : undefined,
+      phoneMatch ? "Homepage referenced the imported phone number." : undefined,
+      addressMatch ? "Homepage referenced the imported street address." : undefined,
+      brandEvidenceMatch
+        ? "Homepage showed dealership-style or brand/location evidence."
+        : undefined,
       staffPageUrls.length > 0
         ? `Found ${staffPageUrls.length} staff/team page candidate${
             staffPageUrls.length === 1 ? "" : "s"
@@ -852,7 +888,403 @@ function verifyCandidateHomepage(
           } from the homepage`
         : undefined,
     ]),
+    verificationStage: "homepage",
+    verificationPageUrls: [candidate.url],
+    verificationEvidence: dedupeStrings([
+      "Verification crawl checked the homepage.",
+      businessNameMatch ? "Homepage matched the business name." : undefined,
+      phoneMatch ? "Homepage matched the imported phone number." : undefined,
+      addressMatch ? "Homepage matched the imported street address." : undefined,
+      cityMatch || stateMatch
+        ? "Homepage matched the imported location."
+        : undefined,
+      brandEvidenceMatch
+        ? "Homepage showed dealership or brand evidence."
+        : undefined,
+    ]),
   };
+}
+
+function getSupportingPageVerificationLabel(
+  kind: Exclude<SupportingPageKind, "homepage">,
+) {
+  switch (kind) {
+    case "contact":
+      return "Contact page";
+    case "about":
+      return "About page";
+    case "staff":
+      return "Staff page";
+  }
+}
+
+function shouldRunLightweightVerificationCrawl(candidate: ScoredSearchCandidate) {
+  return (
+    candidate.score >= LIGHTWEIGHT_VERIFICATION_MIN_SCORE &&
+    candidate.score <= LIGHTWEIGHT_VERIFICATION_MAX_SCORE
+  );
+}
+
+function selectSupportingPagesForVerification(
+  supportingPageCandidates: SupportingPageCandidate[],
+) {
+  const preferenceOrder: Record<SupportingPageCandidate["kind"], number> = {
+    contact: 0,
+    about: 1,
+    staff: 2,
+  };
+
+  return [...supportingPageCandidates]
+    .sort((left, right) => {
+      const preferenceDelta =
+        preferenceOrder[left.kind] - preferenceOrder[right.kind];
+
+      if (preferenceDelta !== 0) {
+        return preferenceDelta;
+      }
+
+      return right.score - left.score;
+    })
+    .slice(0, LIGHTWEIGHT_VERIFICATION_PAGE_LIMIT);
+}
+
+function verifyCandidateSupportingPage(params: {
+  company: Company;
+  page: SupportingPageCandidate;
+  html: string;
+}): CandidateVerificationResult {
+  const text = stripHtml(params.html).toLowerCase();
+  const title = stripHtml(
+    params.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "",
+  );
+  const companyTokens = buildCompanyTokens(params.company);
+  const normalizedCompanyName = normalizeNameForComparison(params.company.name);
+  const phoneDigits = normalizePhone(params.company.presence.primaryPhone);
+  const normalizedCity = params.company.location.city.toLowerCase().trim();
+  const normalizedState = params.company.location.state.toLowerCase().trim();
+  const streetFragment = params.company.location.streetAddress
+    ?.split(",")[0]
+    ?.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .trim();
+  const cityMatch = Boolean(normalizedCity && text.includes(normalizedCity));
+  const stateMatch = Boolean(normalizedState && text.includes(normalizedState));
+  const addressMatch = Boolean(streetFragment && text.includes(streetFragment));
+  const phoneMatch = Boolean(
+    phoneDigits && text.replace(/[^\d]/g, "").includes(phoneDigits.slice(-7)),
+  );
+  const businessNameMatch =
+    normalizeNameForComparison(`${title} ${text}`).includes(normalizedCompanyName) ||
+    companyTokens.filter((token) => text.includes(token)).length >=
+      Math.min(2, companyTokens.length);
+  const brandEvidenceMatch =
+    buildDealershipPhrases(params.company).some((phrase) => text.includes(phrase)) ||
+    /\b(inventory|used cars|dealership|dealer|auto|motors|cars|financing|service)\b/i.test(
+      `${title} ${text}`,
+    );
+  const publicContactCluesMatch =
+    /\b(contact|call|phone|email|hours|directions|visit|sales|service)\b/i.test(
+      `${title} ${text}`,
+    ) || /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(text);
+  const pageLabel = getSupportingPageVerificationLabel(params.page.kind);
+  const evaluations: CandidateSignalEvaluation[] = [
+    createSignalEvaluation({
+      label: `${pageLabel} business-name match`,
+      detail: businessNameMatch
+        ? `${pageLabel} content matched the business name.`
+        : `${pageLabel} content did not clearly match the business name.`,
+      strength: "strong",
+      matched: businessNameMatch,
+      scoreDelta: businessNameMatch ? 18 : 0,
+    }),
+    createSignalEvaluation({
+      label: `${pageLabel} phone match`,
+      detail: phoneMatch
+        ? `${pageLabel} referenced the imported phone number.`
+        : `${pageLabel} did not reference the imported phone number.`,
+      strength: "strong",
+      matched: phoneMatch,
+      scoreDelta: phoneMatch ? 16 : 0,
+    }),
+    createSignalEvaluation({
+      label: `${pageLabel} address match`,
+      detail: addressMatch
+        ? `${pageLabel} referenced the imported street address.`
+        : `${pageLabel} did not reference the imported street address.`,
+      strength: "strong",
+      matched: addressMatch,
+      scoreDelta: addressMatch ? 14 : 0,
+    }),
+    createSignalEvaluation({
+      label: `${pageLabel} location match`,
+      detail:
+        cityMatch || stateMatch
+          ? `${pageLabel} referenced ${[
+              cityMatch ? params.company.location.city : undefined,
+              stateMatch ? params.company.location.state : undefined,
+            ]
+              .filter(Boolean)
+              .join(" / ")}.`
+          : `${pageLabel} did not reference the imported city or state/province.`,
+      strength: "supporting",
+      matched: cityMatch || stateMatch,
+      scoreDelta: cityMatch && stateMatch ? 10 : cityMatch || stateMatch ? 8 : 0,
+    }),
+    createSignalEvaluation({
+      label: `${pageLabel} dealership or brand evidence`,
+      detail: brandEvidenceMatch
+        ? `${pageLabel} showed dealership-style or brand/location evidence.`
+        : `${pageLabel} did not show clear dealership-style or brand/location evidence.`,
+      strength: "supporting",
+      matched: brandEvidenceMatch,
+      scoreDelta: brandEvidenceMatch ? 8 : 0,
+    }),
+    createSignalEvaluation({
+      label: `${pageLabel} public contact clues`,
+      detail: publicContactCluesMatch
+        ? `${pageLabel} exposed public contact clues.`
+        : `${pageLabel} did not expose public contact clues.`,
+      strength: "supporting",
+      matched: publicContactCluesMatch,
+      scoreDelta: publicContactCluesMatch ? 6 : 0,
+    }),
+  ];
+  const signalSummary = summarizeSignalEvaluations(evaluations);
+
+  return {
+    ...signalSummary,
+    supportingPageCandidates: [],
+    extractedEvidence: dedupeStrings([
+      `${pageLabel} checked during lightweight verification crawl.`,
+      businessNameMatch ? `${pageLabel} matched the business name.` : undefined,
+      phoneMatch ? `${pageLabel} matched the imported phone number.` : undefined,
+      addressMatch ? `${pageLabel} matched the imported street address.` : undefined,
+      cityMatch || stateMatch ? `${pageLabel} matched the imported location.` : undefined,
+      brandEvidenceMatch
+        ? `${pageLabel} showed dealership or brand evidence.`
+        : undefined,
+      publicContactCluesMatch
+        ? `${pageLabel} exposed public contact clues.`
+        : undefined,
+    ]),
+    verificationStage: "lightweight_crawl",
+    verificationPageUrls: [params.page.url],
+    verificationEvidence: dedupeStrings([
+      `${pageLabel} was checked during lightweight verification crawl.`,
+      businessNameMatch ? `${pageLabel} matched the business name.` : undefined,
+      phoneMatch ? `${pageLabel} matched the imported phone number.` : undefined,
+      addressMatch ? `${pageLabel} matched the imported street address.` : undefined,
+      cityMatch || stateMatch ? `${pageLabel} matched the imported location.` : undefined,
+      publicContactCluesMatch
+        ? `${pageLabel} exposed public contact clues.`
+        : undefined,
+    ]),
+  };
+}
+
+async function runCandidateVerificationCrawl(
+  company: Company,
+  candidate: ScoredSearchCandidate,
+): Promise<ScoredSearchCandidate> {
+  const verificationAttemptNotes = [
+    `Verification crawl queued for ${candidate.url}.`,
+  ];
+
+  try {
+    const homepageHtml = await fetchCandidatePage(candidate.url);
+    const homepageVerification = verifyCandidateHomepage(
+      company,
+      candidate,
+      homepageHtml,
+    );
+    let verifiedCandidate = {
+      ...candidate,
+      score: candidate.score + homepageVerification.score,
+      signals: dedupeStrings([...candidate.signals, ...homepageVerification.signals]),
+      signalHits: dedupeStrings([
+        ...candidate.signalHits,
+        ...homepageVerification.signalHits,
+      ]),
+      signalMisses: dedupeStrings([
+        ...candidate.signalMisses,
+        ...homepageVerification.signalMisses,
+      ]),
+      strongSignalCount:
+        candidate.strongSignalCount + homepageVerification.strongSignalCount,
+      supportingPageCandidates: homepageVerification.supportingPageCandidates,
+      extractedEvidence: dedupeStrings([
+        ...candidate.extractedEvidence,
+        ...homepageVerification.extractedEvidence,
+      ]),
+      verificationStage: homepageVerification.verificationStage,
+      verificationPageUrls: dedupeStrings([
+        ...candidate.verificationPageUrls,
+        ...homepageVerification.verificationPageUrls,
+      ]),
+      verificationEvidence: dedupeStrings([
+        ...candidate.verificationEvidence,
+        ...verificationAttemptNotes,
+        ...homepageVerification.verificationEvidence,
+      ]),
+    } satisfies ScoredSearchCandidate;
+
+    if (!shouldRunLightweightVerificationCrawl(candidate)) {
+      return verifiedCandidate;
+    }
+
+    const pagesToVerify = selectSupportingPagesForVerification(
+      homepageVerification.supportingPageCandidates,
+    );
+
+    if (pagesToVerify.length === 0) {
+      return {
+        ...verifiedCandidate,
+        verificationEvidence: dedupeStrings([
+          ...verifiedCandidate.verificationEvidence,
+          "Lightweight verification crawl found no obvious contact, about, or staff pages to check after the homepage.",
+        ]),
+      };
+    }
+
+    const supportingPageResults = await Promise.all(
+      pagesToVerify.map(async (page) => {
+        try {
+          const html = await fetchCandidatePage(page.url);
+
+          return verifyCandidateSupportingPage({
+            company,
+            page,
+            html,
+          });
+        } catch (error) {
+          return {
+            score: 0,
+            signals: [],
+            signalHits: [],
+            signalMisses: [
+              `${getSupportingPageVerificationLabel(page.kind)} could not be fetched during lightweight verification crawl${
+                error instanceof Error ? ` (${error.message})` : ""
+              }.`,
+            ],
+            strongSignalCount: 0,
+            supportingPageCandidates: [],
+            extractedEvidence: [
+              `${getSupportingPageVerificationLabel(page.kind)} could not be fetched during lightweight verification crawl.`,
+            ],
+            verificationStage: "lightweight_crawl",
+            verificationPageUrls: [page.url],
+            verificationEvidence: [
+              `${getSupportingPageVerificationLabel(page.kind)} was selected for lightweight verification crawl but could not be fetched.`,
+            ],
+          } satisfies CandidateVerificationResult;
+        }
+      }),
+    );
+
+    const combinedSupportingScore = supportingPageResults.reduce(
+      (total, result) => total + result.score,
+      0,
+    );
+    const combinedSupportingStrongSignals = supportingPageResults.reduce(
+      (total, result) => total + result.strongSignalCount,
+      0,
+    );
+    const combinedSupportingSignals = dedupeStrings(
+      supportingPageResults.flatMap((result) => result.signals),
+    );
+    const combinedSupportingHits = dedupeStrings(
+      supportingPageResults.flatMap((result) => result.signalHits),
+    );
+    const combinedSupportingMisses = dedupeStrings(
+      supportingPageResults.flatMap((result) => result.signalMisses),
+    );
+    const combinedSupportingEvidence = dedupeStrings(
+      supportingPageResults.flatMap((result) => result.extractedEvidence),
+    );
+    const combinedVerificationEvidence = dedupeStrings(
+      supportingPageResults.flatMap((result) => result.verificationEvidence),
+    );
+    const successfulSupportingPageCount = supportingPageResults.filter((result) =>
+      result.extractedEvidence.some((value) =>
+        /checked during lightweight verification crawl/i.test(value),
+      ),
+    ).length;
+    const verificationPenaltyMiss =
+      successfulSupportingPageCount > 0 && combinedSupportingHits.length === 0
+        ? "Lightweight verification crawl did not find corroborating business, location, address, phone, or contact evidence on the fetched follow-up pages."
+        : undefined;
+
+    verifiedCandidate = {
+      ...verifiedCandidate,
+      score: Math.max(
+        0,
+        verifiedCandidate.score +
+        combinedSupportingScore -
+        (verificationPenaltyMiss ? 24 : 0),
+      ),
+      signals: dedupeStrings([
+        ...verifiedCandidate.signals,
+        ...combinedSupportingSignals,
+      ]),
+      signalHits: dedupeStrings([
+        ...verifiedCandidate.signalHits,
+        ...combinedSupportingHits,
+      ]),
+      signalMisses: dedupeStrings([
+        ...verifiedCandidate.signalMisses,
+        ...combinedSupportingMisses,
+        verificationPenaltyMiss,
+      ]),
+      strongSignalCount:
+        verifiedCandidate.strongSignalCount + combinedSupportingStrongSignals,
+      extractedEvidence: dedupeStrings([
+        ...verifiedCandidate.extractedEvidence,
+        ...combinedSupportingEvidence,
+        verificationPenaltyMiss,
+      ]),
+      verificationStage: "lightweight_crawl",
+      verificationPageUrls: dedupeStrings([
+        ...verifiedCandidate.verificationPageUrls,
+        ...supportingPageResults.flatMap((result) => result.verificationPageUrls),
+      ]),
+      verificationEvidence: dedupeStrings([
+        ...verifiedCandidate.verificationEvidence,
+        `Lightweight verification crawl checked ${pagesToVerify.length} supporting page${
+          pagesToVerify.length === 1 ? "" : "s"
+        } after the homepage.`,
+        ...combinedVerificationEvidence,
+        verificationPenaltyMiss,
+      ]),
+    };
+
+    return verifiedCandidate;
+  } catch (error) {
+    return {
+      ...candidate,
+      verificationStage: "homepage",
+      verificationPageUrls: dedupeStrings([
+        ...candidate.verificationPageUrls,
+        candidate.url,
+      ]),
+      verificationEvidence: dedupeStrings([
+        ...candidate.verificationEvidence,
+        ...verificationAttemptNotes,
+        `Verification crawl could not fetch the homepage${
+          error instanceof Error ? ` (${error.message})` : ""
+        }.`,
+      ]),
+      signalMisses: dedupeStrings([
+        ...candidate.signalMisses,
+        `Homepage could not be fetched during verification crawl${
+          error instanceof Error ? ` (${error.message})` : ""
+        }.`,
+      ]),
+      extractedEvidence: dedupeStrings([
+        ...candidate.extractedEvidence,
+        "Verification crawl could not fetch the homepage.",
+      ]),
+    };
+  }
 }
 
 function getRequiredStrongSignals(candidate: ScoredSearchCandidate) {
@@ -870,18 +1302,28 @@ function getRequiredStrongSignals(candidate: ScoredSearchCandidate) {
 
 function determineCandidateDecision(candidate: ScoredSearchCandidate) {
   const requiredStrongSignals = getRequiredStrongSignals(candidate);
+  const verificationSummary =
+    candidate.verificationStage === "lightweight_crawl"
+      ? "after lightweight verification crawl"
+      : candidate.verificationStage === "homepage"
+        ? "after homepage verification"
+        : undefined;
 
   if (candidate.score < DISCARD_CANDIDATE_MIN_SCORE) {
     return {
       decision: "rejected" as const,
-      reason: `Rejected below the discard threshold at ${candidate.score}/100.`,
+      reason: verificationSummary
+        ? `Rejected ${verificationSummary} because the candidate only reached ${candidate.score}/100, which is below the discard threshold.`
+        : `Rejected below the discard threshold at ${candidate.score}/100.`,
     };
   }
 
   if (candidate.score < CONDITIONAL_AUTO_CONFIRM_MIN_SCORE) {
     return {
       decision: "needs_review" as const,
-      reason: `Held for review at ${candidate.score}/100 because it looks plausible but is still below the crawl/auto-confirm band.`,
+      reason: verificationSummary
+        ? `Held for review ${verificationSummary} at ${candidate.score}/100 because the verification evidence improved confidence but still did not clear the auto-confirm band.`
+        : `Held for review at ${candidate.score}/100 because it looks plausible but is still below the crawl/auto-confirm band.`,
     };
   }
 
@@ -890,8 +1332,12 @@ function determineCandidateDecision(candidate: ScoredSearchCandidate) {
       decision: "needs_review" as const,
       reason:
         candidate.sourceType === "direct_domain_inference"
-          ? `Held for review because inferred domains require ${requiredStrongSignals} strong confirmation signals and this candidate only has ${candidate.strongSignalCount}.`
-          : `Held for review because candidates in the ${CONDITIONAL_AUTO_CONFIRM_MIN_SCORE}-${AUTO_CONFIRM_MIN_SCORE - 1} score band require at least ${requiredStrongSignals} strong confirmation signals and this candidate only has ${candidate.strongSignalCount}.`,
+          ? `Held for review${
+              verificationSummary ? ` ${verificationSummary}` : ""
+            } because inferred domains require ${requiredStrongSignals} strong confirmation signals and this candidate only has ${candidate.strongSignalCount}.`
+          : `Held for review${
+              verificationSummary ? ` ${verificationSummary}` : ""
+            } because candidates in the ${CONDITIONAL_AUTO_CONFIRM_MIN_SCORE}-${AUTO_CONFIRM_MIN_SCORE - 1} score band require at least ${requiredStrongSignals} strong confirmation signals and this candidate only has ${candidate.strongSignalCount}.`,
     };
   }
 
@@ -899,8 +1345,12 @@ function determineCandidateDecision(candidate: ScoredSearchCandidate) {
     decision: "accepted" as const,
     reason:
       candidate.sourceType === "direct_domain_inference"
-        ? `Accepted at ${candidate.score}/100 because the inferred domain cleared the safety gate with ${candidate.strongSignalCount} strong confirmation signals.`
-        : `Accepted at ${candidate.score}/100 with ${candidate.strongSignalCount} strong confirmation signals.`,
+        ? `Accepted${
+            verificationSummary ? ` ${verificationSummary}` : ""
+          } at ${candidate.score}/100 because the inferred domain cleared the safety gate with ${candidate.strongSignalCount} strong confirmation signals.`
+        : `Accepted${
+            verificationSummary ? ` ${verificationSummary}` : ""
+          } at ${candidate.score}/100 with ${candidate.strongSignalCount} strong confirmation signals.`,
   };
 }
 
@@ -917,6 +1367,9 @@ function buildScoredCandidateDiagnostic(candidate: ScoredSearchCandidate) {
     title: candidate.title || undefined,
     score: candidate.score,
     strongSignalCount: candidate.strongSignalCount,
+    verificationStage: candidate.verificationStage,
+    verificationPageUrls: candidate.verificationPageUrls,
+    verificationEvidence: candidate.verificationEvidence,
     signalHits: candidate.signalHits,
     signalMisses: candidate.signalMisses,
     decision: decision.decision,
@@ -924,8 +1377,53 @@ function buildScoredCandidateDiagnostic(candidate: ScoredSearchCandidate) {
   } satisfies WebsiteDiscoveryCandidateDiagnostic;
 }
 
+function getCandidateSelectionPriority(candidate: ScoredSearchCandidate) {
+  if (candidate.sourceType === "search_result") {
+    return 0;
+  }
+
+  switch (candidate.sourceDetail) {
+    case "raw_business_name":
+      return 1;
+    case "leading_core_pair":
+      return 2;
+    case "primary_plus_city":
+    case "city_plus_primary":
+    case "primary_plus_state":
+      return 3;
+    case "core_business_name":
+      return candidate.isGenericGuess ? 6 : 4;
+    default:
+      return candidate.sourceDetail?.startsWith("primary_plus_") ? 5 : 7;
+  }
+}
+
+function compareRankedCandidates(
+  left: ScoredSearchCandidate,
+  right: ScoredSearchCandidate,
+) {
+  const scoreDelta = right.score - left.score;
+
+  if (scoreDelta !== 0) {
+    return scoreDelta;
+  }
+
+  const priorityDelta =
+    getCandidateSelectionPriority(left) - getCandidateSelectionPriority(right);
+
+  if (priorityDelta !== 0) {
+    return priorityDelta;
+  }
+
+  if (left.sourceType !== right.sourceType) {
+    return left.sourceType === "search_result" ? -1 : 1;
+  }
+
+  return left.url.localeCompare(right.url);
+}
+
 function selectCandidatesForReview(candidates: ScoredSearchCandidate[]) {
-  const rankedCandidates = [...candidates].sort((left, right) => right.score - left.score);
+  const rankedCandidates = [...candidates].sort(compareRankedCandidates);
   const selectedCandidates = new Map<string, ScoredSearchCandidate>();
 
   function addCandidate(candidate: ScoredSearchCandidate | undefined) {
@@ -949,11 +1447,11 @@ function selectCandidatesForReview(candidates: ScoredSearchCandidate[]) {
     ),
   );
 
-  return [...selectedCandidates.values()].sort((left, right) => right.score - left.score);
+  return [...selectedCandidates.values()].sort(compareRankedCandidates);
 }
 
 function selectCandidatesForVerification(candidates: ScoredSearchCandidate[]) {
-  const rankedCandidates = [...candidates].sort((left, right) => right.score - left.score);
+  const rankedCandidates = [...candidates].sort(compareRankedCandidates);
   const selectedCandidates = new Map<string, ScoredSearchCandidate>();
 
   function addCandidate(candidate: ScoredSearchCandidate | undefined) {
@@ -984,7 +1482,7 @@ function selectCandidatesForVerification(candidates: ScoredSearchCandidate[]) {
     ),
   );
 
-  return [...selectedCandidates.values()];
+  return [...selectedCandidates.values()].sort(compareRankedCandidates);
 }
 
 function createDiscoverySnapshot(params: {
@@ -1267,6 +1765,9 @@ export async function discoverCompanyWebsite(
         strongSignalCount: scored.strongSignalCount,
         supportingPageCandidates: [],
         extractedEvidence: [],
+        verificationStage: "not_run" as WebsiteDiscoveryCandidateVerificationStage,
+        verificationPageUrls: [],
+        verificationEvidence: [],
       } satisfies ScoredSearchCandidate;
       const existing = mergedCandidates.get(candidate.url);
 
@@ -1304,6 +1805,22 @@ export async function discoverCompanyWebsite(
               ? "search_result"
               : existing.sourceType,
           isGenericGuess: existing.isGenericGuess && nextCandidate.isGenericGuess,
+          verificationStage:
+            existing.verificationStage === "lightweight_crawl" ||
+            nextCandidate.verificationStage === "lightweight_crawl"
+              ? "lightweight_crawl"
+              : existing.verificationStage === "homepage" ||
+                  nextCandidate.verificationStage === "homepage"
+                ? "homepage"
+                : "not_run",
+          verificationPageUrls: dedupeStrings([
+            ...existing.verificationPageUrls,
+            ...nextCandidate.verificationPageUrls,
+          ]),
+          verificationEvidence: dedupeStrings([
+            ...existing.verificationEvidence,
+            ...nextCandidate.verificationEvidence,
+          ]),
         });
       }
     }
@@ -1338,39 +1855,9 @@ export async function discoverCompanyWebsite(
 
     const candidatesToVerify = selectCandidatesForVerification(candidates);
     const verifiedCandidates = await Promise.all(
-      candidatesToVerify.map(async (candidate) => {
-        try {
-          const homepageHtml = await fetchCandidateHomepage(candidate.url);
-          const homepageVerification = verifyCandidateHomepage(
-            company,
-            candidate,
-            homepageHtml,
-          );
-
-          return {
-            ...candidate,
-            score: candidate.score + homepageVerification.score,
-            signals: dedupeStrings([
-              ...candidate.signals,
-              ...homepageVerification.signals,
-            ]),
-            signalHits: dedupeStrings([
-              ...candidate.signalHits,
-              ...homepageVerification.signalHits,
-            ]),
-            signalMisses: dedupeStrings([
-              ...candidate.signalMisses,
-              ...homepageVerification.signalMisses,
-            ]),
-            strongSignalCount:
-              candidate.strongSignalCount + homepageVerification.strongSignalCount,
-            supportingPageCandidates: homepageVerification.supportingPageCandidates,
-            extractedEvidence: homepageVerification.extractedEvidence,
-          };
-        } catch {
-          return candidate;
-        }
-      }),
+      candidatesToVerify.map((candidate) =>
+        runCandidateVerificationCrawl(company, candidate),
+      ),
     );
     const verifiedCandidatesByUrl = new Map(
       verifiedCandidates.map((candidate) => [candidate.url, candidate] as const),
@@ -1386,9 +1873,7 @@ export async function discoverCompanyWebsite(
       finalCandidateDiagnostics,
     );
 
-    const bestCandidate = [...rankedCandidates].sort(
-      (left, right) => right.score - left.score,
-    )[0];
+    const bestCandidate = [...rankedCandidates].sort(compareRankedCandidates)[0];
     const bestDecision = bestCandidate ? determineCandidateDecision(bestCandidate) : undefined;
 
     if (!bestCandidate || bestCandidate.score < DISCARD_CANDIDATE_MIN_SCORE) {
@@ -1409,7 +1894,10 @@ export async function discoverCompanyWebsite(
         supportingPageUrls: [],
         contactPageUrls: [],
         staffPageUrls: [],
-        extractedEvidence: [],
+        extractedEvidence: dedupeStrings([
+          ...(bestCandidate?.verificationEvidence ?? []),
+          ...(bestCandidate?.extractedEvidence ?? []),
+        ]),
         debugNotes: discoveryDebugNotes,
         source: createDiscoverySource(now, {
           provider: searchSource.provider,
@@ -1432,6 +1920,7 @@ export async function discoverCompanyWebsite(
         candidateDiagnostics: finalCandidateDiagnostics,
         matchedSignals: dedupeStrings([
           ...(bestCandidate?.signalHits ?? []),
+          ...(bestCandidate?.verificationEvidence ?? []),
           bestDecision?.reason ??
             "Best website candidate needs operator review before auto-confirmation.",
         ]),
@@ -1451,6 +1940,7 @@ export async function discoverCompanyWebsite(
           ),
         ),
         extractedEvidence: dedupeStrings([
+          ...(bestCandidate?.verificationEvidence ?? []),
           ...(bestCandidate?.extractedEvidence ?? []),
           bestDecision?.reason,
         ]),
@@ -1473,7 +1963,11 @@ export async function discoverCompanyWebsite(
       candidateWebsite: bestCandidate.url,
       candidateUrls: candidates.map((candidate) => candidate.url),
       candidateDiagnostics: finalCandidateDiagnostics,
-      matchedSignals: dedupeStrings([...bestCandidate.signalHits, bestDecision.reason]),
+      matchedSignals: dedupeStrings([
+        ...bestCandidate.signalHits,
+        ...bestCandidate.verificationEvidence,
+        bestDecision.reason,
+      ]),
       supportingPageUrls: dedupeStrings(
         bestCandidate.supportingPageCandidates.map((candidate) => candidate.url),
       ),
@@ -1485,7 +1979,10 @@ export async function discoverCompanyWebsite(
         bestCandidate.supportingPageCandidates,
         "staff",
       ),
-      extractedEvidence: bestCandidate.extractedEvidence,
+      extractedEvidence: dedupeStrings([
+        ...bestCandidate.verificationEvidence,
+        ...bestCandidate.extractedEvidence,
+      ]),
       debugNotes: discoveryDebugNotes,
       source: createDiscoverySource(now, {
         url: bestCandidate.url,
