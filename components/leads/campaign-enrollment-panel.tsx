@@ -229,129 +229,118 @@ export function CampaignEnrollmentPanel({
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-3xl border border-white/8 bg-black/10">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/8">
-              <thead className="bg-white/[0.03]">
-                <tr>
-                  <th className="px-4 py-3 text-left text-[0.7rem] font-medium uppercase tracking-[0.22em] text-muted">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={(event) => toggleAll(event.currentTarget.checked)}
-                      className="h-4 w-4 rounded border-white/15 bg-transparent"
-                    />
-                  </th>
-                  {[
-                    "Lead",
-                    "Campaign recommendation",
-                    "Primary contact",
-                    "Enrollment path",
-                  ].map((column) => (
-                    <th
-                      key={column}
-                      className="px-4 py-3 text-left text-[0.7rem] font-medium uppercase tracking-[0.22em] text-muted"
-                    >
-                      {column}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/8">
-                {panel.rows.map((row) => (
-                  <tr key={row.companyId} className="transition hover:bg-white/[0.03]">
-                    <td className="px-4 py-4 align-top">
-                      <input
-                        type="checkbox"
-                        name="selectedCompanyIds"
-                        value={row.companyId}
-                        checked={selectedCompanyIds.includes(row.companyId)}
-                        onChange={(event) =>
-                          toggleSelected(row.companyId, event.currentTarget.checked)
-                        }
-                        className="mt-1 h-4 w-4 rounded border-white/15 bg-transparent"
+        <div className="surface-panel p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <label className="inline-flex items-center gap-2 text-sm text-muted">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={(event) => toggleAll(event.currentTarget.checked)}
+                className="h-4 w-4 rounded border-white/15 bg-transparent"
+              />
+              Select all visible
+            </label>
+            <p className="text-sm text-muted">
+              {selectedCompanyIds.length} selected • {panel.rows.length} in view
+            </p>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {panel.rows.map((row) => (
+              <label
+                key={row.companyId}
+                className={`block rounded-3xl border p-4 transition ${
+                  selectedCompanyIds.includes(row.companyId)
+                    ? "border-accent/30 bg-accent/10"
+                    : "border-white/8 bg-black/10 hover:border-white/12 hover:bg-white/[0.04]"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  name="selectedCompanyIds"
+                  value={row.companyId}
+                  checked={selectedCompanyIds.includes(row.companyId)}
+                  onChange={(event) =>
+                    toggleSelected(row.companyId, event.currentTarget.checked)
+                  }
+                  className="sr-only"
+                />
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-copy">{row.companyName}</span>
+                      <StatusBadge
+                        label={row.readinessBadge.label}
+                        tone={row.readinessBadge.tone}
                       />
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-medium text-copy">{row.companyName}</p>
-                          <StatusBadge
-                            label={row.readinessBadge.label}
-                            tone={row.readinessBadge.tone}
-                          />
-                          <StatusBadge
-                            label={row.confidenceBadge.label}
-                            tone={row.confidenceBadge.tone}
-                          />
-                        </div>
-                        <p className="text-sm text-muted">{row.market}</p>
-                        <p className="text-sm text-copy">{row.angleLabel}</p>
-                        <p className="text-sm text-muted">{row.angleReason}</p>
-                        <p className="text-xs uppercase tracking-[0.18em] text-muted">
-                          {row.lastEnrichedLabel}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-copy">
-                          {row.recommendedCampaignName}
-                        </p>
-                        <p className="text-sm text-muted">
-                          First offer: {row.recommendedOffer}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <StatusBadge
-                            label={row.recommendedCampaignStatusBadge.label}
-                            tone={row.recommendedCampaignStatusBadge.tone}
-                          />
-                          {row.manualReviewRequired ? (
-                            <StatusBadge label="Manual review" tone="warning" />
-                          ) : null}
-                          {row.campaignReviewRequired ? (
-                            <StatusBadge label="Campaign review" tone="accent" />
-                          ) : null}
-                        </div>
-                        <p className="text-sm text-muted">{row.currentCampaignLabel}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="space-y-2">
-                        <p className="text-sm text-copy">{row.primaryContactLabel}</p>
-                        <p className="text-sm text-muted">{row.primaryContactQuality}</p>
-                        <p className="text-sm text-muted">{row.primaryContactSource}</p>
-                        {row.primaryContactWarnings[0] ? (
-                          <p className="text-sm text-warning">
-                            {row.primaryContactWarnings[0]}
-                          </p>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-2">
-                          <StatusBadge
-                            label={row.decisionBadge.label}
-                            tone={row.decisionBadge.tone}
-                          />
-                          {!row.canAssign ? (
-                            <StatusBadge label="Cannot assign" tone="danger" />
-                          ) : row.canEnroll ? (
-                            <StatusBadge label="Can enroll" tone="success" />
-                          ) : (
-                            <StatusBadge label="Review before enrollment" tone="accent" />
-                          )}
-                        </div>
-                        <p className="text-sm leading-6 text-copy">
-                          {row.decisionReason}
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <StatusBadge
+                        label={row.confidenceBadge.label}
+                        tone={row.confidenceBadge.tone}
+                      />
+                    </div>
+                    <p className="mt-1 text-sm text-muted">{row.market}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">
+                      {row.lastEnrichedLabel}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-muted">
+                    {selectedCompanyIds.includes(row.companyId) ? "Selected" : "Select"}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+                  <div className="surface-muted p-4">
+                    <p className="micro-label">Campaign recommendation</p>
+                    <p className="mt-3 text-sm font-medium text-copy">
+                      {row.recommendedCampaignName}
+                    </p>
+                    <p className="mt-2 text-sm text-muted">
+                      First offer: {row.recommendedOffer}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <StatusBadge
+                        label={row.recommendedCampaignStatusBadge.label}
+                        tone={row.recommendedCampaignStatusBadge.tone}
+                      />
+                      {row.manualReviewRequired ? (
+                        <StatusBadge label="Manual review" tone="warning" />
+                      ) : null}
+                      {row.campaignReviewRequired ? (
+                        <StatusBadge label="Campaign review" tone="accent" />
+                      ) : null}
+                    </div>
+                    <p className="mt-3 text-sm text-copy">{row.angleLabel}</p>
+                    <p className="mt-2 text-sm text-muted">{row.angleReason}</p>
+                    <p className="mt-2 text-sm text-muted">{row.currentCampaignLabel}</p>
+                  </div>
+
+                  <div className="surface-muted p-4">
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge
+                        label={row.decisionBadge.label}
+                        tone={row.decisionBadge.tone}
+                      />
+                      {!row.canAssign ? (
+                        <StatusBadge label="Cannot assign" tone="danger" />
+                      ) : row.canEnroll ? (
+                        <StatusBadge label="Can enroll" tone="success" />
+                      ) : (
+                        <StatusBadge label="Review before enrollment" tone="accent" />
+                      )}
+                    </div>
+                    <p className="mt-3 text-sm text-copy">{row.primaryContactLabel}</p>
+                    <p className="mt-2 text-sm text-muted">{row.primaryContactQuality}</p>
+                    <p className="mt-2 text-sm text-muted">{row.primaryContactSource}</p>
+                    {row.primaryContactWarnings[0] ? (
+                      <p className="mt-2 text-sm text-warning">
+                        {row.primaryContactWarnings[0]}
+                      </p>
+                    ) : null}
+                    <p className="mt-3 text-sm leading-6 text-copy">{row.decisionReason}</p>
+                  </div>
+                </div>
+              </label>
+            ))}
           </div>
         </div>
       </form>

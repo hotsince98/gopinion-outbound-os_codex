@@ -1,19 +1,16 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
-import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
-import { ContactRankingStack } from "@/components/enrichment/contact-ranking-stack";
-import { ProviderRunSummary } from "@/components/enrichment/provider-run-summary";
 import { PreferredSupportingPageCard } from "@/components/companies/preferred-supporting-page-card";
+import { SelectedCompanyProfile } from "@/components/companies/selected-company-profile";
 import { WebsiteDiscoveryReviewPanel } from "@/components/companies/website-discovery-review-panel";
-import { DetailList } from "@/components/ui/detail-list";
+import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
+import { ProviderRunSummary } from "@/components/enrichment/provider-run-summary";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPanel } from "@/components/ui/filter-panel";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { TableShell } from "@/components/ui/table-shell";
 import {
   getCompaniesWorkspaceView,
   type CompanyListRowView,
@@ -44,118 +41,58 @@ function FilterGroup(props: Readonly<{
   );
 }
 
-function CompanyQueueCard(props: Readonly<{
+function CompanyQueueListItem(props: Readonly<{
   row: CompanyListRowView;
   href: string;
+  isSelected: boolean;
 }>) {
   const { row } = props;
 
   return (
-    <div className="surface-panel min-w-0 p-5">
+    <Link
+      href={props.href}
+      className={`block rounded-3xl border p-4 transition ${
+        props.isSelected
+          ? "border-accent/35 bg-accent/10"
+          : "border-white/8 bg-black/10 hover:border-white/12 hover:bg-white/[0.04]"
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-2">
-          <Link
-            href={props.href}
-            className="break-words font-medium text-copy transition hover:text-accent"
-          >
-            {row.companyName}
-          </Link>
-          <p className="text-sm text-muted">
+        <div className="min-w-0">
+          <p className="break-words text-sm font-medium text-copy">{row.companyName}</p>
+          <p className="mt-1 text-sm text-muted">
             {row.market} • {row.subindustry}
           </p>
-          <p className="text-sm text-copy">{row.reviewSnapshot}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge label={row.priorityBadge.label} tone={row.priorityBadge.tone} />
-          <StatusBadge
-            label={row.angleUrgencyBadge.label}
-            tone={row.angleUrgencyBadge.tone}
-          />
-          <StatusBadge label={row.readinessBadge.label} tone={row.readinessBadge.tone} />
-        </div>
+        <StatusBadge label={row.readinessBadge.label} tone={row.readinessBadge.tone} />
       </div>
-
-      <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <div className="surface-muted p-4">
-          <p className="text-sm text-copy">{row.fitScore}</p>
-          <p className="mt-3 text-sm font-medium text-copy">{row.recommendedOffer}</p>
-          <p className="mt-2 text-sm text-copy">{row.angleLabel}</p>
-          <p className="mt-2 text-sm text-muted">{row.angleReason}</p>
-        </div>
-        <div className="surface-muted p-4">
-          <p className="text-sm text-copy">{row.contactCoverage}</p>
-          <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted">
-            {row.decisionMakerConfidence}
-          </p>
-          <p className="mt-2 text-sm text-muted">{row.campaignStatus}</p>
-        </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <StatusBadge label={row.priorityBadge.label} tone={row.priorityBadge.tone} />
+        <StatusBadge
+          label={row.angleUrgencyBadge.label}
+          tone={row.angleUrgencyBadge.tone}
+        />
       </div>
-    </div>
+      <p className="mt-3 text-sm text-copy">{row.recommendedOffer}</p>
+      <p className="mt-2 text-sm text-muted">{row.fitScore}</p>
+      <p className="mt-2 text-sm text-muted">{row.contactCoverage}</p>
+      <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted">
+        {row.decisionMakerConfidence}
+      </p>
+    </Link>
   );
 }
 
 export default async function CompaniesPage({ searchParams }: PageProps) {
   const view = await getCompaniesWorkspaceView(await searchParams);
-
-  const rows = view.rows.map((row) => ({
-    id: row.companyId,
-    cells: [
-      <div key={`${row.companyId}-company`} className="space-y-2">
-        <Link
-          href={buildPathWithQuery("/companies", view.query, {
-            companyId: row.companyId,
-          })}
-          className="font-medium text-copy transition hover:text-accent"
-        >
-          {row.companyName}
-        </Link>
-        <p className="text-sm text-muted">
-          {row.market} • {row.subindustry}
-        </p>
-      </div>,
-      <span key={`${row.companyId}-reviews`} className="text-sm text-copy">
-        {row.reviewSnapshot}
-      </span>,
-      <div key={`${row.companyId}-fit`} className="space-y-2">
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge
-            label={row.priorityBadge.label}
-            tone={row.priorityBadge.tone}
-          />
-          <StatusBadge
-            label={row.angleUrgencyBadge.label}
-            tone={row.angleUrgencyBadge.tone}
-          />
-        </div>
-        <p className="text-sm text-muted">{row.fitScore}</p>
-      </div>,
-      <div key={`${row.companyId}-offer`} className="space-y-1">
-        <p className="text-sm text-copy">{row.recommendedOffer}</p>
-        <p className="text-sm text-copy">{row.angleLabel}</p>
-        <p className="text-sm text-muted">{row.angleReason}</p>
-      </div>,
-      <div key={`${row.companyId}-contact`} className="space-y-1">
-        <p className="text-sm text-copy">{row.contactCoverage}</p>
-        <p className="text-xs uppercase tracking-[0.18em] text-muted">
-          {row.decisionMakerConfidence}
-        </p>
-      </div>,
-      <div key={`${row.companyId}-readiness`} className="space-y-2">
-        <StatusBadge
-          label={row.readinessBadge.label}
-          tone={row.readinessBadge.tone}
-        />
-        <p className="text-sm text-muted">{row.campaignStatus}</p>
-      </div>,
-    ],
-  }));
+  const selectedCompanyId = view.selectedCompany?.companyId;
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Companies"
         title="Company intelligence workspace"
-        description="Inspect fit, review posture, website discovery, and contact coverage in a cleaner operator workspace without changing the underlying typed workflow."
+        description="Work the queue with a cleaner operator layout: scan accounts on the left, inspect one company deeply in the center, and keep actions on the right."
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -197,12 +134,13 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
 
       <FilterPanel
         title="Workspace filters"
-        description="Keep the company list readable by shaping the view around fit, readiness, and the specific account you want to inspect."
+        description="Keep the queue readable by shaping it around fit, readiness, and the specific account you want to inspect."
       >
-        <form className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
+        <form className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <input type="hidden" name="companyId" value={selectedCompanyId ?? ""} />
           <FilterGroup
             title="Search and fit"
-            description="Narrow the list by company, market, contact, or ICP fit."
+            description="Narrow the queue by company, market, ICP fit, and priority."
           >
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2 md:col-span-2">
@@ -250,7 +188,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
 
           <FilterGroup
             title="Readiness and actions"
-            description="Focus on the companies that are ready to review now, then apply or reset the current view."
+            description="Focus the queue on accounts you can work right now, then apply or reset the current view."
           >
             <div className="grid gap-4">
               <label className="space-y-2">
@@ -289,345 +227,120 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         </form>
       </FilterPanel>
 
-      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(280px,320px)_minmax(0,1.55fr)_minmax(300px,360px)] 2xl:grid-cols-[minmax(300px,340px)_minmax(0,1.7fr)_minmax(320px,380px)]">
         <SectionCard
-          title="Company intelligence queue"
-          description={`${view.resultLabel}. Select a company to inspect its fit, reputation posture, and decision-maker coverage.`}
+          title="Company queue"
+          description={`${view.resultLabel}. Choose a company to open its full profile.`}
+          className="xl:min-h-[calc(100vh-18rem)]"
         >
-          <div className="grid gap-4 2xl:hidden">
-            {view.rows.length > 0
-              ? view.rows.map((row) => (
-                  <CompanyQueueCard
-                    key={row.companyId}
-                    row={row}
-                    href={buildPathWithQuery("/companies", view.query, {
-                      companyId: row.companyId,
-                    })}
-                  />
-                ))
-              : null}
-          </div>
-          <div className="hidden 2xl:block">
-            <TableShell
-              columns={[
-                "Company",
-                "Reviews",
-                "Fit / priority",
-                "Recommended offer",
-                "Contact coverage",
-                "Readiness",
-              ]}
-              rows={rows}
-              emptyTitle={view.emptyState.title}
-              emptyDescription={view.emptyState.description}
-            />
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          title="Selected company"
-          description="A first-pass profile assembled from typed company, contact, offer, and campaign records."
-        >
-          {view.selectedCompany ? (
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge
-                    label={view.selectedCompany.priorityBadge.label}
-                    tone={view.selectedCompany.priorityBadge.tone}
-                  />
-                  <StatusBadge
-                    label={view.selectedCompany.statusBadge.label}
-                    tone={view.selectedCompany.statusBadge.tone}
-                  />
-                  <StatusBadge
-                    label={view.selectedCompany.readinessBadge.label}
-                    tone={view.selectedCompany.readinessBadge.tone}
-                  />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-semibold tracking-tight text-copy">
-                    {view.selectedCompany.companyName}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-muted">
-                    {view.selectedCompany.market} • {view.selectedCompany.subindustry} •{" "}
-                    {view.selectedCompany.icpLabel}
-                  </p>
-                </div>
-                <div className="surface-muted p-5">
-                  <p className="micro-label">Suggested next action</p>
-                  <p className="mt-3 text-sm leading-6 text-copy">
-                    {view.selectedCompany.suggestedNextAction}
-                  </p>
-                </div>
-              </div>
-
-              <DetailList items={view.selectedCompany.basics} />
-              <DetailList items={view.selectedCompany.reputation} />
-
-              <div className="surface-muted p-5">
-                <p className="micro-label">Recommended angle</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <StatusBadge
-                    label={view.selectedCompany.outreachAngle.urgencyBadge.label}
-                    tone={view.selectedCompany.outreachAngle.urgencyBadge.tone}
-                  />
-                  <StatusBadge
-                    label={view.selectedCompany.outreachAngle.confidenceBadge.label}
-                    tone={view.selectedCompany.outreachAngle.confidenceBadge.tone}
-                  />
-                  <StatusBadge
-                    label={view.selectedCompany.outreachAngle.reviewPathBadge.label}
-                    tone={view.selectedCompany.outreachAngle.reviewPathBadge.tone}
-                  />
-                </div>
-                <p className="mt-3 text-base font-medium text-copy">
-                  {view.selectedCompany.outreachAngle.label}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-copy">
-                  {view.selectedCompany.outreachAngle.reason}
-                </p>
-                <p className="mt-3 text-sm leading-6 text-muted">
-                  Segment lens: {view.selectedCompany.outreachAngle.segmentLabel}
-                </p>
-              </div>
-
-              <div className="surface-muted p-5">
-                <p className="micro-label">Recommended offer</p>
-                <p className="mt-3 text-base font-medium text-copy">
-                  {view.selectedCompany.recommendedOffer.name}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  {view.selectedCompany.recommendedOffer.description}
-                </p>
-                <p className="mt-3 text-sm leading-6 text-copy">
-                  {view.selectedCompany.recommendedOffer.angle}
-                </p>
-                <p className="mt-3 text-sm leading-6 text-muted">
-                  {view.selectedCompany.recommendedOffer.cta}
-                </p>
-              </div>
-
-              <div className="surface-muted p-5">
-                <p className="micro-label">Confidence breakdown</p>
-                <div className="mt-3">
-                  <ConfidenceBreakdown
-                    items={[
-                      {
-                        label: view.selectedCompany.confidenceBreakdown[0]?.label ?? "Website discovery confidence",
-                        badge: view.selectedCompany.websiteDiscovery.confidenceBadge,
-                      },
-                      {
-                        label: view.selectedCompany.confidenceBreakdown[1]?.label ?? "Primary contact quality",
-                        badge: view.selectedCompany.topRecommendedContact.qualityBadge,
-                      },
-                      {
-                        label: view.selectedCompany.confidenceBreakdown[2]?.label ?? "Outreach-angle confidence",
-                        badge: view.selectedCompany.outreachAngle.confidenceBadge,
-                      },
-                      {
-                        label: view.selectedCompany.confidenceBreakdown[3]?.label ?? "Overall readiness confidence",
-                        badge: view.selectedCompany.readinessConfidenceBadge,
-                      },
-                    ]}
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
-                <WebsiteDiscoveryReviewPanel
-                  companyId={view.selectedCompany.companyId}
-                  candidateWebsite={view.selectedCompany.websiteDiscovery.candidateUrl}
-                  officialWebsite={view.selectedCompany.websiteDiscovery.officialWebsite}
-                  canRejectCandidate={view.selectedCompany.websiteDiscovery.canReviewCandidate}
-                  confirmationLabel={view.selectedCompany.websiteDiscovery.confirmationBadge.label}
-                  confirmationTone={view.selectedCompany.websiteDiscovery.confirmationBadge.tone}
-                  confidenceLabel={view.selectedCompany.websiteDiscovery.confidenceBadge.label}
-                  sourceLabel={view.selectedCompany.websiteDiscovery.sourceLabel}
-                  reason={view.selectedCompany.websiteDiscovery.reason}
-                  candidateDiagnostics={
-                    view.selectedCompany.websiteDiscovery.candidateDiagnostics
-                  }
-                  reviewSourceLabel={view.selectedCompany.websiteDiscovery.reviewSourceLabel}
-                  reviewedAtLabel={view.selectedCompany.websiteDiscovery.reviewedAtLabel}
+          {view.rows.length > 0 ? (
+            <div className="space-y-3 xl:max-h-[calc(100vh-24rem)] xl:overflow-y-auto xl:pr-1">
+              {view.rows.map((row) => (
+                <CompanyQueueListItem
+                  key={row.companyId}
+                  row={row}
+                  href={buildPathWithQuery("/companies", view.query, {
+                    companyId: row.companyId,
+                  })}
+                  isSelected={row.companyId === selectedCompanyId}
                 />
-
-                <PreferredSupportingPageCard
-                  companyId={view.selectedCompany.companyId}
-                  currentUrl={view.selectedCompany.preferredSupportingPage.url}
-                  label={view.selectedCompany.preferredSupportingPage.label}
-                  sourceLabel={view.selectedCompany.preferredSupportingPage.sourceLabel}
-                  reason={view.selectedCompany.preferredSupportingPage.reason}
-                />
-
-                <div className="surface-muted p-5">
-                  <p className="micro-label">Top recommended outreach contact</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <StatusBadge
-                      label={view.selectedCompany.topRecommendedContact.qualityBadge.label}
-                      tone={view.selectedCompany.topRecommendedContact.qualityBadge.tone}
-                    />
-                  </div>
-                  <p className="mt-3 text-sm text-muted">
-                    {view.selectedCompany.contactSummary.totalLabel}
-                  </p>
-                  <p className="mt-3 text-base font-medium text-copy">
-                    {view.selectedCompany.topRecommendedContact.label}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-muted">
-                    {view.selectedCompany.topRecommendedContact.reason}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 xl:grid-cols-2">
-                <div className="surface-muted p-5">
-                  <p className="micro-label">Provider transparency</p>
-                  <div className="mt-3">
-                    <ProviderRunSummary
-                      badge={view.selectedCompany.providerTransparency.badge}
-                      label={view.selectedCompany.providerTransparency.label}
-                      fallback={view.selectedCompany.providerTransparency.fallback}
-                      evidence={view.selectedCompany.providerTransparency.evidence}
-                      pageUsage={view.selectedCompany.providerTransparency.pageUsage}
-                    />
-                  </div>
-                </div>
-
-                <div className="surface-muted p-5">
-                  <p className="micro-label">Ranked outreach contacts</p>
-                  <div className="mt-3">
-                    <ContactRankingStack
-                      totalLabel={view.selectedCompany.contactSummary.totalLabel}
-                      items={view.selectedCompany.contactSummary.highlights}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="surface-muted p-5">
-                <CampaignEnrollmentPanel
-                  title="Campaign assignment"
-                  description="Use the selected company profile to assign the best-fit campaign, enroll when the contact path is strong enough, or route it to review when the angle is strong but the path still needs operator judgment."
-                  panel={view.selectedCompany.campaignAssignment}
-                  autoSelectSingle
-                />
-              </div>
-
-              <div className="grid gap-4 xl:grid-cols-2">
-                <div className="surface-muted p-5">
-                  <p className="micro-label">Likely pains / notes</p>
-                  <div className="mt-3 space-y-2">
-                    {[...view.selectedCompany.pains, ...view.selectedCompany.notes].map(
-                      (item) => (
-                        <p key={item} className="text-sm leading-6 text-muted">
-                          {item}
-                        </p>
-                      ),
-                    )}
-                  </div>
-                </div>
-
-                <div className="surface-muted p-5">
-                  <p className="micro-label">Campaign context</p>
-                  <div className="mt-3 space-y-2">
-                    {view.selectedCompany.campaignSummary.map((item) => (
-                      <p key={item} className="text-sm leading-6 text-muted">
-                        {item}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="surface-muted p-5">
-                <p className="micro-label">Decision-maker coverage</p>
-                <div className="mt-3 space-y-3">
-                  {view.selectedCompany.contacts.length > 0 ? (
-                    view.selectedCompany.contacts.map((contact) => (
-                      <div
-                        key={contact.id}
-                        className="rounded-2xl border border-white/8 bg-black/10 p-4"
-                      >
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="break-words text-sm font-medium text-copy">{contact.name}</p>
-                              {contact.isPrimary ? (
-                                <StatusBadge label="Primary" tone="success" />
-                              ) : null}
-                              <StatusBadge
-                                label={contact.organizationBadge.label}
-                                tone={contact.organizationBadge.tone}
-                              />
-                            </div>
-                            <p className="mt-1 text-sm text-muted">{contact.role}</p>
-                            {contact.email ? (
-                              <p className="mt-1 break-all text-sm text-copy">{contact.email}</p>
-                            ) : null}
-                            {contact.phone ? (
-                              <p className="mt-1 text-sm text-muted">{contact.phone}</p>
-                            ) : null}
-                          </div>
-                          <div className="min-w-0 text-left lg:text-right">
-                            <p className="text-xs uppercase tracking-[0.18em] text-muted">
-                              {contact.confidence}
-                            </p>
-                            <p className="mt-1 text-sm text-copy">
-                              {contact.quality} • {contact.campaignEligibility}
-                            </p>
-                            <p className="mt-1 text-sm text-muted">
-                              {contact.selectionLabel} • {contact.selectionScore}
-                            </p>
-                            <p className="mt-1 text-sm text-muted">{contact.status}</p>
-                          </div>
-                        </div>
-                        <p className="mt-3 break-words text-sm leading-6 text-muted">{contact.source}</p>
-                        {contact.readinessReason ? (
-                          <p className="mt-2 text-sm leading-6 text-copy">
-                            {contact.readinessReason}
-                          </p>
-                        ) : null}
-                        {contact.selectionReasons.map((reason) => (
-                          <p key={reason} className="mt-2 text-sm leading-6 text-muted">
-                            {reason}
-                          </p>
-                        ))}
-                        {contact.demotionReasons.map((reason) => (
-                          <p key={reason} className="mt-2 text-sm leading-6 text-muted">
-                            {reason}
-                          </p>
-                        ))}
-                        {contact.warnings.map((warning) => (
-                          <p key={warning} className="mt-2 text-sm leading-6 text-warning">
-                            {warning}
-                          </p>
-                        ))}
-                        {contact.notes.map((note) => (
-                          <p key={note} className="mt-2 text-sm leading-6 text-muted">
-                            {note}
-                          </p>
-                        ))}
-                      </div>
-                    ))
-                  ) : (
-                    <EmptyState
-                      eyebrow="Contacts"
-                      title="No decision-maker coverage yet"
-                      description="This company still needs contact sourcing before outreach can become operational."
-                    />
-                  )}
-                </div>
-              </div>
+              ))}
             </div>
           ) : (
             <EmptyState
-              eyebrow="Company detail"
-              title="Select a company to inspect it"
-              description="When at least one company is in view, this panel will show its fit signals, recommended offer, and decision-maker coverage."
+              eyebrow="Queue"
+              title={view.emptyState.title}
+              description={view.emptyState.description}
             />
           )}
         </SectionCard>
+
+        <SelectedCompanyProfile company={view.selectedCompany} />
+
+        <div className="space-y-4">
+          {view.selectedCompany ? (
+            <>
+              <SectionCard
+                title="Operator action rail"
+                description="Keep the most important next-step context close to the selected company without squeezing the main profile."
+              >
+                <div className="space-y-4">
+                  <div className="surface-muted p-4">
+                    <p className="micro-label">Recommended action</p>
+                    <p className="mt-3 text-sm leading-6 text-copy">
+                      {view.selectedCompany.suggestedNextAction}
+                    </p>
+                  </div>
+                  <div className="surface-muted p-4">
+                    <p className="micro-label">Campaign context</p>
+                    <div className="mt-3 space-y-2">
+                      {view.selectedCompany.campaignSummary.map((item) => (
+                        <p key={item} className="text-sm leading-6 text-muted">
+                          {item}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="surface-muted p-4">
+                    <p className="micro-label">Provider transparency</p>
+                    <div className="mt-3">
+                      <ProviderRunSummary
+                        badge={view.selectedCompany.providerTransparency.badge}
+                        label={view.selectedCompany.providerTransparency.label}
+                        fallback={view.selectedCompany.providerTransparency.fallback}
+                        evidence={view.selectedCompany.providerTransparency.evidence}
+                        pageUsage={view.selectedCompany.providerTransparency.pageUsage}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </SectionCard>
+
+              <WebsiteDiscoveryReviewPanel
+                companyId={view.selectedCompany.companyId}
+                candidateWebsite={view.selectedCompany.websiteDiscovery.candidateUrl}
+                officialWebsite={view.selectedCompany.websiteDiscovery.officialWebsite}
+                canRejectCandidate={view.selectedCompany.websiteDiscovery.canReviewCandidate}
+                confirmationLabel={view.selectedCompany.websiteDiscovery.confirmationBadge.label}
+                confirmationTone={view.selectedCompany.websiteDiscovery.confirmationBadge.tone}
+                confidenceLabel={view.selectedCompany.websiteDiscovery.confidenceBadge.label}
+                sourceLabel={view.selectedCompany.websiteDiscovery.sourceLabel}
+                reason={view.selectedCompany.websiteDiscovery.reason}
+                candidateDiagnostics={
+                  view.selectedCompany.websiteDiscovery.candidateDiagnostics
+                }
+                reviewSourceLabel={view.selectedCompany.websiteDiscovery.reviewSourceLabel}
+                reviewedAtLabel={view.selectedCompany.websiteDiscovery.reviewedAtLabel}
+              />
+
+              <PreferredSupportingPageCard
+                companyId={view.selectedCompany.companyId}
+                currentUrl={view.selectedCompany.preferredSupportingPage.url}
+                label={view.selectedCompany.preferredSupportingPage.label}
+                sourceLabel={view.selectedCompany.preferredSupportingPage.sourceLabel}
+                reason={view.selectedCompany.preferredSupportingPage.reason}
+              />
+
+              <CampaignEnrollmentPanel
+                title="Campaign assignment"
+                description="Assign or enroll the selected company from a focused action rail instead of cramming campaign controls into the profile."
+                panel={view.selectedCompany.campaignAssignment}
+                autoSelectSingle
+              />
+            </>
+          ) : (
+            <SectionCard
+              title="Action rail"
+              description="Select a company to open website review, preferred page, and campaign actions."
+            >
+              <EmptyState
+                eyebrow="Actions"
+                title="No company selected"
+                description="The right rail fills in once a company is selected from the queue."
+              />
+            </SectionCard>
+          )}
+        </div>
       </div>
     </div>
   );

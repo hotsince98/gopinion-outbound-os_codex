@@ -1,14 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import {
+  initialLeadEnrichmentActionState,
+  initialLeadQueueMutationActionState,
+} from "@/app/(workspace)/leads/enrichment/action-state";
+import {
+  removeLeadQueueCompaniesAction,
+  runLeadEnrichmentAction,
+} from "@/app/(workspace)/leads/enrichment/actions";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
 import { WebsiteDiscoveryReviewActions } from "@/components/leads/website-discovery-review-actions";
 import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
 import { ContactRankingStack } from "@/components/enrichment/contact-ranking-stack";
 import { ProviderRunSummary } from "@/components/enrichment/provider-run-summary";
-import { runLeadEnrichmentAction } from "@/app/(workspace)/leads/enrichment/actions";
-import { initialLeadEnrichmentActionState } from "@/app/(workspace)/leads/enrichment/action-state";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SectionCard } from "@/components/ui/section-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type {
   LeadEnrichmentQueueRowView,
@@ -36,41 +44,39 @@ function ResultTone({
   }
 }
 
-function EnrichmentQueueCard(props: Readonly<{
+function QueueListItem(props: Readonly<{
   row: LeadEnrichmentQueueRowView;
   checked: boolean;
-  isFocused: boolean;
-  isPending: boolean;
+  isActive: boolean;
   onToggle: (checked: boolean) => void;
   onFocus: () => void;
 }>) {
   const { row } = props;
 
   return (
-    <div className="surface-panel min-w-0 p-5">
+    <div
+      className={`rounded-3xl border p-4 transition ${
+        props.isActive
+          ? "border-accent/35 bg-accent/10"
+          : "border-white/8 bg-black/10 hover:border-white/12 hover:bg-white/[0.04]"
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-2">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/companies?companyId=${row.companyId}`}
-              className="break-words font-medium text-copy transition hover:text-accent"
-            >
-              {row.companyName}
-            </Link>
+            <p className="break-words text-sm font-medium text-copy">{row.companyName}</p>
             <StatusBadge label={row.readinessBadge.label} tone={row.readinessBadge.tone} />
           </div>
-          <p className="text-sm text-muted">
+          <p className="mt-1 text-sm text-muted">
             {row.market} • {row.subindustry}
           </p>
-          <p className="text-xs uppercase tracking-[0.18em] text-muted">
+          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">
             {row.importedLabel} • {row.lastEnrichedLabel}
           </p>
         </div>
-        <label className="inline-flex items-center gap-2 text-sm text-muted">
+        <label className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted">
           <input
             type="checkbox"
-            name="selectedCompanyIds"
-            value={row.companyId}
             checked={props.checked}
             onChange={(event) => props.onToggle(event.currentTarget.checked)}
             className="h-4 w-4 rounded border-white/15 bg-transparent"
@@ -79,9 +85,73 @@ function EnrichmentQueueCard(props: Readonly<{
         </label>
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <div className="surface-muted min-w-0 p-4">
+      <div className="mt-3 flex flex-wrap gap-2">
+        <StatusBadge
+          label={row.websiteDiscoveryBadge.label}
+          tone={row.websiteDiscoveryBadge.tone}
+        />
+        <StatusBadge
+          label={row.websiteDiscoveryConfidenceBadge.label}
+          tone={row.websiteDiscoveryConfidenceBadge.tone}
+        />
+      </div>
+      <p className="mt-3 text-sm text-copy">{row.recommendedOffer}</p>
+      <p className="mt-2 text-sm text-muted">{row.contactCoverage}</p>
+      <p className="mt-2 text-sm text-muted">{row.readinessReason}</p>
+
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={props.onFocus}
+          className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+            props.isActive
+              ? "border-accent/50 bg-accent/15 text-copy"
+              : "border-white/10 bg-white/[0.03] text-copy hover:border-white/14 hover:bg-white/[0.06]"
+          }`}
+        >
+          {props.isActive ? "Focused" : "Open profile"}
+        </button>
+        <Link
+          href={`/companies?companyId=${row.companyId}`}
+          className="text-xs font-medium uppercase tracking-[0.18em] text-muted transition hover:text-copy"
+        >
+          Open company
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function FocusedCompanyProfile({
+  row,
+}: Readonly<{
+  row?: LeadEnrichmentQueueRowView;
+}>) {
+  if (!row) {
+    return (
+      <SectionCard
+        title="Selected company"
+        description="Choose a company from the enrichment queue to inspect its website, contact path, and readiness."
+      >
+        <EmptyState
+          eyebrow="Company profile"
+          title="Select a company to inspect it"
+          description="The center pane expands one company into a fuller enrichment profile so you can verify the contact path before taking action."
+        />
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard
+      title={row.companyName}
+      description={`${row.market} • ${row.subindustry}`}
+      contentClassName="space-y-5"
+    >
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
+        <div className="surface-muted p-5">
           <div className="flex flex-wrap gap-2">
+            <StatusBadge label={row.readinessBadge.label} tone={row.readinessBadge.tone} />
             <StatusBadge
               label={row.websiteDiscoveryBadge.label}
               tone={row.websiteDiscoveryBadge.tone}
@@ -91,45 +161,23 @@ function EnrichmentQueueCard(props: Readonly<{
               tone={row.websiteDiscoveryConfidenceBadge.tone}
             />
           </div>
-          <p className="mt-3 break-words text-sm text-copy">
-            {row.website ?? "No website on record"}
+          <p className="mt-4 break-words text-sm font-medium text-copy">
+            {row.website ?? "No verified website on record"}
           </p>
           <p className="mt-2 break-words text-sm text-muted">{row.websiteDiscovery}</p>
-          <p className="mt-2 break-words text-sm text-copy">{row.websiteDiscoveryCandidate}</p>
-          <p className="mt-2 break-words text-sm text-muted">
+          <p className="mt-2 break-words text-sm text-copy">
+            {row.websiteDiscoveryCandidate}
+          </p>
+          <p className="mt-2 break-words text-sm leading-6 text-muted">
             {row.websiteDiscoverySource} • {row.websiteDiscoveryReason}
           </p>
-          <div className="mt-4">
-            <ProviderRunSummary
-              badge={row.providerBadge}
-              label={row.providerLabel}
-              fallback={row.providerFallbackLabel}
-              evidence={row.providerEvidence}
-              pageUsage={row.supportingPageUsage}
-            />
-          </div>
-          <p className="mt-4 break-words text-sm text-copy">{row.preferredSupportingPageLabel}</p>
+          <p className="mt-3 text-sm text-copy">{row.preferredSupportingPageLabel}</p>
           <p className="mt-2 text-sm text-muted">{row.preferredSupportingPageSource}</p>
         </div>
 
-        <div className="surface-muted min-w-0 p-4">
-          <p className="text-sm text-copy">{row.angleLabel}</p>
-          <p className="mt-2 text-sm text-muted">{row.angleReason}</p>
-          <p className="mt-3 text-sm text-copy">First offer: {row.recommendedOffer}</p>
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge
-              label={row.angleUrgencyBadge.label}
-              tone={row.angleUrgencyBadge.tone}
-            />
-            <StatusBadge
-              label={row.angleReviewPathBadge.label}
-              tone={row.angleReviewPathBadge.tone}
-            />
-          </div>
-          <p className="mt-3 text-sm text-muted">{row.segmentLabel}</p>
-          <p className="mt-2 text-sm text-muted">{row.noteHintSummary}</p>
-          <p className="mt-2 text-sm text-muted">{row.enrichmentSummary}</p>
-          <div className="mt-4">
+        <div className="surface-muted p-5">
+          <p className="micro-label">Confidence overview</p>
+          <div className="mt-3">
             <ConfidenceBreakdown
               items={[
                 { label: "Website discovery", badge: row.websiteDiscoveryConfidenceBadge },
@@ -142,65 +190,64 @@ function EnrichmentQueueCard(props: Readonly<{
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
-        <div className="surface-muted min-w-0 p-4">
-          <p className="text-sm text-copy">{row.decisionMaker}</p>
-          <p className="mt-2 text-sm text-copy">Secondary: {row.secondaryContactLabel}</p>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="surface-muted p-5">
+          <p className="micro-label">Contact coverage</p>
+          <p className="mt-3 text-base font-medium text-copy">{row.decisionMaker}</p>
+          <p className="mt-2 text-sm text-muted">
+            Secondary: {row.secondaryContactLabel}
+          </p>
           <p className="mt-2 text-sm text-muted">{row.contactCoverage}</p>
           <p className="mt-2 text-sm text-muted">{row.namedCandidateSummary}</p>
           {row.relatedAccountSignals[0] ? (
-            <p className="mt-2 text-sm text-warning">{row.relatedAccountSignals.join(" • ")}</p>
+            <p className="mt-2 text-sm text-warning">
+              {row.relatedAccountSignals.join(" • ")}
+            </p>
           ) : null}
           <div className="mt-4">
             <ContactRankingStack totalLabel={row.contactCountLabel} items={row.contactCandidates} />
           </div>
         </div>
-        <div className="flex min-w-0 flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
+
+        <div className="surface-muted p-5">
+          <p className="micro-label">Angle and readiness</p>
+          <div className="mt-3 flex flex-wrap gap-2">
             <StatusBadge
-              label={row.recommendedCampaignStatusBadge.label}
-              tone={row.recommendedCampaignStatusBadge.tone}
+              label={row.angleUrgencyBadge.label}
+              tone={row.angleUrgencyBadge.tone}
             />
             <StatusBadge
-              label={row.assignmentDecisionBadge.label}
-              tone={row.assignmentDecisionBadge.tone}
+              label={row.angleReviewPathBadge.label}
+              tone={row.angleReviewPathBadge.tone}
             />
           </div>
-          <div className="surface-muted p-4">
-            <p className="text-sm text-copy">{row.recommendedCampaignName}</p>
-            <p className="mt-2 text-sm text-copy">{row.readinessReason}</p>
-            <p className="mt-2 text-sm text-muted">{row.assignmentDecisionReason}</p>
+          <p className="mt-3 text-base font-medium text-copy">{row.angleLabel}</p>
+          <p className="mt-2 text-sm leading-6 text-muted">{row.angleReason}</p>
+          <p className="mt-3 text-sm text-copy">First offer: {row.recommendedOffer}</p>
+          <p className="mt-2 text-sm text-muted">{row.segmentLabel}</p>
+          <p className="mt-2 text-sm text-muted">{row.noteHintSummary}</p>
+          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+            <p className="micro-label">Readiness summary</p>
+            <p className="mt-3 text-sm leading-6 text-copy">{row.readinessReason}</p>
+            <p className="mt-2 text-sm text-muted">{row.enrichmentSummary}</p>
             <p className="mt-2 text-sm text-muted">{row.missingFieldsLabel}</p>
           </div>
-          <WebsiteDiscoveryReviewActions
-            companyId={row.companyId}
-            candidateWebsite={row.canReviewWebsiteCandidate ? row.candidateWebsite : undefined}
-            officialWebsite={row.website}
-            compactLabel="Mark official"
-          />
-          <button
-            type="button"
-            onClick={props.onFocus}
-            className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-              props.isFocused
-                ? "border-accent/50 bg-accent/15 text-copy"
-                : "border-white/10 bg-white/[0.03] text-copy hover:border-white/14 hover:bg-white/[0.06]"
-            }`}
-          >
-            {props.isFocused ? "Focused company" : "Focus this company"}
-          </button>
-          <button
-            type="submit"
-            name="singleCompanyId"
-            value={row.companyId}
-            disabled={props.isPending}
-            className="rounded-full border border-warning/30 bg-warning/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-warning/50 hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Enrich this lead
-          </button>
         </div>
       </div>
-    </div>
+
+      <div className="surface-muted p-5">
+        <p className="micro-label">Provider transparency</p>
+        <div className="mt-3">
+          <ProviderRunSummary
+            badge={row.providerBadge}
+            label={row.providerLabel}
+            fallback={row.providerFallbackLabel}
+            evidence={row.providerEvidence}
+            pageUsage={row.supportingPageUsage}
+          />
+        </div>
+      </div>
+    </SectionCard>
   );
 }
 
@@ -225,10 +272,6 @@ function CompareCompaniesPanel(props: Readonly<{
         `${row.primaryContactLabel} • ${row.primaryContactSelectionReason}`,
     },
     {
-      label: "Secondary",
-      getValue: (row: LeadEnrichmentQueueRowView) => row.secondaryContactLabel,
-    },
-    {
       label: "Named candidates",
       getValue: (row: LeadEnrichmentQueueRowView) => row.namedCandidateSummary,
     },
@@ -244,58 +287,42 @@ function CompareCompaniesPanel(props: Readonly<{
     {
       label: "Related accounts",
       getValue: (row: LeadEnrichmentQueueRowView) =>
-        row.relatedAccountSignals.join(" • ") || "No shared-contact or host overlap detected",
+        row.relatedAccountSignals.join(" • ") ||
+        "No shared-contact or host overlap detected",
     },
   ];
 
   if (props.mode === "compact") {
     return (
-      <div className="surface-panel p-5">
-        <p className="micro-label">Selected comparison</p>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full divide-y divide-white/8">
-            <thead className="bg-white/[0.03]">
-              <tr>
-                <th className="px-4 py-3 text-left text-[0.7rem] font-medium uppercase tracking-[0.22em] text-muted">
-                  Metric
-                </th>
+      <SectionCard
+        title="Selected comparison"
+        description="Compact compare keeps the same evidence in stacked metric blocks instead of a wide table."
+      >
+        <div className="space-y-4">
+          {metrics.map((metric) => (
+            <div key={metric.label} className="surface-muted p-4">
+              <p className="micro-label">{metric.label}</p>
+              <div className="mt-3 grid gap-3 xl:grid-cols-2">
                 {props.rows.map((row) => (
-                  <th
-                    key={row.companyId}
-                    className="px-4 py-3 text-left text-[0.7rem] font-medium uppercase tracking-[0.22em] text-muted"
-                  >
-                    {row.companyName}
-                  </th>
+                  <div key={`${row.companyId}-${metric.label}`} className="rounded-2xl border border-white/8 bg-black/10 p-4">
+                    <p className="text-sm font-medium text-copy">{row.companyName}</p>
+                    <p className="mt-2 text-sm leading-6 text-muted">{metric.getValue(row)}</p>
+                  </div>
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/8">
-              {metrics.map((metric) => (
-                <tr key={metric.label}>
-                  <td className="px-4 py-3 text-sm font-medium text-copy">{metric.label}</td>
-                  {props.rows.map((row) => (
-                    <td key={`${row.companyId}-${metric.label}`} className="px-4 py-3 text-sm text-muted">
-                      {metric.getValue(row)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      </SectionCard>
     );
   }
 
   return (
-    <div className="surface-panel p-5">
-      <p className="micro-label">Selected comparison</p>
-      <div
-        className="mt-4 grid gap-4"
-        style={{
-          gridTemplateColumns: `repeat(${props.rows.length}, minmax(240px, 1fr))`,
-        }}
-      >
+    <SectionCard
+      title="Selected comparison"
+      description="Explicit compare mode shows the selected companies side by side only when you ask for it."
+    >
+      <div className="grid gap-4 xl:grid-cols-2">
         {props.rows.map((row) => (
           <div key={row.companyId} className="surface-muted min-w-0 p-5">
             <div className="flex flex-wrap items-center gap-2">
@@ -319,7 +346,7 @@ function CompareCompaniesPanel(props: Readonly<{
           </div>
         ))}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -332,31 +359,56 @@ export function LeadEnrichmentWorkspace({
     runLeadEnrichmentAction,
     initialLeadEnrichmentActionState,
   );
+  const [removalState, removalAction, isRemoving] = useActionState(
+    removeLeadQueueCompaniesAction,
+    initialLeadQueueMutationActionState,
+  );
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
   const [focusedCompanyId, setFocusedCompanyId] = useState<string>();
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [compareMode, setCompareMode] = useState<CompareMode | null>(null);
+  const [confirmRemoval, setConfirmRemoval] = useState(false);
 
   useEffect(() => {
     if (state.status === "success") {
+      setCompareMode(null);
+      setConfirmRemoval(false);
+    }
+  }, [state.status]);
+
+  useEffect(() => {
+    if (removalState.status === "success") {
       setSelectedCompanyIds([]);
       setFocusedCompanyId(undefined);
       setShowSelectedOnly(false);
       setCompareMode(null);
+      setConfirmRemoval(false);
     }
-  }, [state.status]);
+  }, [removalState.status]);
 
-  const selectedRows = view.rows.filter((row) => selectedCompanyIds.includes(row.companyId));
-  const focusedRow = view.rows.find((row) => row.companyId === focusedCompanyId);
-  const visibleRows = focusedRow
-    ? [focusedRow]
-    : showSelectedOnly && selectedRows.length > 0
-      ? selectedRows
-      : view.rows;
+  const selectedRows = useMemo(
+    () => view.rows.filter((row) => selectedCompanyIds.includes(row.companyId)),
+    [selectedCompanyIds, view.rows],
+  );
+  const queueRows =
+    showSelectedOnly && selectedRows.length > 0 ? selectedRows : view.rows;
+  const activeRow =
+    queueRows.find((row) => row.companyId === focusedCompanyId) ??
+    view.rows.find((row) => row.companyId === focusedCompanyId) ??
+    queueRows[0] ??
+    view.rows[0];
   const comparisonRows = selectedRows.length >= 2 ? selectedRows : [];
-  const allSelected =
-    visibleRows.length > 0 &&
-    visibleRows.every((row) => selectedCompanyIds.includes(row.companyId));
+  const actionPanelRows = compareMode && comparisonRows.length >= 2
+    ? view.campaignAssignment.rows.filter((row) =>
+        comparisonRows.some((selected) => selected.companyId === row.companyId),
+      )
+    : activeRow
+      ? view.campaignAssignment.rows.filter((row) => row.companyId === activeRow.companyId)
+      : view.campaignAssignment.rows;
+  const actionPanel = {
+    ...view.campaignAssignment,
+    rows: actionPanelRows,
+  };
 
   useEffect(() => {
     if (focusedCompanyId && !view.rows.some((row) => row.companyId === focusedCompanyId)) {
@@ -370,6 +422,12 @@ export function LeadEnrichmentWorkspace({
     }
   }, [compareMode, comparisonRows.length]);
 
+  useEffect(() => {
+    if (showSelectedOnly && selectedRows.length === 0) {
+      setShowSelectedOnly(false);
+    }
+  }, [selectedRows.length, showSelectedOnly]);
+
   function toggleSelected(companyId: string, checked: boolean) {
     setSelectedCompanyIds((current) =>
       checked
@@ -378,19 +436,8 @@ export function LeadEnrichmentWorkspace({
     );
   }
 
-  function toggleAll(checked: boolean) {
-    setSelectedCompanyIds((current) => {
-      const visibleIds = visibleRows.map((row) => row.companyId);
-
-      return checked
-        ? [...new Set([...current, ...visibleIds])]
-        : current.filter((id) => !visibleIds.includes(id));
-    });
-  }
-
   function focusCompany(companyId: string) {
     setFocusedCompanyId(companyId);
-    setShowSelectedOnly(false);
     setCompareMode(null);
   }
 
@@ -469,176 +516,20 @@ export function LeadEnrichmentWorkspace({
           ) : null}
           {state.summary?.results.length ? (
             <div className="mt-4 space-y-3">
-              {state.summary.results.slice(0, 10).map((result) => (
+              {state.summary.results.slice(0, 6).map((result) => (
                 <div key={result.companyId} className="surface-muted p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-copy">
-                        {result.companyName}
-                      </p>
+                      <p className="text-sm font-medium text-copy">{result.companyName}</p>
                       <p className="mt-1 text-sm text-muted">{result.message}</p>
                     </div>
                     <ResultTone status={result.status} />
                   </div>
                   <p className="mt-3 text-sm text-muted">
-                    {result.primaryContactLabel ?? "No contact path yet"} •{" "}
-                    readiness confidence: {result.confidenceLevel}
+                    {result.primaryContactLabel ?? "No contact path yet"} • readiness confidence:{" "}
+                    {result.confidenceLevel}
                   </p>
-                  {result.primaryContactQuality ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Primary contact quality: {result.primaryContactQuality}
-                    </p>
-                  ) : null}
-                  {result.websiteDiscoverySummary ? (
-                    <p className="mt-2 text-sm text-muted">
-                      {result.websiteDiscoverySummary}
-                    </p>
-                  ) : null}
-                  {result.websiteDiscoveryCandidate ? (
-                    <p className="mt-2 text-sm text-copy">
-                      Website candidate: {result.websiteDiscoveryCandidate}
-                    </p>
-                  ) : null}
-                  {result.website ? (
-                    <p className="mt-2 text-sm text-copy">
-                      Verified website on record: {result.website}
-                    </p>
-                  ) : null}
-                  {result.websiteDiscoveryConfirmationStatus ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Discovery status:{" "}
-                      {result.websiteDiscoveryConfirmationStatus.replaceAll("_", " ")} •{" "}
-                      website confidence: {result.websiteDiscoveryConfidenceLevel ?? "none"}
-                      {result.websiteDiscoveryConfidenceScore != null
-                        ? ` (${result.websiteDiscoveryConfidenceScore}/100)`
-                        : ""}
-                    </p>
-                  ) : null}
-                  {result.providerUsed ? (
-                    <p className="mt-2 text-sm text-copy">
-                      {result.providerCrawlAttempted === false
-                        ? result.providerInputStatus === "candidate_website"
-                          ? `Provider: requested ${result.providerRequested ?? result.providerUsed} • crawl held pending website review`
-                          : `Provider: requested ${result.providerRequested ?? result.providerUsed} • discovery ended before crawl`
-                        : `Provider: requested ${result.providerRequested ?? result.providerUsed} • ran ${result.providerUsed}${result.providerFallbackUsed ? " fallback" : ""}`}
-                    </p>
-                  ) : null}
-                  {result.providerInputStatus ? (
-                    <p className="mt-2 text-sm text-muted">
-                      {result.providerInputStatus === "confirmed_website"
-                        ? `Downstream enrichment input: confirmed website ${result.providerInputWebsite ?? "available"}`
-                        : result.providerInputStatus === "candidate_website"
-                          ? `Downstream enrichment input held: candidate website ${result.providerInputWebsite ?? "pending"} still needs confirmation`
-                          : "Downstream enrichment input: no confirmed website was available"}
-                    </p>
-                  ) : null}
-                  {result.providerCrawlAttempted != null ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Downstream crawl: {result.providerCrawlAttempted ? "ran" : "did not run"}
-                    </p>
-                  ) : null}
-                  {result.providerCrawledWebsite ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Crawler website: {result.providerCrawledWebsite}
-                    </p>
-                  ) : null}
-                  {result.providerFallbackReason ? (
-                    <p className="mt-2 text-sm text-muted">
-                      {result.providerFallbackReason}
-                    </p>
-                  ) : null}
-                  {result.providerEvidence[0] ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Provider evidence: {result.providerEvidence.slice(0, 2).join(" • ")}
-                    </p>
-                  ) : null}
-                  {result.discoveryEvidence[0] ? (
-                    <p className="mt-2 text-sm text-copy">
-                      Discovery evidence: {result.discoveryEvidence.slice(0, 2).join(" • ")}
-                    </p>
-                  ) : null}
-                  {result.preferredSupportingPageUrl ? (
-                    <p className="mt-2 text-sm text-copy">
-                      Preferred page: {result.preferredSupportingPageUrl} •{" "}
-                      {result.preferredSupportingPageSource?.replaceAll("_", " ") ??
-                        "saved"}
-                    </p>
-                  ) : null}
-                  {result.preferredSupportingPageReason ? (
-                    <p className="mt-2 text-sm text-muted">
-                      {result.preferredSupportingPageReason}
-                    </p>
-                  ) : null}
-                  {result.staffPageUrls[0] || result.contactPageUrls[0] ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Pages:{" "}
-                      {[
-                        result.staffPageUrls[0]
-                          ? `${result.staffPageUrls.length} staff/team`
-                          : undefined,
-                        result.contactPageUrls[0]
-                          ? `${result.contactPageUrls.length} contact`
-                          : undefined,
-                      ]
-                        .filter((value): value is string => Boolean(value))
-                        .join(" • ")}
-                    </p>
-                  ) : null}
-                  {result.foundNames[0] ? (
-                    <p className="mt-2 text-sm text-muted">
-                      People clues: {result.foundNames.slice(0, 3).join(", ")}
-                    </p>
-                  ) : null}
-                  {result.noteHintSummary ? (
-                    <p className="mt-2 text-sm text-muted">
-                      {result.noteHintSummary}
-                    </p>
-                  ) : null}
-                  {result.segmentLabel ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Segment: {result.segmentLabel}
-                    </p>
-                  ) : null}
-                  {result.angleLabel ? (
-                    <p className="mt-2 text-sm text-copy">
-                      Angle: {result.angleLabel}
-                      {result.angleReason ? ` • ${result.angleReason}` : ""}
-                    </p>
-                  ) : null}
-                  {result.angleReviewPath ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Review path: {result.angleReviewPath.replaceAll("_", " ")}
-                    </p>
-                  ) : null}
-                  {result.primaryContactSource ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Source: {result.primaryContactSource}
-                    </p>
-                  ) : null}
-                  {result.primaryContactSelectionReason ? (
-                    <p className="mt-2 text-sm text-copy">
-                      Why chosen: {result.primaryContactSelectionReason}
-                    </p>
-                  ) : null}
-                  {result.secondaryContactLabels[0] ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Secondary: {result.secondaryContactLabels[0]}
-                    </p>
-                  ) : null}
-                  {result.backupContactLabels[0] ? (
-                    <p className="mt-2 text-sm text-muted">
-                      Backups: {result.backupContactLabels.join(", ")}
-                    </p>
-                  ) : null}
                   <p className="mt-2 text-sm text-copy">{result.readinessReason}</p>
-                  {result.qualityWarnings[0] ? (
-                    <p className="mt-2 text-sm text-warning">
-                      Warning: {result.qualityWarnings[0]}
-                    </p>
-                  ) : null}
-                  <p className="mt-2 text-sm text-muted">
-                    Missing: {result.missingFields.join(", ") || "nothing critical"}
-                  </p>
                 </div>
               ))}
             </div>
@@ -646,360 +537,293 @@ export function LeadEnrichmentWorkspace({
         </div>
       ) : null}
 
-      <form action={formAction} className="space-y-4">
-        <div className="surface-panel p-5 lg:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="space-y-2">
-              <p className="micro-label">Bulk enrichment</p>
-              <p className="text-sm leading-6 text-muted">
-                Run website discovery when a lead has no site on record, parse
-                imported notes into structured hints, then scan the company’s
-                public web presence for emails, phones, and operator clues.
-              </p>
-              <p className="text-sm text-muted">
-                {focusedRow
-                  ? `Focused on ${focusedRow.companyName}.`
-                  : showSelectedOnly && selectedRows.length > 0
-                    ? `Showing ${selectedRows.length} selected compan${
-                        selectedRows.length === 1 ? "y" : "ies"
-                      }.`
-                    : `Showing all ${view.rows.length} companies in the queue.`}
-                {compareMode ? ` Compare view: ${compareMode}.` : ""}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="submit"
-                name="scope"
-                value="selected"
-                disabled={isPending || selectedCompanyIds.length === 0}
-                className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isPending ? "Running..." : `Enrich selected (${selectedCompanyIds.length})`}
-              </button>
-              <button
-                type="submit"
-                name="scope"
-                value="queue"
-                disabled={isPending || view.rows.length === 0}
-                className="rounded-full border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Enrich full queue
-              </button>
-              <button
-                type="button"
-                disabled={selectedRows.length === 0}
-                onClick={() => {
-                  setFocusedCompanyId(undefined);
-                  setShowSelectedOnly(true);
-                }}
-                className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Hide unrelated
-              </button>
-              <button
-                type="button"
-                disabled={selectedRows.length !== 1}
-                onClick={() => {
-                  if (selectedRows[0]) {
-                    focusCompany(selectedRows[0].companyId);
-                  }
-                }}
-                className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Focus selected
-              </button>
-              <button
-                type="button"
-                disabled={comparisonRows.length < 2}
-                onClick={() => {
-                  setFocusedCompanyId(undefined);
-                  setShowSelectedOnly(true);
-                  setCompareMode("cards");
-                }}
-                className="rounded-full border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Compare selected
-              </button>
-              <button
-                type="button"
-                disabled={comparisonRows.length < 2}
-                onClick={() =>
-                  setCompareMode((current) =>
-                    current === "compact" ? "cards" : "compact",
-                  )
-                }
-                className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {compareMode === "compact" ? "Card compare" : "Compact compare"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFocusedCompanyId(undefined);
-                  setShowSelectedOnly(false);
-                  setCompareMode(null);
-                }}
-                className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
-              >
-                Show all
-              </button>
-            </div>
-          </div>
+      {removalState.message ? (
+        <div
+          className={`rounded-3xl border px-5 py-4 ${
+            removalState.status === "success"
+              ? "border-success/25 bg-success/10"
+              : "border-warning/25 bg-warning/10"
+          }`}
+        >
+          <p className="text-sm font-medium text-copy">{removalState.message}</p>
         </div>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(280px,320px)_minmax(0,1.55fr)_minmax(300px,360px)] 2xl:grid-cols-[minmax(300px,340px)_minmax(0,1.7fr)_minmax(320px,380px)]">
+        <SectionCard
+          title="Enrichment queue"
+          description={`Review ${showSelectedOnly && selectedRows.length > 0 ? `${selectedRows.length} selected companies` : `${view.rows.length} companies`} and choose one to inspect deeply.`}
+          className="xl:min-h-[calc(100vh-20rem)]"
+        >
+          <div className="space-y-3 xl:max-h-[calc(100vh-26rem)] xl:overflow-y-auto xl:pr-1">
+            {queueRows.map((row) => (
+              <QueueListItem
+                key={row.companyId}
+                row={row}
+                checked={selectedCompanyIds.includes(row.companyId)}
+                isActive={row.companyId === activeRow?.companyId}
+                onToggle={(checked) => toggleSelected(row.companyId, checked)}
+                onFocus={() => focusCompany(row.companyId)}
+              />
+            ))}
+          </div>
+        </SectionCard>
 
         {compareMode && comparisonRows.length >= 2 ? (
           <CompareCompaniesPanel rows={comparisonRows} mode={compareMode} />
-        ) : null}
+        ) : (
+          <FocusedCompanyProfile row={activeRow} />
+        )}
 
-        <div className="grid gap-4 2xl:hidden">
-          {visibleRows.map((row) => (
-            <EnrichmentQueueCard
-              key={row.companyId}
-              row={row}
-              checked={selectedCompanyIds.includes(row.companyId)}
-              isFocused={row.companyId === focusedCompanyId}
-              isPending={isPending}
-              onToggle={(checked) => toggleSelected(row.companyId, checked)}
-              onFocus={() => focusCompany(row.companyId)}
-            />
-          ))}
-        </div>
+        <div className="space-y-4">
+          <SectionCard
+            title="Operator action rail"
+            description="Run enrichment, focus the queue, compare selected companies, or remove bad-fit records without crowding the main profile."
+          >
+            <div className="space-y-4">
+              <p className="text-sm leading-6 text-muted">
+                {compareMode && comparisonRows.length >= 2
+                  ? `Compare mode is active for ${comparisonRows.length} selected companies.`
+                  : activeRow
+                    ? `Focused on ${activeRow.companyName}.`
+                    : `Showing ${view.rows.length} companies in the queue.`}
+                {showSelectedOnly && !compareMode ? " Hidden unrelated companies are temporarily removed from the queue list." : ""}
+              </p>
 
-        <div className="hidden overflow-hidden rounded-3xl border border-white/8 bg-black/10 2xl:block">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/8">
-              <thead className="bg-white/[0.03]">
-                <tr>
-                  <th className="px-4 py-3 text-left text-[0.7rem] font-medium uppercase tracking-[0.22em] text-muted">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={(event) => toggleAll(event.currentTarget.checked)}
-                      className="h-4 w-4 rounded border-white/15 bg-transparent"
-                    />
-                  </th>
-                  {[
-                    "Company",
-                    "Website / discovery",
-                    "Angle / evidence",
-                    "Contact path",
-                    "Action",
-                  ].map((column) => (
-                    <th
-                      key={column}
-                      className="px-4 py-3 text-left text-[0.7rem] font-medium uppercase tracking-[0.22em] text-muted"
-                    >
-                      {column}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/8">
-                {visibleRows.map((row) => (
-                  <tr key={row.companyId} className="transition hover:bg-white/[0.03]">
-                    <td className="px-4 py-4 align-top">
-                      <input
-                        type="checkbox"
-                        name="selectedCompanyIds"
-                        value={row.companyId}
-                        checked={selectedCompanyIds.includes(row.companyId)}
-                        onChange={(event) =>
-                          toggleSelected(row.companyId, event.currentTarget.checked)
-                        }
-                        className="mt-1 h-4 w-4 rounded border-white/15 bg-transparent"
-                      />
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Link
-                            href={`/companies?companyId=${row.companyId}`}
-                            className="font-medium text-copy transition hover:text-accent"
-                          >
-                            {row.companyName}
-                          </Link>
-                          <StatusBadge
-                            label={row.readinessBadge.label}
-                            tone={row.readinessBadge.tone}
-                          />
-                        </div>
-                        <p className="text-sm text-muted">
-                          {row.market} • {row.subindustry}
-                        </p>
-                        <p className="text-xs uppercase tracking-[0.18em] text-muted">
-                          {row.importedLabel} • {row.lastEnrichedLabel}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-2">
-                          <StatusBadge
-                            label={row.websiteDiscoveryBadge.label}
-                            tone={row.websiteDiscoveryBadge.tone}
-                          />
-                          <StatusBadge
-                            label={row.websiteDiscoveryConfidenceBadge.label}
-                            tone={row.websiteDiscoveryConfidenceBadge.tone}
-                          />
-                        </div>
-                        <p className="text-sm text-copy">
-                          {row.website ?? "No website on record"}
-                        </p>
-                        <p className="text-sm text-muted">{row.websiteDiscovery}</p>
-                        <p className="text-sm text-copy">
-                          {row.websiteDiscoveryCandidate}
-                        </p>
-                        <p className="text-sm text-muted">
-                          {row.websiteDiscoverySource}
-                        </p>
-                        <p className="text-sm text-muted">
-                          {row.websiteDiscoveryReason}
-                        </p>
-                        <ProviderRunSummary
-                          badge={row.providerBadge}
-                          label={row.providerLabel}
-                          fallback={row.providerFallbackLabel}
-                          evidence={row.providerEvidence}
-                          pageUsage={row.supportingPageUsage}
-                        />
-                        <p className="text-sm text-copy">
-                          {row.preferredSupportingPageLabel}
-                        </p>
-                        <p className="text-sm text-muted">
-                          {row.preferredSupportingPageSource}
-                        </p>
-                        <WebsiteDiscoveryReviewActions
-                          companyId={row.companyId}
-                          candidateWebsite={
-                            row.canReviewWebsiteCandidate
-                              ? row.candidateWebsite
-                              : undefined
-                          }
-                          officialWebsite={row.website}
-                          compactLabel="Mark official"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="space-y-2">
-                        <p className="text-sm text-copy">{row.angleLabel}</p>
-                        <p className="text-sm text-muted">{row.angleReason}</p>
-                        <p className="text-sm text-copy">
-                          First offer: {row.recommendedOffer}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <StatusBadge
-                            label={row.angleUrgencyBadge.label}
-                            tone={row.angleUrgencyBadge.tone}
-                          />
-                          <StatusBadge
-                            label={row.angleReviewPathBadge.label}
-                            tone={row.angleReviewPathBadge.tone}
-                          />
-                        </div>
-                        <p className="text-sm text-muted">{row.segmentLabel}</p>
-                        <p className="text-sm text-muted">{row.noteHintSummary}</p>
-                        <p className="text-sm text-muted">{row.enrichmentSummary}</p>
-                        <ConfidenceBreakdown
-                          items={[
-                            {
-                              label: "Website discovery",
-                              badge: row.websiteDiscoveryConfidenceBadge,
-                            },
-                            {
-                              label: "Primary contact quality",
-                              badge: row.contactConfidenceBadge,
-                            },
-                            {
-                              label: "Angle confidence",
-                              badge: row.angleConfidenceBadge,
-                            },
-                            {
-                              label: "Readiness confidence",
-                              badge: row.readinessConfidenceBadge,
-                            },
-                          ]}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="space-y-2">
-                        <p className="text-sm text-copy">{row.decisionMaker}</p>
-                        <p className="text-sm text-copy">
-                          Secondary: {row.secondaryContactLabel}
-                        </p>
-                        <p className="text-sm text-muted">{row.contactCoverage}</p>
-                        <p className="text-sm text-muted">{row.namedCandidateSummary}</p>
-                        {row.relatedAccountSignals[0] ? (
-                          <p className="text-sm text-warning">
-                            {row.relatedAccountSignals.join(" • ")}
-                          </p>
-                        ) : null}
-                        <ContactRankingStack
-                          totalLabel={row.contactCountLabel}
-                          items={row.contactCandidates}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                          <StatusBadge
-                            label={row.recommendedCampaignStatusBadge.label}
-                            tone={row.recommendedCampaignStatusBadge.tone}
-                          />
-                          <StatusBadge
-                            label={row.assignmentDecisionBadge.label}
-                            tone={row.assignmentDecisionBadge.tone}
-                          />
-                        </div>
-                        <p className="text-sm text-copy">
-                          {row.recommendedCampaignName}
-                        </p>
-                        <p className="text-sm text-copy">{row.readinessReason}</p>
-                        <button
-                          type="button"
-                          onClick={() => focusCompany(row.companyId)}
-                          className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-                            row.companyId === focusedCompanyId
-                              ? "border-accent/50 bg-accent/15 text-copy"
-                              : "border-white/10 bg-white/[0.03] text-copy hover:border-white/14 hover:bg-white/[0.06]"
-                          }`}
-                        >
-                          {row.companyId === focusedCompanyId
-                            ? "Focused company"
-                            : "Focus this company"}
-                        </button>
-                        <p className="text-sm text-muted">
-                          {row.assignmentDecisionReason}
-                        </p>
-                        <p className="text-sm text-muted">{row.missingFieldsLabel}</p>
-                        <button
-                          type="submit"
-                          name="singleCompanyId"
-                          value={row.companyId}
-                          disabled={isPending}
-                          className="rounded-full border border-warning/30 bg-warning/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-warning/50 hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Enrich this lead
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+              <form action={formAction} className="space-y-4">
+                {selectedCompanyIds.map((companyId) => (
+                  <input
+                    key={`enrich-selected-${companyId}`}
+                    type="hidden"
+                    name="selectedCompanyIds"
+                    value={companyId}
+                  />
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </form>
+                <div className="grid gap-3">
+                  <button
+                    type="submit"
+                    name="scope"
+                    value="selected"
+                    disabled={isPending || selectedCompanyIds.length === 0}
+                    className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isPending ? "Running..." : `Enrich selected (${selectedCompanyIds.length})`}
+                  </button>
+                  <button
+                    type="submit"
+                    name="scope"
+                    value="queue"
+                    disabled={isPending || view.rows.length === 0}
+                    className="rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Enrich full queue
+                  </button>
+                  {activeRow ? (
+                    <button
+                      type="submit"
+                      name="singleCompanyId"
+                      value={activeRow.companyId}
+                      disabled={isPending}
+                      className="rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-warning/50 hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Enrich focused company
+                    </button>
+                  ) : null}
+                </div>
+              </form>
 
-      <CampaignEnrollmentPanel
-        title="Campaign assignment and enrollment"
-        description="Once enrichment sharpens the angle and contact path, move leads into the best-fit campaign, enroll the strong ones now, and push weaker paths into review instead of forcing them into outreach."
-        panel={view.campaignAssignment}
-      />
+              <div className="grid gap-3">
+                <button
+                  type="button"
+                  disabled={selectedRows.length === 0}
+                  onClick={() => {
+                    setFocusedCompanyId(undefined);
+                    setShowSelectedOnly(true);
+                    setCompareMode(null);
+                  }}
+                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Hide unrelated
+                </button>
+                <button
+                  type="button"
+                  disabled={selectedRows.length !== 1}
+                  onClick={() => {
+                    if (selectedRows[0]) {
+                      focusCompany(selectedRows[0].companyId);
+                      setShowSelectedOnly(true);
+                    }
+                  }}
+                  className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Focus selected
+                </button>
+                <button
+                  type="button"
+                  disabled={comparisonRows.length < 2}
+                  onClick={() => {
+                    setFocusedCompanyId(undefined);
+                    setShowSelectedOnly(true);
+                    setCompareMode("cards");
+                  }}
+                  className="rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Compare selected
+                </button>
+                <button
+                  type="button"
+                  disabled={comparisonRows.length < 2}
+                  onClick={() =>
+                    setCompareMode((current) =>
+                      current === "compact" ? "cards" : "compact",
+                    )
+                  }
+                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {compareMode === "compact" ? "Card compare" : "Compact compare"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFocusedCompanyId(undefined);
+                    setShowSelectedOnly(false);
+                    setCompareMode(null);
+                  }}
+                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
+                >
+                  Show full queue
+                </button>
+              </div>
+
+              <div className="surface-muted p-4">
+                <p className="micro-label">Selection summary</p>
+                <p className="mt-3 text-sm leading-6 text-muted">
+                  {selectedCompanyIds.length === 0
+                    ? "No companies selected yet."
+                    : `${selectedCompanyIds.length} compan${selectedCompanyIds.length === 1 ? "y" : "ies"} selected for compare, enrichment, or removal.`}
+                </p>
+                {activeRow ? (
+                  <p className="mt-2 text-sm text-copy">
+                    Focused company: {activeRow.companyName}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </SectionCard>
+
+          {activeRow ? (
+            <>
+              <SectionCard
+                title="Focused actions"
+                description="Take website-review and contact-routing actions on the current company without collapsing the queue."
+              >
+                <div className="space-y-4">
+                  <div className="surface-muted p-4">
+                    <p className="micro-label">Website review</p>
+                    <p className="mt-3 break-words text-sm text-copy">
+                      {activeRow.website ?? activeRow.websiteDiscoveryCandidate}
+                    </p>
+                    <p className="mt-2 break-words text-sm text-muted">
+                      {activeRow.websiteDiscoverySource} • {activeRow.websiteDiscoveryReason}
+                    </p>
+                    <div className="mt-4">
+                      <WebsiteDiscoveryReviewActions
+                        companyId={activeRow.companyId}
+                        candidateWebsite={
+                          activeRow.canReviewWebsiteCandidate
+                            ? activeRow.candidateWebsite
+                            : undefined
+                        }
+                        officialWebsite={activeRow.website}
+                        compactLabel="Mark official"
+                      />
+                    </div>
+                  </div>
+                  <div className="surface-muted p-4">
+                    <p className="micro-label">Primary contact</p>
+                    <p className="mt-3 text-sm text-copy">{activeRow.primaryContactLabel}</p>
+                    <p className="mt-2 text-sm text-muted">
+                      {activeRow.primaryContactSelectionReason}
+                    </p>
+                    {activeRow.primaryContactWarnings[0] ? (
+                      <p className="mt-2 text-sm text-warning">
+                        {activeRow.primaryContactWarnings[0]}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </SectionCard>
+
+              <CampaignEnrollmentPanel
+                title={compareMode && comparisonRows.length >= 2
+                  ? "Selected campaign assignment"
+                  : "Focused campaign assignment"}
+                description={compareMode && comparisonRows.length >= 2
+                  ? "Assign or enroll the selected companies now that compare mode is explicit and separated from the main profile."
+                  : "Assign or enroll the focused company from the right rail instead of squeezing campaign controls into the profile view."}
+                panel={actionPanel}
+                autoSelectSingle={actionPanel.rows.length === 1}
+              />
+            </>
+          ) : null}
+
+          <SectionCard
+            title="Remove selected"
+            description="Safely remove bad-fit records from the active queue without hard-deleting company history."
+          >
+            <div className="space-y-4">
+              <p className="text-sm leading-6 text-muted">
+                Removal marks the selected companies as disqualified so they leave the active operator queue, while preserving website, contact, and campaign history for auditability.
+              </p>
+
+              {confirmRemoval ? (
+                <div className="rounded-3xl border border-warning/25 bg-warning/10 p-4">
+                  <p className="text-sm font-medium text-copy">
+                    Confirm removal of {selectedCompanyIds.length} selected compan{selectedCompanyIds.length === 1 ? "y" : "ies"}?
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    This is a safe queue removal, not a permanent database delete.
+                  </p>
+                  <form action={removalAction} className="mt-4 flex flex-wrap gap-3">
+                    {selectedCompanyIds.map((companyId) => (
+                      <input
+                        key={`remove-selected-${companyId}`}
+                        type="hidden"
+                        name="selectedCompanyIds"
+                        value={companyId}
+                      />
+                    ))}
+                    <input type="hidden" name="confirmation" value="remove_selected" />
+                    <button
+                      type="submit"
+                      disabled={isRemoving || selectedCompanyIds.length === 0}
+                      className="rounded-full border border-warning/30 bg-warning/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-warning/50 hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isRemoving ? "Removing..." : "Confirm remove selected"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmRemoval(false)}
+                      className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={selectedCompanyIds.length === 0}
+                  onClick={() => setConfirmRemoval(true)}
+                  className="rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-warning/50 hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Remove selected from queue
+                </button>
+              )}
+            </div>
+          </SectionCard>
+        </div>
+      </div>
     </div>
   );
 }

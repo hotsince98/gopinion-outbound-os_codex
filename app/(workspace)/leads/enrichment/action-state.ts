@@ -9,3 +9,13 @@ export interface LeadEnrichmentActionState {
 export const initialLeadEnrichmentActionState: LeadEnrichmentActionState = {
   status: "idle",
 };
+
+export interface LeadQueueMutationActionState {
+  status: "idle" | "success" | "error";
+  message?: string;
+  removedCount?: number;
+}
+
+export const initialLeadQueueMutationActionState: LeadQueueMutationActionState = {
+  status: "idle",
+};

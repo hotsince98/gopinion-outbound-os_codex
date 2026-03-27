@@ -1,68 +1,32 @@
-import { buildCampaignAssignmentPanelView } from "@/lib/data/selectors/campaign-assignment";
 import {
   cleanQuery,
   deriveWorkflowState,
   getCampaignStatusLabel,
-  getCompanyStatusBadge,
   getContactCoverageLabel,
-  getContactOrganizationBadgeForCompany,
-  getContactQualityBadge,
-  getContactSourceLabel,
-  getContactWarnings,
   getDecisionMakerConfidenceLabel,
-  getDecisionMakerLabel,
-  getEnrichmentProviderBadge,
-  getEnrichmentProviderEvidenceLabel,
-  getEnrichmentProviderFallbackLabel,
-  getEnrichmentProviderLabel,
   getIcpFilterOptions,
-  getIcpLabel,
-  getImportDateLabel,
   getIndustryLabel,
-  getLastEnrichedLabel,
-  getNoteHintSummary,
-  getOutreachAngleConfidenceBadge,
   getOutreachAngleLabel,
   getOutreachAngleReason,
-  getOutreachAngleReviewPathBadge,
   getOutreachAngleUrgencyBadge,
   getPriorityBadge,
-  getPreferredSupportingPage,
-  getPreferredSupportingPageLabel,
-  getPreferredSupportingPageSourceLabel,
-  getPrimaryContactSelectionReason,
-  getPrimaryContactReadinessReason,
-  getRankedContactCountLabel,
-  getRankedContactPreviews,
-  getReadinessConfidenceBadge,
   getRecommendedOfferName,
   getReviewSnapshot,
-  getSegmentLabel,
-  getSourceLabel,
-  getSuggestedNextAction,
-  getSupportingPageUsageLabel,
   getTierFilterOptions,
-  getWebsiteDiscoveryCandidateLabel,
-  getWebsiteDiscoveryCandidateDiagnostics,
-  getWebsiteDiscoveryConfirmationBadge,
-  getWebsiteDiscoveryConfidenceBadge,
-  getWebsiteDiscoveryLabel,
-  getWebsiteDiscoveryReason,
-  getWebsiteDiscoveryReviewedAtLabel,
-  getWebsiteDiscoveryReviewSourceLabel,
-  getWebsiteDiscoverySourceLabel,
   getWorkflowBadge,
-  getWorkflowReason,
   listCompanyBundles,
   makeCountedOptions,
   matchesSearch,
   readSearchParam,
   type FilterOption,
-  type RankedContactPreview,
   type SearchParamsInput,
   type SelectorBadge,
   type WorkspaceStat,
 } from "@/lib/data/selectors/shared";
+import {
+  buildCompanyDetailView,
+  type CompanyDetailView,
+} from "@/lib/data/selectors/company-profile";
 import { getSelectorDataSnapshot } from "@/lib/data/selectors/snapshot";
 
 export interface CompaniesWorkspaceFilters {
@@ -89,100 +53,6 @@ export interface CompanyListRowView {
   decisionMakerConfidence: string;
   campaignStatus: string;
   readinessBadge: SelectorBadge;
-}
-
-export interface CompanyContactDetail {
-  id: string;
-  name: string;
-  role: string;
-  email?: string;
-  phone?: string;
-  confidence: string;
-  status: string;
-  source: string;
-  organizationBadge: SelectorBadge;
-  isPrimary: boolean;
-  selectionLabel: string;
-  selectionScore: string;
-  selectionReasons: string[];
-  demotionReasons: string[];
-  quality: string;
-  campaignEligibility: string;
-  warnings: string[];
-  readinessReason?: string;
-  notes: string[];
-}
-
-export interface CompanyDetailView {
-  companyId: string;
-  companyName: string;
-  market: string;
-  subindustry: string;
-  icpLabel: string;
-  reviewSnapshot: string;
-  priorityBadge: SelectorBadge;
-  statusBadge: SelectorBadge;
-  readinessBadge: SelectorBadge;
-  suggestedNextAction: string;
-  basics: Array<{ label: string; value: string }>;
-  reputation: Array<{ label: string; value: string }>;
-  pains: string[];
-  notes: string[];
-  outreachAngle: {
-    label: string;
-    reason: string;
-    urgencyBadge: SelectorBadge;
-    confidenceBadge: SelectorBadge;
-    reviewPathBadge: SelectorBadge;
-    segmentLabel: string;
-  };
-  recommendedOffer: {
-    name: string;
-    description: string;
-    angle: string;
-    cta: string;
-  };
-  confidenceBreakdown: Array<{ label: string; value: string }>;
-  readinessConfidenceBadge: SelectorBadge;
-  websiteDiscovery: {
-    label: string;
-    candidate: string;
-    candidateUrl?: string;
-    officialWebsite?: string;
-    canReviewCandidate: boolean;
-    reason: string;
-    candidateDiagnostics: string[];
-    sourceLabel: string;
-    reviewSourceLabel?: string;
-    reviewedAtLabel?: string;
-    confirmationBadge: SelectorBadge;
-    confidenceBadge: SelectorBadge;
-  };
-  providerTransparency: {
-    badge: SelectorBadge;
-    label: string;
-    fallback: string;
-    evidence: string;
-    pageUsage: string;
-  };
-  preferredSupportingPage: {
-    url?: string;
-    label: string;
-    sourceLabel: string;
-    reason?: string;
-  };
-  topRecommendedContact: {
-    label: string;
-    reason: string;
-    qualityBadge: SelectorBadge;
-  };
-  contactSummary: {
-    totalLabel: string;
-    highlights: RankedContactPreview[];
-  };
-  contacts: CompanyContactDetail[];
-  campaignSummary: string[];
-  campaignAssignment: ReturnType<typeof buildCampaignAssignmentPanelView>;
 }
 
 export interface CompaniesWorkspaceView {
@@ -247,15 +117,6 @@ export async function getCompaniesWorkspaceView(
   const selectedBundle =
     filteredBundles.find((bundle) => bundle.company.id === filters.companyId) ??
     filteredBundles[0];
-  const selectedCampaignAssignment = selectedBundle
-    ? buildCampaignAssignmentPanelView({
-        bundles: [selectedBundle],
-        snapshot,
-      })
-    : {
-        campaignOptions: [],
-        rows: [],
-      };
 
   const rows = filteredBundles.map((bundle) => ({
     companyId: bundle.company.id,
@@ -276,234 +137,10 @@ export async function getCompaniesWorkspaceView(
   }));
 
   const selectedCompany = selectedBundle
-    ? {
-        companyId: selectedBundle.company.id,
-        companyName: selectedBundle.company.name,
-        market: `${selectedBundle.company.location.city}, ${selectedBundle.company.location.state}`,
-        subindustry: getIndustryLabel(selectedBundle.company),
-        icpLabel: getIcpLabel(selectedBundle.company),
-        reviewSnapshot: getReviewSnapshot(selectedBundle.company),
-        priorityBadge: getPriorityBadge(selectedBundle.company.priorityTier),
-        statusBadge: getCompanyStatusBadge(selectedBundle.company.status),
-        readinessBadge: getWorkflowBadge(deriveWorkflowState(selectedBundle)),
-        suggestedNextAction: getSuggestedNextAction(selectedBundle),
-        basics: [
-          {
-            label: "Market",
-            value: `${selectedBundle.company.location.city}, ${selectedBundle.company.location.state}`,
-          },
-          {
-            label: "ICP profile",
-            value: getIcpLabel(selectedBundle.company),
-          },
-          {
-            label: "Monthly cars",
-            value: selectedBundle.company.monthlyCarsSoldRange
-              ? `${selectedBundle.company.monthlyCarsSoldRange.min ?? "?"}-${selectedBundle.company.monthlyCarsSoldRange.max ?? "?"} / month`
-              : "Unknown",
-          },
-          {
-            label: "Buying stage",
-            value: selectedBundle.company.buyingStage.replaceAll("_", " "),
-          },
-          {
-            label: "Tool count",
-            value: selectedBundle.company.softwareToolCountEstimate
-              ? `${selectedBundle.company.softwareToolCountEstimate} tools`
-              : "Unknown",
-          },
-          {
-            label: "Source",
-            value: getSourceLabel(selectedBundle.company),
-          },
-          {
-            label: "Imported",
-            value: getImportDateLabel(selectedBundle.company),
-          },
-          {
-            label: "Last enrichment",
-            value: getLastEnrichedLabel(selectedBundle.company),
-          },
-          {
-            label: "Discovery",
-            value: getWebsiteDiscoveryLabel(selectedBundle.company),
-          },
-          {
-            label: "Segment",
-            value: getSegmentLabel(selectedBundle.company),
-          },
-          {
-            label: "Workflow",
-            value: getWorkflowReason(selectedBundle),
-          },
-        ],
-        reputation: [
-          {
-            label: "Rating",
-            value:
-              selectedBundle.company.presence.googleRating != null
-                ? `${selectedBundle.company.presence.googleRating.toFixed(1)} stars`
-                : "Unknown",
-          },
-          {
-            label: "Review count",
-            value:
-              selectedBundle.company.presence.reviewCount != null
-                ? `${selectedBundle.company.presence.reviewCount} reviews`
-                : "Unknown",
-          },
-          {
-            label: "Response pattern",
-            value: selectedBundle.company.presence.reviewResponseBand.replaceAll("_", " "),
-          },
-          {
-            label: "Website + GBP",
-            value: `${
-              selectedBundle.company.presence.hasWebsite ? "Website" : "No website"
-            } • ${
-              selectedBundle.company.presence.hasClaimedGoogleBusinessProfile
-                ? "Claimed GBP"
-                : "No GBP"
-            }`,
-          },
-          {
-            label: "Parsed note hints",
-            value: getNoteHintSummary(selectedBundle.company),
-          },
-        ],
-        pains: selectedBundle.company.painSignals,
-        notes: [
-          ...(selectedBundle.company.notes ?? []),
-          ...selectedBundle.company.scoring.reasons,
-          ...(selectedBundle.primaryContact?.notes ?? []),
-        ],
-        outreachAngle: {
-          label: getOutreachAngleLabel(selectedBundle.company),
-          reason: getOutreachAngleReason(selectedBundle.company),
-          urgencyBadge: getOutreachAngleUrgencyBadge(selectedBundle.company),
-          confidenceBadge: getOutreachAngleConfidenceBadge(selectedBundle.company),
-          reviewPathBadge: getOutreachAngleReviewPathBadge(selectedBundle.company),
-          segmentLabel: getSegmentLabel(selectedBundle.company),
-        },
-        recommendedOffer: {
-          name: selectedBundle.recommendedOffer?.name ?? "Offer pending",
-          description:
-            selectedBundle.recommendedOffer?.description ??
-            "No offer has been assigned yet.",
-          angle:
-            selectedBundle.recommendedOffer?.firstOutreachAngle ??
-            "Offer angle is still pending.",
-          cta:
-            selectedBundle.recommendedOffer?.primaryCta ??
-            "CTA is still pending.",
-        },
-        confidenceBreakdown: [
-          {
-            label: "Website discovery confidence",
-            value: getWebsiteDiscoveryConfidenceBadge(selectedBundle.company).label,
-          },
-          {
-            label: "Primary contact quality",
-            value: getContactQualityBadge(selectedBundle.primaryContact).label,
-          },
-          {
-            label: "Outreach-angle confidence",
-            value: getOutreachAngleConfidenceBadge(selectedBundle.company).label,
-          },
-          {
-            label: "Overall readiness confidence",
-            value: getReadinessConfidenceBadge(selectedBundle.company).label,
-          },
-        ],
-        readinessConfidenceBadge: getReadinessConfidenceBadge(selectedBundle.company),
-        websiteDiscovery: {
-          label: getWebsiteDiscoveryLabel(selectedBundle.company),
-          candidate: getWebsiteDiscoveryCandidateLabel(selectedBundle.company),
-          candidateUrl:
-            selectedBundle.company.enrichment?.websiteDiscovery?.candidateWebsite,
-          officialWebsite:
-            selectedBundle.company.presence.websiteUrl ??
-            selectedBundle.company.enrichment?.websiteDiscovery?.discoveredWebsite,
-          canReviewCandidate:
-            selectedBundle.company.enrichment?.websiteDiscovery?.confirmationStatus === "needs_review",
-          reason: getWebsiteDiscoveryReason(selectedBundle.company),
-          candidateDiagnostics:
-            getWebsiteDiscoveryCandidateDiagnostics(selectedBundle.company),
-          sourceLabel: getWebsiteDiscoverySourceLabel(selectedBundle.company),
-          reviewSourceLabel: getWebsiteDiscoveryReviewSourceLabel(selectedBundle.company),
-          reviewedAtLabel: getWebsiteDiscoveryReviewedAtLabel(selectedBundle.company),
-          confirmationBadge: getWebsiteDiscoveryConfirmationBadge(selectedBundle.company),
-          confidenceBadge: getWebsiteDiscoveryConfidenceBadge(selectedBundle.company),
-        },
-        providerTransparency: {
-          badge: getEnrichmentProviderBadge(selectedBundle.company),
-          label: getEnrichmentProviderLabel(selectedBundle.company),
-          fallback: getEnrichmentProviderFallbackLabel(selectedBundle.company),
-          evidence: getEnrichmentProviderEvidenceLabel(selectedBundle.company),
-          pageUsage: getSupportingPageUsageLabel(selectedBundle.company),
-        },
-        preferredSupportingPage: {
-          url: getPreferredSupportingPage(selectedBundle.company)?.url,
-          label: getPreferredSupportingPageLabel(selectedBundle.company),
-          sourceLabel: getPreferredSupportingPageSourceLabel(selectedBundle.company),
-          reason: getPreferredSupportingPage(selectedBundle.company)?.reason,
-        },
-        topRecommendedContact: {
-          label: getDecisionMakerLabel(selectedBundle),
-          reason: getPrimaryContactSelectionReason(selectedBundle),
-          qualityBadge: getContactQualityBadge(selectedBundle.primaryContact),
-        },
-        contactSummary: {
-          totalLabel: getRankedContactCountLabel(selectedBundle),
-          highlights: getRankedContactPreviews(selectedBundle, 4),
-        },
-        contacts: selectedBundle.rankedContacts.map((selection) => {
-          const contact = selection.contact;
-
-          return {
-            id: contact.id,
-            name: contact.fullName ?? "Unnamed contact",
-            role: contact.title ?? contact.role.replaceAll("_", " "),
-            email: contact.email,
-            phone: contact.phone,
-            confidence: `Contact confidence ${contact.confidence.score.toFixed(2)}`,
-            status: contact.status.replaceAll("_", " "),
-            source: getContactSourceLabel(contact),
-            organizationBadge: getContactOrganizationBadgeForCompany(
-              selectedBundle.company,
-              contact,
-            ),
-            isPrimary: selection.isPrimary,
-            selectionLabel: selection.isPrimary
-              ? `Primary • Rank #${selection.selectionRank}`
-              : selection.selectionRank === 2
-                ? `Secondary • Rank #${selection.selectionRank}`
-                : `Backup • Rank #${selection.selectionRank}`,
-            selectionScore: `Selection score ${selection.selectionScore}`,
-            selectionReasons: selection.selectionReasons.slice(0, 2),
-            demotionReasons: selection.demotionReasons.slice(0, 2),
-            quality:
-              contact.quality?.qualityTier.replaceAll("_", " ") ??
-              `Confidence ${contact.confidence.score.toFixed(2)}`,
-            campaignEligibility: contact.quality?.campaignEligible
-              ? "Campaign-eligible"
-              : "Needs review",
-            warnings: getContactWarnings(contact),
-            readinessReason: selection.isPrimary
-              ? getPrimaryContactReadinessReason(selectedBundle)
-              : undefined,
-            notes: contact.notes,
-          };
-        }),
-        campaignSummary:
-          selectedBundle.activeCampaigns.length > 0
-            ? selectedBundle.activeCampaigns.map(
-                (campaign) =>
-                  `${campaign.name} • ${campaign.status} • ${campaign.objective}`,
-              )
-            : ["No active campaign is attached to this company yet."],
-        campaignAssignment: selectedCampaignAssignment,
-      }
+    ? buildCompanyDetailView({
+        bundle: selectedBundle,
+        snapshot,
+      })
     : undefined;
 
   const stats: WorkspaceStat[] = [

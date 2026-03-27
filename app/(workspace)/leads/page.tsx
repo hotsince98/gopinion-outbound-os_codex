@@ -2,16 +2,17 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
 import { WebsiteDiscoveryReviewActions } from "@/components/leads/website-discovery-review-actions";
+import { SelectedCompanyProfile } from "@/components/companies/selected-company-profile";
 import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
 import { ContactRankingStack } from "@/components/enrichment/contact-ranking-stack";
 import { ProviderRunSummary } from "@/components/enrichment/provider-run-summary";
+import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPanel } from "@/components/ui/filter-panel";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { TableShell } from "@/components/ui/table-shell";
 import {
   getLeadsWorkspaceView,
   type LeadRowView,
@@ -42,138 +43,54 @@ function FilterGroup(props: Readonly<{
   );
 }
 
-function LeadQueueCard({ row }: Readonly<{ row: LeadRowView }>) {
+function LeadQueueListItem(props: Readonly<{
+  row: LeadRowView;
+  href: string;
+  isSelected: boolean;
+}>) {
+  const { row } = props;
+
   return (
-    <div className="surface-panel min-w-0 p-5">
+    <Link
+      href={props.href}
+      className={`block rounded-3xl border p-4 transition ${
+        props.isSelected
+          ? "border-accent/35 bg-accent/10"
+          : "border-white/8 bg-black/10 hover:border-white/12 hover:bg-white/[0.04]"
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/companies?companyId=${row.companyId}`}
-              className="break-words font-medium text-copy transition hover:text-accent"
-            >
-              {row.companyName}
-            </Link>
-            <StatusBadge label={row.queueBadge.label} tone={row.queueBadge.tone} />
-          </div>
-          <p className="break-words text-sm text-muted">
-            {row.market} • {row.subindustry} • {row.icpLabel}
+        <div className="min-w-0">
+          <p className="break-words text-sm font-medium text-copy">{row.companyName}</p>
+          <p className="mt-1 text-sm text-muted">
+            {row.market} • {row.subindustry}
           </p>
-          <p className="break-words text-xs uppercase tracking-[0.18em] text-muted">
-            {row.importedLabel} • {row.sourceLabel}
+          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">
+            {row.importedLabel}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge label={row.priorityBadge.label} tone={row.priorityBadge.tone} />
-          <StatusBadge
-            label={row.angleUrgencyBadge.label}
-            tone={row.angleUrgencyBadge.tone}
-          />
-          <StatusBadge label={row.statusBadge.label} tone={row.statusBadge.tone} />
-        </div>
+        <StatusBadge label={row.queueBadge.label} tone={row.queueBadge.tone} />
       </div>
-
-      <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <div className="surface-muted min-w-0 p-4">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge
-              label={row.websiteDiscoveryBadge.label}
-              tone={row.websiteDiscoveryBadge.tone}
-            />
-            <StatusBadge
-              label={row.websiteDiscoveryConfidenceBadge.label}
-              tone={row.websiteDiscoveryConfidenceBadge.tone}
-            />
-          </div>
-          <p className="text-sm font-medium text-copy">{row.angleLabel}</p>
-          <p className="mt-2 text-sm text-muted">{row.angleReason}</p>
-          <p className="mt-3 text-sm text-copy">First offer: {row.recommendedOffer}</p>
-          <p className="mt-3 break-words text-sm text-copy">{row.websiteDiscovery}</p>
-          <p className="mt-2 break-words text-sm text-muted">
-            {row.websiteDiscoverySource} • {row.websiteDiscoveryReason}
-          </p>
-          <div className="mt-4">
-            <ProviderRunSummary
-              badge={row.providerBadge}
-              label={row.providerLabel}
-              fallback={row.providerFallbackLabel}
-              evidence={row.providerEvidence}
-              pageUsage={row.supportingPageUsage}
-            />
-          </div>
-        </div>
-
-        <div className="surface-muted min-w-0 p-4">
-          <p className="text-sm text-copy">{row.workflowReason}</p>
-          <div className="mt-4">
-            <ConfidenceBreakdown
-              items={[
-                { label: "Website discovery", badge: row.websiteDiscoveryConfidenceBadge },
-                { label: "Primary contact quality", badge: row.contactConfidenceBadge },
-                { label: "Angle confidence", badge: row.angleConfidenceBadge },
-                { label: "Readiness confidence", badge: row.readinessConfidenceBadge },
-              ]}
-            />
-          </div>
-          <div className="mt-4">
-            <ContactRankingStack
-              totalLabel={row.contactCountLabel}
-              items={row.contactCandidates}
-            />
-          </div>
-        </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <StatusBadge label={row.priorityBadge.label} tone={row.priorityBadge.tone} />
+        <StatusBadge
+          label={row.websiteDiscoveryBadge.label}
+          tone={row.websiteDiscoveryBadge.tone}
+        />
       </div>
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
-        <div className="surface-muted min-w-0 p-4">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge
-              label={row.recommendedCampaignStatusBadge.label}
-              tone={row.recommendedCampaignStatusBadge.tone}
-            />
-            <StatusBadge
-              label={row.assignmentDecisionBadge.label}
-              tone={row.assignmentDecisionBadge.tone}
-            />
-            <StatusBadge
-              label={row.angleReviewPathBadge.label}
-              tone={row.angleReviewPathBadge.tone}
-            />
-          </div>
-          <p className="mt-3 text-sm text-copy">{row.recommendedCampaignName}</p>
-          <p className="mt-2 text-sm text-muted">{row.assignmentDecisionReason}</p>
-          <p className="mt-3 break-words text-sm text-copy">{row.websiteLabel}</p>
-          <p className="mt-2 text-sm text-muted">{row.enrichmentSummary}</p>
-          <p className="mt-2 text-sm text-muted">{row.missingFieldsLabel}</p>
-          <p className="mt-3 text-sm leading-6 text-copy">{row.nextAction}</p>
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-3">
-          <WebsiteDiscoveryReviewActions
-            companyId={row.companyId}
-            candidateWebsite={row.canReviewWebsiteCandidate ? row.candidateWebsite : undefined}
-            officialWebsite={row.officialWebsite}
-          />
-          <Link
-            href={`/companies?companyId=${row.companyId}`}
-            className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
-          >
-            Open company profile
-          </Link>
-          <Link
-            href="/leads/enrichment"
-            className="rounded-full border border-warning/30 bg-warning/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-warning/50 hover:bg-warning/15"
-          >
-            Open enrichment queue
-          </Link>
-        </div>
-      </div>
-    </div>
+      <p className="mt-3 text-sm text-copy">{row.recommendedOffer}</p>
+      <p className="mt-2 text-sm text-muted">{row.workflowReason}</p>
+      <p className="mt-2 text-sm text-muted">{row.contactCoverage}</p>
+    </Link>
   );
 }
 
 export default async function LeadsPage({ searchParams }: PageProps) {
   const view = await getLeadsWorkspaceView(await searchParams);
+  const selectedCompanyId = view.selectedCompany?.companyId;
+  const selectedLead = selectedCompanyId
+    ? view.rows.find((row) => row.companyId === selectedCompanyId)
+    : undefined;
 
   const queueItems = view.queueTabs.map((tab) => ({
     href: buildPathWithQuery("/leads", view.query, {
@@ -184,159 +101,12 @@ export default async function LeadsPage({ searchParams }: PageProps) {
     isActive: tab.active,
   }));
 
-  const rows = view.rows.map((row) => ({
-    id: row.companyId,
-    cells: [
-      <div key={`${row.companyId}-company`} className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/companies?companyId=${row.companyId}`}
-            className="font-medium text-copy transition hover:text-accent"
-          >
-            {row.companyName}
-          </Link>
-          <StatusBadge label={row.queueBadge.label} tone={row.queueBadge.tone} />
-        </div>
-        <p className="text-sm text-muted">
-          {row.market} • {row.subindustry}
-        </p>
-        <p className="text-sm text-muted">{row.icpLabel}</p>
-        <p className="text-xs uppercase tracking-[0.18em] text-muted">
-          {row.importedLabel} • {row.sourceLabel}
-        </p>
-      </div>,
-      <div key={`${row.companyId}-discovery`} className="space-y-3">
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge
-            label={row.enrichmentBadge.label}
-            tone={row.enrichmentBadge.tone}
-          />
-          <StatusBadge
-            label={row.websiteDiscoveryBadge.label}
-            tone={row.websiteDiscoveryBadge.tone}
-          />
-          <StatusBadge
-            label={row.priorityBadge.label}
-            tone={row.priorityBadge.tone}
-          />
-          <StatusBadge
-            label={row.websiteDiscoveryConfidenceBadge.label}
-            tone={row.websiteDiscoveryConfidenceBadge.tone}
-          />
-        </div>
-        <p className="text-sm text-copy">{row.websiteDiscovery}</p>
-        <p className="text-sm text-muted">
-          {row.websiteDiscoverySource} • {row.websiteDiscoveryReason}
-        </p>
-        <p className="text-sm text-copy">{row.websiteDiscoveryCandidate}</p>
-        <p className="text-sm text-muted">
-          {row.preferredSupportingPageLabel} • {row.preferredSupportingPageSource}
-        </p>
-        <ProviderRunSummary
-          badge={row.providerBadge}
-          label={row.providerLabel}
-          fallback={row.providerFallbackLabel}
-          evidence={row.providerEvidence}
-          pageUsage={row.supportingPageUsage}
-        />
-      </div>,
-      <div key={`${row.companyId}-offer`} className="space-y-3">
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge
-            label={row.angleUrgencyBadge.label}
-            tone={row.angleUrgencyBadge.tone}
-          />
-          <StatusBadge
-            label={row.angleReviewPathBadge.label}
-            tone={row.angleReviewPathBadge.tone}
-          />
-        </div>
-        <p className="text-sm font-medium text-copy">{row.recommendedOffer}</p>
-        <p className="text-sm text-copy">{row.angleLabel}</p>
-        <p className="text-sm text-muted">{row.angleReason}</p>
-        <p className="text-sm text-muted">{row.segmentAngle}</p>
-        <p className="text-sm text-muted">{row.noteHintSummary}</p>
-      </div>,
-      <div key={`${row.companyId}-contact`} className="space-y-3">
-        <p className="text-xs uppercase tracking-[0.18em] text-muted">
-          {row.decisionMakerConfidence}
-        </p>
-        <p className="text-sm text-muted">{row.contactCoverage}</p>
-        <ConfidenceBreakdown
-          items={[
-            {
-              label: "Website discovery",
-              badge: row.websiteDiscoveryConfidenceBadge,
-            },
-            {
-              label: "Primary contact quality",
-              badge: row.contactConfidenceBadge,
-            },
-            {
-              label: "Angle confidence",
-              badge: row.angleConfidenceBadge,
-            },
-            {
-              label: "Readiness confidence",
-              badge: row.readinessConfidenceBadge,
-            },
-          ]}
-        />
-        <ContactRankingStack
-          totalLabel={row.contactCountLabel}
-          items={row.contactCandidates}
-        />
-      </div>,
-      <div key={`${row.companyId}-action`} className="space-y-2">
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge
-            label={row.recommendedCampaignStatusBadge.label}
-            tone={row.recommendedCampaignStatusBadge.tone}
-          />
-          <StatusBadge
-            label={row.assignmentDecisionBadge.label}
-            tone={row.assignmentDecisionBadge.tone}
-          />
-        </div>
-        <p className="text-sm text-copy">{row.recommendedCampaignName}</p>
-        <p className="text-sm text-muted">{row.assignmentDecisionReason}</p>
-        <p className="text-sm text-copy">{row.websiteLabel}</p>
-        <p className="text-sm text-copy">{row.workflowReason}</p>
-        <p className="text-sm text-muted">{row.enrichmentSummary}</p>
-        <p className="text-sm text-muted">{row.missingFieldsLabel}</p>
-        <p className="text-xs uppercase tracking-[0.18em] text-muted">
-          {row.lastEnrichedLabel}
-        </p>
-        <p className="text-sm leading-6 text-copy">{row.nextAction}</p>
-        <WebsiteDiscoveryReviewActions
-          companyId={row.companyId}
-          candidateWebsite={row.canReviewWebsiteCandidate ? row.candidateWebsite : undefined}
-          officialWebsite={row.officialWebsite}
-        />
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href={`/companies?companyId=${row.companyId}`}
-            className="text-sm font-medium text-accent transition hover:text-copy"
-          >
-            Open company profile
-          </Link>
-          <Link
-            href="/leads/enrichment"
-            className="text-sm font-medium text-warning transition hover:text-copy"
-          >
-            Open enrichment queue
-          </Link>
-        </div>
-      </div>,
-    ],
-  }));
-
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Lead Intake"
         title="Prospect intake and review queue"
-        description="Work the top of funnel with a cleaner operator queue for website discovery, contact-path quality, and campaign routing without losing the underlying diagnostics."
+        description="Default to an operator rhythm that fits a laptop: scan the queue on the left, inspect one company deeply in the center, and take action from the right rail."
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -386,7 +156,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
 
       <FilterPanel
         title="Queue filters"
-        description="Shape the queue around fit, freshness, readiness, and contact coverage without cramming every control into one stretched block."
+        description="Shape the lead queue around fit, freshness, geography, and contact coverage without compressing every control into a wide dense strip."
         bodyClassName="space-y-4"
       >
         <form className="space-y-4">
@@ -395,11 +165,12 @@ export default async function LeadsPage({ searchParams }: PageProps) {
             name="queue"
             value={view.filters.values.queue === "all" ? "" : view.filters.values.queue}
           />
+          <input type="hidden" name="companyId" value={selectedCompanyId ?? ""} />
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.95fr)]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
             <FilterGroup
               title="Core queue shaping"
-              description="Start with the ICP, status, and ordering controls you use most while triaging the queue."
+              description="Start with the search, ICP, readiness, and sorting controls you use most often."
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2 md:col-span-2">
@@ -486,8 +257,8 @@ export default async function LeadsPage({ searchParams }: PageProps) {
             </FilterGroup>
 
             <FilterGroup
-              title="Timing and territory"
-              description="Narrow the queue by freshness, geography, source, and readiness confidence."
+              title="Timing and coverage"
+              description="Use time windows, geography, and coverage filters to shrink the queue to what matters right now."
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
@@ -547,43 +318,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
                   </select>
                 </label>
                 <label className="space-y-2">
-                  <span className="micro-label">Source</span>
-                  <select
-                    name="source"
-                    defaultValue={view.filters.values.source}
-                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-                  >
-                    {view.filters.sourceOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label} ({option.count})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-2">
-                  <span className="micro-label">Readiness confidence</span>
-                  <select
-                    name="confidence"
-                    defaultValue={view.filters.values.confidence}
-                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-                  >
-                    {view.filters.confidenceOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label} ({option.count})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </FilterGroup>
-
-            <FilterGroup
-              title="Coverage and routing"
-              description="Focus on website presence, contact-path quality, and whether a primary contact has already been selected."
-            >
-              <div className="grid gap-4">
-                <label className="space-y-2">
-                  <span className="micro-label">Website</span>
+                  <span className="micro-label">Website state</span>
                   <select
                     name="website"
                     defaultValue={view.filters.values.website}
@@ -624,63 +359,191 @@ export default async function LeadsPage({ searchParams }: PageProps) {
                     ))}
                   </select>
                 </label>
-                <div className="flex flex-wrap gap-3 pt-1">
-                  <button
-                    type="submit"
-                    className="rounded-2xl border border-accent/30 bg-accent/10 px-5 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
+                <label className="space-y-2">
+                  <span className="micro-label">Confidence</span>
+                  <select
+                    name="confidence"
+                    defaultValue={view.filters.values.confidence}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
                   >
-                    Apply filters
-                  </button>
-                  {view.hasActiveFilters ? (
-                    <Link
-                      href="/leads"
-                      className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
-                    >
-                      Reset filters
-                    </Link>
-                  ) : null}
-                </div>
+                    {view.filters.confidenceOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  className="rounded-2xl border border-accent/30 bg-accent/10 px-5 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
+                >
+                  Apply filters
+                </button>
+                {view.hasActiveFilters ? (
+                  <Link
+                    href="/leads"
+                    className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
+                  >
+                    Reset filters
+                  </Link>
+                ) : null}
               </div>
             </FilterGroup>
           </div>
         </form>
       </FilterPanel>
 
-      <SectionCard
-        title="Campaign assignment"
-        description="Select visible leads, review the recommended campaign and first offer, then assign or enroll them directly from the enriched intake queue."
-      >
-        <CampaignEnrollmentPanel
-          title="Campaign assignment and enrollment"
-          description="Use angle, readiness, and contact-quality guidance to move qualified leads into the right campaign. Review-only leads can still be assigned without being enrolled prematurely."
-          panel={view.campaignAssignment}
-        />
-      </SectionCard>
-
-      <SectionCard
-        title="Lead queue"
-        description={`${view.resultLabel}. Work recent imports, website gaps, and review-ready records without losing the stronger-review segments that need a different angle instead of exclusion.`}
-      >
-        <div className="grid gap-4 2xl:hidden">
+      <div className="grid gap-6 xl:grid-cols-[minmax(280px,320px)_minmax(0,1.55fr)_minmax(300px,360px)] 2xl:grid-cols-[minmax(300px,340px)_minmax(0,1.7fr)_minmax(320px,380px)]">
+        <SectionCard
+          title="Lead queue"
+          description={`${view.resultLabel}. Choose a lead to promote it into the main review profile.`}
+          className="xl:min-h-[calc(100vh-20rem)]"
+        >
           {view.rows.length > 0 ? (
-            view.rows.map((row) => <LeadQueueCard key={row.companyId} row={row} />)
-          ) : null}
+            <div className="space-y-3 xl:max-h-[calc(100vh-26rem)] xl:overflow-y-auto xl:pr-1">
+              {view.rows.map((row) => (
+                <LeadQueueListItem
+                  key={row.companyId}
+                  row={row}
+                  href={buildPathWithQuery("/leads", view.query, {
+                    companyId: row.companyId,
+                  })}
+                  isSelected={row.companyId === selectedCompanyId}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              eyebrow="Queue"
+              title={view.emptyState.title}
+              description={view.emptyState.description}
+            />
+          )}
+        </SectionCard>
+
+        <SelectedCompanyProfile company={view.selectedCompany} />
+
+        <div className="space-y-4">
+          {view.selectedCompany && selectedLead ? (
+            <>
+              <SectionCard
+                title="Action rail"
+                description="Keep review actions, contact quality, and campaign routing next to the selected company."
+              >
+                <div className="space-y-4">
+                  <div className="surface-muted p-4">
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge
+                        label={selectedLead.recommendedCampaignStatusBadge.label}
+                        tone={selectedLead.recommendedCampaignStatusBadge.tone}
+                      />
+                      <StatusBadge
+                        label={selectedLead.assignmentDecisionBadge.label}
+                        tone={selectedLead.assignmentDecisionBadge.tone}
+                      />
+                    </div>
+                    <p className="mt-3 text-sm font-medium text-copy">
+                      {selectedLead.recommendedCampaignName}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-copy">
+                      {selectedLead.nextAction}
+                    </p>
+                    <p className="mt-2 text-sm text-muted">
+                      {selectedLead.assignmentDecisionReason}
+                    </p>
+                    <p className="mt-2 text-sm text-muted">
+                      {selectedLead.missingFieldsLabel}
+                    </p>
+                  </div>
+
+                  <div className="surface-muted p-4">
+                    <p className="micro-label">Website review</p>
+                    <p className="mt-3 break-words text-sm text-copy">
+                      {selectedLead.websiteLabel}
+                    </p>
+                    <p className="mt-2 break-words text-sm text-muted">
+                      {selectedLead.websiteDiscoverySource} • {selectedLead.websiteDiscoveryReason}
+                    </p>
+                    <div className="mt-4">
+                      <WebsiteDiscoveryReviewActions
+                        companyId={selectedLead.companyId}
+                        candidateWebsite={
+                          selectedLead.canReviewWebsiteCandidate
+                            ? selectedLead.candidateWebsite
+                            : undefined
+                        }
+                        officialWebsite={selectedLead.officialWebsite}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="surface-muted p-4">
+                    <p className="micro-label">Provider and contact signals</p>
+                    <div className="mt-3">
+                      <ProviderRunSummary
+                        badge={selectedLead.providerBadge}
+                        label={selectedLead.providerLabel}
+                        fallback={selectedLead.providerFallbackLabel}
+                        evidence={selectedLead.providerEvidence}
+                        pageUsage={selectedLead.supportingPageUsage}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ConfidenceBreakdown
+                        items={[
+                          {
+                            label: "Website discovery",
+                            badge: selectedLead.websiteDiscoveryConfidenceBadge,
+                          },
+                          {
+                            label: "Primary contact quality",
+                            badge: selectedLead.contactConfidenceBadge,
+                          },
+                          {
+                            label: "Angle confidence",
+                            badge: selectedLead.angleConfidenceBadge,
+                          },
+                          {
+                            label: "Readiness confidence",
+                            badge: selectedLead.readinessConfidenceBadge,
+                          },
+                        ]}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ContactRankingStack
+                        totalLabel={selectedLead.contactCountLabel}
+                        items={selectedLead.contactCandidates}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </SectionCard>
+
+              <CampaignEnrollmentPanel
+                title="Campaign assignment"
+                description="Assign or enroll the selected lead from a dedicated rail so campaign actions no longer compete with the profile for width."
+                panel={view.selectedCompany.campaignAssignment}
+                autoSelectSingle
+              />
+            </>
+          ) : (
+            <SectionCard
+              title="Action rail"
+              description="Select a lead to open its review actions, provider diagnostics, and campaign controls."
+            >
+              <EmptyState
+                eyebrow="Actions"
+                title="No lead selected"
+                description="The right rail fills in once a company is selected from the lead queue."
+              />
+            </SectionCard>
+          )}
         </div>
-        <div className="hidden 2xl:block">
-          <TableShell
-            columns={[
-              "Company",
-              "Discovery / queue",
-              "Angle / offer",
-              "Contact path",
-              "Next action",
-            ]}
-            rows={rows}
-            emptyTitle={view.emptyState.title}
-            emptyDescription={view.emptyState.description}
-          />
-        </div>
-      </SectionCard>
+      </div>
     </div>
   );
 }

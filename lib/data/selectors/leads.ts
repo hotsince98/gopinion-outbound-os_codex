@@ -1,5 +1,9 @@
 import { buildCampaignAssignmentPanelView } from "@/lib/data/selectors/campaign-assignment";
 import {
+  buildCompanyDetailView,
+  type CompanyDetailView,
+} from "@/lib/data/selectors/company-profile";
+import {
   cleanQuery,
   deriveEnrichmentState,
   deriveWorkflowState,
@@ -96,6 +100,7 @@ export interface LeadsWorkspaceFilters {
   primary: PrimarySelectionFilter;
   confidence: ConfidenceFilter;
   sort: LeadSortOption;
+  companyId: string;
 }
 
 export interface LeadsQueueTab {
@@ -187,6 +192,7 @@ export interface LeadsWorkspaceView {
   queueTabs: LeadsQueueTab[];
   campaignAssignment: ReturnType<typeof buildCampaignAssignmentPanelView>;
   rows: LeadRowView[];
+  selectedCompany?: CompanyDetailView;
   query: Record<string, string>;
   resultLabel: string;
   hasActiveFilters: boolean;
@@ -531,6 +537,7 @@ export async function getLeadsWorkspaceView(
     primary: (readSearchParam(searchParams.primary) || "all") as PrimarySelectionFilter,
     confidence: (readSearchParam(searchParams.confidence) || "all") as ConfidenceFilter,
     sort: (readSearchParam(searchParams.sort) || "newest") as LeadSortOption,
+    companyId: readSearchParam(searchParams.companyId),
   };
 
   const snapshot = await getSelectorDataSnapshot();
@@ -565,6 +572,9 @@ export async function getLeadsWorkspaceView(
     bundles: filteredBundles,
     snapshot,
   });
+  const selectedBundle =
+    filteredBundles.find((bundle) => bundle.company.id === filters.companyId) ??
+    filteredBundles[0];
   const assignmentByCompanyId = new Map(
     campaignAssignment.rows.map((row) => [row.companyId, row] as const),
   );
@@ -709,6 +719,7 @@ export async function getLeadsWorkspaceView(
     primary: filters.primary === "all" ? "" : filters.primary,
     confidence: filters.confidence === "all" ? "" : filters.confidence,
     sort: filters.sort === "newest" ? "" : filters.sort,
+    companyId: selectedBundle?.company.id ?? "",
   });
 
   return {
@@ -771,12 +782,19 @@ export async function getLeadsWorkspaceView(
     queueTabs: getQueueTabs(bundles, filters.queue),
     campaignAssignment,
     rows,
+    selectedCompany: selectedBundle
+      ? buildCompanyDetailView({
+          bundle: selectedBundle,
+          snapshot,
+        })
+      : undefined,
     query,
     resultLabel:
       filteredBundles.length === bundles.length
         ? `${filteredBundles.length} leads in the active workspace`
         : `${filteredBundles.length} of ${bundles.length} leads matched the current filters`,
-    hasActiveFilters: Object.keys(query).length > 0,
+    hasActiveFilters:
+      Object.keys(cleanQuery({ ...query, companyId: "" })).length > 0,
     emptyState: {
       title: "No leads match these filters",
       description:
