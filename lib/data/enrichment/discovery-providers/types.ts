@@ -18,6 +18,15 @@ export interface WebsiteDiscoveryCandidate {
   acceptanceReason: string;
 }
 
+export interface WebsiteDiscoveryCandidateDiagnostic {
+  rawCandidate: string;
+  normalizedCandidate?: string;
+  queryLabel: string;
+  title?: string;
+  decision: "accepted" | "rejected";
+  reason: string;
+}
+
 export interface WebsiteDiscoveryDiscardedCandidate {
   rawUrl: string;
   normalizedUrl?: string;
@@ -31,6 +40,7 @@ export interface WebsiteDiscoverySearchRun {
   providerLabel: string;
   queries: WebsiteDiscoverySearchQuery[];
   candidates: WebsiteDiscoveryCandidate[];
+  candidateDiagnostics: WebsiteDiscoveryCandidateDiagnostic[];
   discardedCandidates: WebsiteDiscoveryDiscardedCandidate[];
   errors: string[];
 }

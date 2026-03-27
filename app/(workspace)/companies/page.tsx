@@ -403,6 +403,9 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                   confidenceLabel={view.selectedCompany.websiteDiscovery.confidenceBadge.label}
                   sourceLabel={view.selectedCompany.websiteDiscovery.sourceLabel}
                   reason={view.selectedCompany.websiteDiscovery.reason}
+                  candidateDiagnostics={
+                    view.selectedCompany.websiteDiscovery.candidateDiagnostics
+                  }
                   reviewSourceLabel={view.selectedCompany.websiteDiscovery.reviewSourceLabel}
                   reviewedAtLabel={view.selectedCompany.websiteDiscovery.reviewedAtLabel}
                 />

@@ -465,6 +465,22 @@ export function getWebsiteDiscoveryReason(company: Company) {
   );
 }
 
+export function getWebsiteDiscoveryCandidateDiagnostics(company: Company) {
+  const diagnostics = company.enrichment?.websiteDiscovery?.candidateDiagnostics;
+
+  if (diagnostics && diagnostics.length > 0) {
+    return diagnostics.slice(0, 8).map((candidate) => {
+      const prefix = candidate.decision === "accepted" ? "Accepted" : "Rejected";
+
+      return `${prefix}: "${candidate.rawCandidate}"${
+        candidate.normalizedCandidate ? ` -> ${candidate.normalizedCandidate}` : ""
+      } from ${candidate.queryLabel}: ${candidate.reason}`;
+    });
+  }
+
+  return company.enrichment?.websiteDiscovery?.debugNotes?.slice(0, 8) ?? [];
+}
+
 export function getWebsiteDiscoverySourceLabel(company: Company) {
   const discovery = company.enrichment?.websiteDiscovery;
 

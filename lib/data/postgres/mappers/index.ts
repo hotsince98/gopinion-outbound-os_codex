@@ -34,6 +34,38 @@ function normalizeDiscoveryEvidence(values: readonly string[] | null | undefined
   return listOrEmpty(values).filter((value) => !isProviderOnlyEvidence(value));
 }
 
+function normalizeWebsiteDiscoveryCandidateDiagnostics(
+  diagnostics:
+    | NonNullable<CompanyEnrichmentSnapshot["websiteDiscovery"]>["candidateDiagnostics"]
+    | null
+    | undefined,
+) {
+  return Array.isArray(diagnostics)
+    ? diagnostics
+        .filter(
+          (
+            candidate,
+          ): candidate is NonNullable<
+            CompanyEnrichmentSnapshot["websiteDiscovery"]
+          >["candidateDiagnostics"][number] =>
+            Boolean(candidate) &&
+            typeof candidate === "object" &&
+            typeof candidate.rawCandidate === "string" &&
+            typeof candidate.queryLabel === "string" &&
+            typeof candidate.reason === "string" &&
+            (candidate.decision === "accepted" || candidate.decision === "rejected"),
+        )
+        .map((candidate) => ({
+          rawCandidate: candidate.rawCandidate,
+          normalizedCandidate: candidate.normalizedCandidate ?? undefined,
+          queryLabel: candidate.queryLabel,
+          title: candidate.title ?? undefined,
+          decision: candidate.decision,
+          reason: candidate.reason,
+        }))
+    : [];
+}
+
 function normalizeProviderRun(
   providerRun: CompanyEnrichmentSnapshot["providerRun"],
 ) {
@@ -128,6 +160,9 @@ function normalizeCompanyEnrichment(
             enrichment.websiteDiscovery.candidateWebsite ??
             enrichment.websiteDiscovery.discoveredWebsite,
           candidateUrls: listOrEmpty(enrichment.websiteDiscovery.candidateUrls),
+          candidateDiagnostics: normalizeWebsiteDiscoveryCandidateDiagnostics(
+            enrichment.websiteDiscovery.candidateDiagnostics,
+          ),
           matchedSignals: listOrEmpty(enrichment.websiteDiscovery.matchedSignals),
           supportingPageUrls: listOrEmpty(
             enrichment.websiteDiscovery.supportingPageUrls,

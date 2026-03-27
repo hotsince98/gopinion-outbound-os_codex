@@ -43,6 +43,7 @@ import {
   getSupportingPageUsageLabel,
   getTierFilterOptions,
   getWebsiteDiscoveryCandidateLabel,
+  getWebsiteDiscoveryCandidateDiagnostics,
   getWebsiteDiscoveryConfirmationBadge,
   getWebsiteDiscoveryConfidenceBadge,
   getWebsiteDiscoveryLabel,
@@ -150,6 +151,7 @@ export interface CompanyDetailView {
     officialWebsite?: string;
     canReviewCandidate: boolean;
     reason: string;
+    candidateDiagnostics: string[];
     sourceLabel: string;
     reviewSourceLabel?: string;
     reviewedAtLabel?: string;
@@ -425,6 +427,8 @@ export async function getCompaniesWorkspaceView(
           canReviewCandidate:
             selectedBundle.company.enrichment?.websiteDiscovery?.confirmationStatus === "needs_review",
           reason: getWebsiteDiscoveryReason(selectedBundle.company),
+          candidateDiagnostics:
+            getWebsiteDiscoveryCandidateDiagnostics(selectedBundle.company),
           sourceLabel: getWebsiteDiscoverySourceLabel(selectedBundle.company),
           reviewSourceLabel: getWebsiteDiscoveryReviewSourceLabel(selectedBundle.company),
           reviewedAtLabel: getWebsiteDiscoveryReviewedAtLabel(selectedBundle.company),

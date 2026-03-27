@@ -178,6 +178,14 @@ export interface CompanyWebsiteDiscoverySnapshot {
   discoveredWebsite?: string;
   candidateWebsite?: string;
   candidateUrls: string[];
+  candidateDiagnostics: Array<{
+    rawCandidate: string;
+    normalizedCandidate?: string;
+    queryLabel: string;
+    title?: string;
+    decision: "accepted" | "rejected";
+    reason: string;
+  }>;
   matchedSignals: string[];
   supportingPageUrls: string[];
   contactPageUrls: string[];

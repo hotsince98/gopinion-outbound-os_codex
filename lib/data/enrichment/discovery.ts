@@ -2,6 +2,7 @@ import { normalizeWebsiteUrl } from "@/lib/data/intake/validation";
 import {
   createWebsiteDiscoveryProvider,
   type WebsiteDiscoveryCandidate,
+  type WebsiteDiscoveryCandidateDiagnostic,
 } from "@/lib/data/enrichment/discovery-provider";
 import {
   extractLikelyInternalPageCandidates,
@@ -228,36 +229,15 @@ function buildConfirmationReason(params: {
   }
 }
 
-function buildDiscardedCandidateDebugNotes(
-  discardedCandidates: Array<{
-    rawUrl: string;
-    normalizedUrl?: string;
-    queryLabel: string;
-    reason: string;
-  }>,
+function buildCandidateDiagnosticDebugNotes(
+  candidateDiagnostics: WebsiteDiscoveryCandidateDiagnostic[],
 ) {
   return dedupeStrings(
-    discardedCandidates.map(
+    candidateDiagnostics.map(
       (candidate) =>
-        `Discarded discovery candidate "${candidate.rawUrl}"${
-          candidate.normalizedUrl ? ` -> ${candidate.normalizedUrl}` : ""
+        `${candidate.decision === "accepted" ? "Accepted" : "Rejected"} discovery candidate "${candidate.rawCandidate}"${
+          candidate.normalizedCandidate ? ` -> "${candidate.normalizedCandidate}"` : ""
         } from ${candidate.queryLabel}: ${candidate.reason}`,
-    ),
-  );
-}
-
-function buildAcceptedCandidateDebugNotes(
-  candidates: Array<{
-    rawUrl: string;
-    normalizedUrl: string;
-    queryLabel: string;
-    acceptanceReason: string;
-  }>,
-) {
-  return dedupeStrings(
-    candidates.map(
-      (candidate) =>
-        `Accepted discovery candidate "${candidate.rawUrl}" -> "${candidate.normalizedUrl}" from ${candidate.queryLabel}: ${candidate.acceptanceReason}`,
     ),
   );
 }
@@ -485,6 +465,7 @@ function createDiscoverySnapshot(params: {
   confirmationStatus?: CompanyWebsiteDiscoverySnapshot["confirmationStatus"];
   confirmationReason?: string;
   candidateUrls?: string[];
+  candidateDiagnostics?: CompanyWebsiteDiscoverySnapshot["candidateDiagnostics"];
   matchedSignals?: string[];
   supportingPageUrls?: string[];
   contactPageUrls?: string[];
@@ -525,6 +506,7 @@ function createDiscoverySnapshot(params: {
     discoveredWebsite: params.discoveredWebsite,
     candidateWebsite: params.candidateWebsite ?? params.discoveredWebsite,
     candidateUrls: params.candidateUrls ?? [],
+    candidateDiagnostics: params.candidateDiagnostics ?? [],
     matchedSignals: params.matchedSignals ?? [],
     supportingPageUrls: params.supportingPageUrls ?? [],
     contactPageUrls: params.contactPageUrls ?? [],
@@ -644,6 +626,7 @@ export function buildRecordProvidedDiscoverySnapshot(params: {
     discoveredWebsite: normalizedWebsite,
     candidateWebsite: normalizedWebsite,
     candidateUrls: [normalizedWebsite],
+    candidateDiagnostics: [],
     matchedSignals:
       params.matchedSignals ?? ["Website was already present on the lead record"],
     confirmationReason: params.matchedSignals?.[0],
@@ -689,6 +672,7 @@ export function mergeWebsiteDiscoveryEvidence(params: {
     confirmationReason:
       params.confirmationReason ?? params.snapshot.confirmationReason,
     candidateUrls: params.snapshot.candidateUrls,
+    candidateDiagnostics: params.snapshot.candidateDiagnostics,
     matchedSignals: params.snapshot.matchedSignals,
     supportingPageUrls: dedupeStrings([
       ...params.snapshot.supportingPageUrls,
@@ -733,10 +717,9 @@ export async function discoverCompanyWebsite(
   try {
     const provider = createWebsiteDiscoveryProvider();
     const searchRun = await provider.search(company);
-    const discoveryDebugNotes = dedupeStrings([
-      ...buildAcceptedCandidateDebugNotes(searchRun.candidates),
-      ...buildDiscardedCandidateDebugNotes(searchRun.discardedCandidates),
-    ]);
+    const discoveryDebugNotes = buildCandidateDiagnosticDebugNotes(
+      searchRun.candidateDiagnostics,
+    );
     const searchSource = createDiscoverySource(now, {
       provider: `website_discovery_${searchRun.provider}`,
       label: searchRun.providerLabel,
@@ -780,6 +763,7 @@ export async function discoverCompanyWebsite(
             ? "Search-backed website discovery failed before a candidate could be verified"
             : "No credible website candidates were found from search-backed discovery",
         ],
+        candidateDiagnostics: searchRun.candidateDiagnostics,
         debugNotes: discoveryDebugNotes,
         lastError: searchRun.errors[0],
         source: searchSource,
@@ -827,6 +811,7 @@ export async function discoverCompanyWebsite(
         confidenceScore: bestCandidate?.score ?? 0,
         candidateWebsite: bestCandidate?.url,
         candidateUrls: candidates.map((candidate) => candidate.url),
+        candidateDiagnostics: searchRun.candidateDiagnostics,
         matchedSignals: bestCandidate?.signals ?? [
           "Search produced results, but none were strong enough to auto-apply",
         ],
@@ -863,6 +848,7 @@ export async function discoverCompanyWebsite(
         confidenceScore: bestCandidate.score,
         candidateWebsite: bestCandidate.url,
         candidateUrls: candidates.map((candidate) => candidate.url),
+        candidateDiagnostics: searchRun.candidateDiagnostics,
         matchedSignals: dedupeStrings([
           ...bestCandidate.signals,
           "Best website candidate needs operator review before auto-confirmation.",
@@ -894,6 +880,7 @@ export async function discoverCompanyWebsite(
       discoveredWebsite: bestCandidate.url,
       candidateWebsite: bestCandidate.url,
       candidateUrls: candidates.map((candidate) => candidate.url),
+      candidateDiagnostics: searchRun.candidateDiagnostics,
       matchedSignals: bestCandidate.signals,
       supportingPageUrls: dedupeStrings(
         bestCandidate.supportingPageCandidates.map((candidate) => candidate.url),
@@ -923,6 +910,7 @@ export async function discoverCompanyWebsite(
       matchedSignals: [
         "Search-backed website discovery failed before a candidate could be verified",
       ],
+      candidateDiagnostics: [],
       debugNotes: [],
       lastError:
         error instanceof Error

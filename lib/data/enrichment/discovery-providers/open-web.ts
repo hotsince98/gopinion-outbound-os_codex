@@ -2,6 +2,7 @@ import { normalizeWebsiteUrl } from "@/lib/data/intake/validation";
 import type { Company } from "@/lib/domain";
 import type {
   WebsiteDiscoveryCandidate,
+  WebsiteDiscoveryCandidateDiagnostic,
   WebsiteDiscoveryDiscardedCandidate,
   WebsiteDiscoveryProviderAdapter,
   WebsiteDiscoverySearchQuery,
@@ -9,6 +10,30 @@ import type {
 
 const SEARCH_ENGINE_URL = "https://duckduckgo.com/html/";
 const SEARCH_RESULT_LINK_CLASS_PATTERN = /\b(result__a|result-link(?:--result)?|result-link)\b/i;
+const SEARCH_RESULT_VISIBLE_URL_CLASS_PATTERN =
+  /\b(result__url|result__extras__url|result__badge__url|result__domain)\b/i;
+const SEARCH_PROVIDER_HOSTS = ["duckduckgo.com", "google.com", "bing.com"];
+const SEARCH_PROVIDER_REDIRECT_QUERY_PARAMS = [
+  "uddg",
+  "rut",
+  "u",
+  "url",
+  "target",
+  "dest",
+  "destination",
+  "redirect_url",
+  "redirect",
+  "rd",
+  "to",
+] as const;
+const SEARCH_RESULT_ATTRIBUTE_CANDIDATES = [
+  "href",
+  "data-href",
+  "data-url",
+  "data-result",
+  "data-destination",
+  "data-redirect",
+] as const;
 const BLOCKED_DISCOVERY_DOMAINS = [
   "duckduckgo.com",
   "google.com",
@@ -113,18 +138,113 @@ function tryDecodeUrlComponent(value: string) {
   }
 }
 
+function isSearchProviderHost(hostname: string) {
+  const normalizedHost = hostname.replace(/^www\./, "").toLowerCase();
+
+  return SEARCH_PROVIDER_HOSTS.some(
+    (providerHost) =>
+      normalizedHost === providerHost || normalizedHost.endsWith(`.${providerHost}`),
+  );
+}
+
+function extractInlineDestination(value: string) {
+  const decoded = tryDecodeUrlComponent(decodeHtmlEntities(value));
+  const embeddedUrlMatch = decoded.match(/https?:\/\/[^\s"'<>]+/i);
+
+  if (embeddedUrlMatch?.[0]) {
+    return embeddedUrlMatch[0];
+  }
+
+  const bareDomainMatch = decoded.match(
+    /(?:www\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+(?:\/[^\s"'<>]*)?/i,
+  );
+
+  return bareDomainMatch?.[0];
+}
+
+function extractVisibleUrlCandidate(value: string) {
+  const cleaned = stripHtml(value)
+    .replace(/[›»]/g, "/")
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) {
+    return undefined;
+  }
+
+  return extractInlineDestination(cleaned);
+}
+
+function extractVisibleUrlCandidates(resultHtml: string) {
+  const candidates: Array<string | undefined> = [];
+  const taggedElementPattern = /<(?:a|span|div)\b([^>]*)>([\s\S]*?)<\/(?:a|span|div)>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = taggedElementPattern.exec(resultHtml))) {
+    const attributes = match[1] ?? "";
+    const className = readAttribute(attributes, "class") ?? "";
+
+    if (!SEARCH_RESULT_VISIBLE_URL_CLASS_PATTERN.test(className)) {
+      continue;
+    }
+
+    candidates.push(extractVisibleUrlCandidate(match[2] ?? ""));
+  }
+
+  const citePattern = /<cite\b[^>]*>([\s\S]*?)<\/cite>/gi;
+
+  while ((match = citePattern.exec(resultHtml))) {
+    candidates.push(extractVisibleUrlCandidate(match[1] ?? ""));
+  }
+
+  return dedupeStrings(candidates);
+}
+
+function extractRawCandidateValues(attributes: string, resultHtml: string) {
+  return dedupeStrings([
+    ...SEARCH_RESULT_ATTRIBUTE_CANDIDATES.map((attributeName) =>
+      readAttribute(attributes, attributeName),
+    ),
+    ...extractVisibleUrlCandidates(resultHtml),
+  ]);
+}
+
 function buildSearchProviderRedirectResult(
   resolvedUrl: URL,
   searchProviderLabel: string,
 ) {
-  const redirected =
-    resolvedUrl.searchParams.get("uddg") ??
-    resolvedUrl.searchParams.get("rut") ??
-    resolvedUrl.searchParams.get("u");
+  const redirected = SEARCH_PROVIDER_REDIRECT_QUERY_PARAMS
+    .map((paramName) => resolvedUrl.searchParams.get(paramName))
+    .find((value): value is string => Boolean(value?.trim()));
 
   if (!redirected) {
+    const nestedDestination = dedupeStrings([
+      ...Array.from(resolvedUrl.searchParams.values()).map((value) =>
+        extractInlineDestination(value),
+      ),
+      extractInlineDestination(resolvedUrl.toString()),
+    ]).find((candidate) => {
+      try {
+        const parsed = new URL(
+          looksLikeBareDomain(candidate) ? `https://${candidate}` : candidate,
+        );
+
+        return !isSearchProviderHost(parsed.hostname);
+      } catch {
+        return false;
+      }
+    });
+
+    if (nestedDestination) {
+      return {
+        candidateUrl: nestedDestination,
+        acceptanceReason: `Recovered a nested destination website from ${searchProviderLabel}'s redirect wrapper.`,
+      };
+    }
+
     return {
-      rejectionReason: `${searchProviderLabel} result pointed back to an internal wrapper page instead of a destination site.`,
+      rejectionReason: `${searchProviderLabel} result pointed back to an internal wrapper path (${resolvedUrl.pathname || "/"}) instead of a destination site.`,
     };
   }
 
@@ -164,8 +284,15 @@ function resolveCandidateHref(rawUrl: string) {
     const resolved = new URL(decoded, SEARCH_ENGINE_URL);
     const normalizedHost = resolved.hostname.replace(/^www\./, "").toLowerCase();
 
-    if (normalizedHost === "duckduckgo.com") {
-      return buildSearchProviderRedirectResult(resolved, "DuckDuckGo");
+    if (isSearchProviderHost(normalizedHost)) {
+      return buildSearchProviderRedirectResult(
+        resolved,
+        normalizedHost.includes("duckduckgo")
+          ? "DuckDuckGo"
+          : normalizedHost.includes("google")
+            ? "Google"
+            : "Bing",
+      );
     }
 
     if (resolved.protocol !== "http:" && resolved.protocol !== "https:") {
@@ -270,6 +397,10 @@ function buildDiscoveryQueries(company: Company) {
   const streetFragment = extractStreetQueryFragment(company.location.streetAddress);
   const queryVariants: Array<WebsiteDiscoverySearchQuery | undefined> = [
     {
+      label: "business name + official website",
+      value: [`"${company.name}"`, "official website"].filter(Boolean).join(" "),
+    },
+    {
       label: "business name + location",
       value: [
         `"${company.name}"`,
@@ -289,6 +420,19 @@ function buildDiscoveryQueries(company: Company) {
             company.location.state,
             phoneFragment,
             "contact",
+          ]
+            .filter(Boolean)
+            .join(" "),
+        }
+      : undefined,
+    phoneFragment && streetFragment
+      ? {
+          label: "business name + street + phone",
+          value: [
+            `"${company.name}"`,
+            streetFragment,
+            company.location.city,
+            phoneFragment,
           ]
             .filter(Boolean)
             .join(" "),
@@ -318,6 +462,20 @@ function buildDiscoveryQueries(company: Company) {
         .filter(Boolean)
         .join(" "),
     },
+    profileTokens.length > 0 && phoneFragment
+      ? {
+          label: "business name + maps profile hints + phone",
+          value: [
+            `"${company.name}"`,
+            company.location.city,
+            company.location.state,
+            ...profileTokens,
+            phoneFragment,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        }
+      : undefined,
   ];
 
   return queryVariants.filter(
@@ -355,8 +513,27 @@ function extractResultSnippet(html: string, startIndex: number) {
   return stripHtml(searchWindow).slice(0, 280);
 }
 
+function buildCandidateDiagnostic(params: {
+  rawCandidate: string;
+  normalizedCandidate?: string;
+  queryLabel: string;
+  title?: string;
+  decision: WebsiteDiscoveryCandidateDiagnostic["decision"];
+  reason: string;
+}) {
+  return {
+    rawCandidate: params.rawCandidate,
+    normalizedCandidate: params.normalizedCandidate,
+    queryLabel: params.queryLabel,
+    title: params.title,
+    decision: params.decision,
+    reason: params.reason,
+  } satisfies WebsiteDiscoveryCandidateDiagnostic;
+}
+
 export function extractSearchCandidatesFromHtml(html: string, queryLabel: string) {
   const results: WebsiteDiscoveryCandidate[] = [];
+  const candidateDiagnostics: WebsiteDiscoveryCandidateDiagnostic[] = [];
   const discardedCandidates: WebsiteDiscoveryDiscardedCandidate[] = [];
   const anchorPattern = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
   let match: RegExpExecArray | null;
@@ -371,53 +548,117 @@ export function extractSearchCandidatesFromHtml(html: string, queryLabel: string
 
     const rawHref = readAttribute(attributes, "href") ?? "";
     const title = stripHtml(match[2] ?? "");
-    const normalizedCandidate = normalizeCandidateUrl(rawHref);
-
-    if (!normalizedCandidate.normalizedUrl) {
-      discardedCandidates.push({
-        rawUrl: rawHref,
-        title: title || undefined,
-        queryLabel,
-        reason:
-          normalizedCandidate.rejectionReason ??
-          "Candidate URL could not be normalized.",
-      });
-      continue;
-    }
-
-    if (isBlockedDomain(normalizedCandidate.normalizedUrl)) {
-      discardedCandidates.push({
-        rawUrl: rawHref,
-        normalizedUrl: normalizedCandidate.normalizedUrl,
-        title: title || undefined,
-        queryLabel,
-        reason: "Candidate resolved to a blocked directory, listing, or search domain.",
-      });
-      continue;
-    }
-
     if (title.length < 3) {
       continue;
     }
 
+    const resultHtml = html.slice(match.index, match.index + 1_000);
+    const rawCandidates = extractRawCandidateValues(attributes, resultHtml);
+
+    if (rawCandidates.length === 0 && rawHref) {
+      rawCandidates.push(rawHref);
+    }
+
     const snippet = extractResultSnippet(html, match.index);
-    results.push({
-      rawUrl: rawHref,
-      normalizedUrl: normalizedCandidate.normalizedUrl,
-      url: normalizedCandidate.normalizedUrl,
-      title,
-      snippet,
-      queryLabel,
-      acceptanceReason:
-        normalizedCandidate.acceptanceReason ??
-        "Accepted a plausible destination website from search results.",
-    });
+    const acceptedUrls = new Set<string>();
+
+    for (const rawCandidate of rawCandidates) {
+      const normalizedCandidate = normalizeCandidateUrl(rawCandidate);
+
+      if (!normalizedCandidate.normalizedUrl) {
+        const reason =
+          normalizedCandidate.rejectionReason ??
+          "Candidate URL could not be normalized.";
+
+        discardedCandidates.push({
+          rawUrl: rawCandidate,
+          title: title || undefined,
+          queryLabel,
+          reason,
+        });
+        candidateDiagnostics.push(
+          buildCandidateDiagnostic({
+            rawCandidate,
+            queryLabel,
+            title: title || undefined,
+            decision: "rejected",
+            reason,
+          }),
+        );
+        continue;
+      }
+
+      if (isBlockedDomain(normalizedCandidate.normalizedUrl)) {
+        const reason =
+          "Candidate resolved to a blocked directory, listing, or search domain.";
+
+        discardedCandidates.push({
+          rawUrl: rawCandidate,
+          normalizedUrl: normalizedCandidate.normalizedUrl,
+          title: title || undefined,
+          queryLabel,
+          reason,
+        });
+        candidateDiagnostics.push(
+          buildCandidateDiagnostic({
+            rawCandidate,
+            normalizedCandidate: normalizedCandidate.normalizedUrl,
+            queryLabel,
+            title: title || undefined,
+            decision: "rejected",
+            reason,
+          }),
+        );
+        continue;
+      }
+
+      candidateDiagnostics.push(
+        buildCandidateDiagnostic({
+          rawCandidate,
+          normalizedCandidate: normalizedCandidate.normalizedUrl,
+          queryLabel,
+          title: title || undefined,
+          decision: "accepted",
+          reason:
+            normalizedCandidate.acceptanceReason ??
+            "Accepted a plausible destination website from search results.",
+        }),
+      );
+
+      if (acceptedUrls.has(normalizedCandidate.normalizedUrl)) {
+        continue;
+      }
+
+      acceptedUrls.add(normalizedCandidate.normalizedUrl);
+      results.push({
+        rawUrl: rawCandidate,
+        normalizedUrl: normalizedCandidate.normalizedUrl,
+        url: normalizedCandidate.normalizedUrl,
+        title,
+        snippet,
+        queryLabel,
+        acceptanceReason:
+          normalizedCandidate.acceptanceReason ??
+          "Accepted a plausible destination website from search results.",
+      });
+    }
   }
 
   return {
     candidates: results.filter(
       (candidate, index, collection) =>
         collection.findIndex((current) => current.url === candidate.url) === index,
+    ),
+    candidateDiagnostics: candidateDiagnostics.filter(
+      (candidate, index, collection) =>
+        collection.findIndex(
+          (current) =>
+            current.rawCandidate === candidate.rawCandidate &&
+            current.normalizedCandidate === candidate.normalizedCandidate &&
+            current.queryLabel === candidate.queryLabel &&
+            current.decision === candidate.decision &&
+            current.reason === candidate.reason,
+        ) === index,
     ),
     discardedCandidates,
   };
@@ -476,6 +717,9 @@ export const openWebWebsiteDiscoveryProvider: WebsiteDiscoveryProviderAdapter = 
       queries,
       candidates: settledSearches.flatMap((result) =>
         result.status === "fulfilled" ? result.value.candidates : [],
+      ),
+      candidateDiagnostics: settledSearches.flatMap((result) =>
+        result.status === "fulfilled" ? result.value.candidateDiagnostics : [],
       ),
       discardedCandidates,
       errors: settledSearches.flatMap((result) =>

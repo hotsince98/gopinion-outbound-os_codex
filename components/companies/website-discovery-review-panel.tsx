@@ -18,6 +18,7 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
   confidenceLabel?: string;
   sourceLabel?: string;
   reason?: string;
+  candidateDiagnostics?: string[];
   reviewSourceLabel?: string;
   reviewedAtLabel?: string;
 }>) {
@@ -61,6 +62,16 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
         {props.reviewSourceLabel ? ` • ${props.reviewSourceLabel}` : ""}
         {props.reviewedAtLabel ? ` • ${props.reviewedAtLabel}` : ""}
       </p>
+      {props.candidateDiagnostics && props.candidateDiagnostics.length > 0 ? (
+        <div className="mt-4 space-y-2">
+          <p className="micro-label">Candidate diagnostics</p>
+          {props.candidateDiagnostics.map((diagnostic) => (
+            <p key={diagnostic} className="break-words text-sm leading-6 text-muted">
+              {diagnostic}
+            </p>
+          ))}
+        </div>
+      ) : null}
       <form action={formAction} className="mt-4 space-y-3">
         <input type="hidden" name="companyId" value={props.companyId} />
         <input

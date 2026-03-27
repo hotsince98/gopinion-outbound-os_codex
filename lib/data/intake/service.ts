@@ -369,6 +369,7 @@ function buildInitialEnrichmentSnapshot(
         discoveredWebsite: undefined,
         candidateWebsite: undefined,
         candidateUrls: [],
+        candidateDiagnostics: [],
         matchedSignals: [],
         supportingPageUrls: [],
         contactPageUrls: [],

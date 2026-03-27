@@ -377,7 +377,7 @@ function filterDiscoveryEvidence(values: Array<string | undefined>) {
   return dedupeStrings(values).filter((value) => !isProviderOnlyEvidence(value));
 }
 
-function resolveWebsiteEnrichmentInput(params: {
+export function resolveWebsiteEnrichmentInput(params: {
   company: Company;
   noteWebsite?: string;
   websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"];

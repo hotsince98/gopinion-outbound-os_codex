@@ -7,6 +7,7 @@ import type {
 export { websiteDiscoveryProviders } from "@/lib/data/enrichment/discovery-providers/types";
 export type {
   WebsiteDiscoveryCandidate,
+  WebsiteDiscoveryCandidateDiagnostic,
   WebsiteDiscoveryProvider,
   WebsiteDiscoveryProviderAdapter,
   WebsiteDiscoverySearchQuery,
