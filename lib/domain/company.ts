@@ -179,11 +179,23 @@ export interface CompanyWebsiteDiscoverySnapshot {
   candidateWebsite?: string;
   candidateUrls: string[];
   candidateDiagnostics: Array<{
+    sourceType:
+      | "search_result"
+      | "direct_domain_inference"
+      | "operator_confirmed"
+      | "imported"
+      | "discovered_reviewed";
+    sourceDetail?: string;
+    isGenericGuess: boolean;
     rawCandidate: string;
     normalizedCandidate?: string;
     queryLabel: string;
     title?: string;
-    decision: "accepted" | "rejected";
+    score: number;
+    strongSignalCount: number;
+    signalHits: string[];
+    signalMisses: string[];
+    decision: "accepted" | "rejected" | "needs_review";
     reason: string;
   }>;
   matchedSignals: string[];

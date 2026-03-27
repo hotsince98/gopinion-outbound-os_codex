@@ -470,11 +470,20 @@ export function getWebsiteDiscoveryCandidateDiagnostics(company: Company) {
 
   if (diagnostics && diagnostics.length > 0) {
     return diagnostics.slice(0, 8).map((candidate) => {
-      const prefix = candidate.decision === "accepted" ? "Accepted" : "Rejected";
+      const prefix =
+        candidate.decision === "accepted"
+          ? "Accepted"
+          : candidate.decision === "needs_review"
+            ? "Review"
+            : "Rejected";
+      const signalHits = candidate.signalHits.slice(0, 3).join(" • ");
+      const signalMisses = candidate.signalMisses.slice(0, 2).join(" • ");
 
-      return `${prefix}: "${candidate.rawCandidate}"${
+      return `${prefix} [${candidate.sourceType}] score ${candidate.score}/100, strong ${candidate.strongSignalCount}: "${candidate.rawCandidate}"${
         candidate.normalizedCandidate ? ` -> ${candidate.normalizedCandidate}` : ""
-      } from ${candidate.queryLabel}: ${candidate.reason}`;
+      } from ${candidate.queryLabel}: ${candidate.reason}${
+        signalHits ? ` | hits: ${signalHits}` : ""
+      }${signalMisses ? ` | misses: ${signalMisses}` : ""}`;
     });
   }
 

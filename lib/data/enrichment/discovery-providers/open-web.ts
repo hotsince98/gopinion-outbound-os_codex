@@ -514,18 +514,32 @@ function extractResultSnippet(html: string, startIndex: number) {
 }
 
 function buildCandidateDiagnostic(params: {
+  sourceType: WebsiteDiscoveryCandidate["sourceType"];
+  sourceDetail?: string;
+  isGenericGuess: boolean;
   rawCandidate: string;
   normalizedCandidate?: string;
   queryLabel: string;
   title?: string;
   decision: WebsiteDiscoveryCandidateDiagnostic["decision"];
+  score?: number;
+  strongSignalCount?: number;
+  signalHits?: string[];
+  signalMisses?: string[];
   reason: string;
 }) {
   return {
+    sourceType: params.sourceType,
+    sourceDetail: params.sourceDetail,
+    isGenericGuess: params.isGenericGuess,
     rawCandidate: params.rawCandidate,
     normalizedCandidate: params.normalizedCandidate,
     queryLabel: params.queryLabel,
     title: params.title,
+    score: params.score ?? 0,
+    strongSignalCount: params.strongSignalCount ?? 0,
+    signalHits: params.signalHits ?? [],
+    signalMisses: params.signalMisses ?? [],
     decision: params.decision,
     reason: params.reason,
   } satisfies WebsiteDiscoveryCandidateDiagnostic;
@@ -578,11 +592,15 @@ export function extractSearchCandidatesFromHtml(html: string, queryLabel: string
         });
         candidateDiagnostics.push(
           buildCandidateDiagnostic({
+            sourceType: "search_result",
+            sourceDetail: "open_web_search",
+            isGenericGuess: false,
             rawCandidate,
             queryLabel,
             title: title || undefined,
             decision: "rejected",
             reason,
+            signalMisses: [reason],
           }),
         );
         continue;
@@ -601,12 +619,16 @@ export function extractSearchCandidatesFromHtml(html: string, queryLabel: string
         });
         candidateDiagnostics.push(
           buildCandidateDiagnostic({
+            sourceType: "search_result",
+            sourceDetail: "open_web_search",
+            isGenericGuess: false,
             rawCandidate,
             normalizedCandidate: normalizedCandidate.normalizedUrl,
             queryLabel,
             title: title || undefined,
             decision: "rejected",
             reason,
+            signalMisses: [reason],
           }),
         );
         continue;
@@ -614,6 +636,9 @@ export function extractSearchCandidatesFromHtml(html: string, queryLabel: string
 
       candidateDiagnostics.push(
         buildCandidateDiagnostic({
+          sourceType: "search_result",
+          sourceDetail: "open_web_search",
+          isGenericGuess: false,
           rawCandidate,
           normalizedCandidate: normalizedCandidate.normalizedUrl,
           queryLabel,
@@ -622,6 +647,10 @@ export function extractSearchCandidatesFromHtml(html: string, queryLabel: string
           reason:
             normalizedCandidate.acceptanceReason ??
             "Accepted a plausible destination website from search results.",
+          signalHits: [
+            normalizedCandidate.acceptanceReason ??
+              "Accepted a plausible destination website from search results.",
+          ],
         }),
       );
 
@@ -640,6 +669,9 @@ export function extractSearchCandidatesFromHtml(html: string, queryLabel: string
         acceptanceReason:
           normalizedCandidate.acceptanceReason ??
           "Accepted a plausible destination website from search results.",
+        sourceType: "search_result",
+        sourceDetail: "open_web_search",
+        isGenericGuess: false,
       });
     }
   }

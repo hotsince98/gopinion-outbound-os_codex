@@ -9,8 +9,15 @@ import {
 
 const NOW = "2026-03-27T12:00:00.000Z";
 
-function buildCompany(): Company {
-  return {
+function buildCompany(
+  overrides: Omit<Partial<Company>, "location" | "presence" | "scoring" | "source"> & {
+    location?: Partial<Company["location"]>;
+    presence?: Partial<Company["presence"]>;
+    scoring?: Partial<Company["scoring"]>;
+    source?: Partial<Company["source"]>;
+  } = {},
+): Company {
+  const base: Company = {
     id: "company_parkway_auto_trade",
     createdAt: NOW,
     updatedAt: NOW,
@@ -56,6 +63,27 @@ function buildCompany(): Company {
       provider: "test-suite",
       label: "Test suite",
       observedAt: NOW,
+    },
+  };
+
+  return {
+    ...base,
+    ...overrides,
+    location: {
+      ...base.location,
+      ...(overrides.location ?? {}),
+    },
+    presence: {
+      ...base.presence,
+      ...(overrides.presence ?? {}),
+    },
+    scoring: {
+      ...base.scoring,
+      ...(overrides.scoring ?? {}),
+    },
+    source: {
+      ...base.source,
+      ...(overrides.source ?? {}),
     },
   };
 }
@@ -221,6 +249,138 @@ async function main() {
   }
 
   {
+    const weakSearchResultsHtml = `
+      <div class="result">
+        <a class="result__a" href="/html/?q=Parkway+Auto+Trade">DuckDuckGo internal result</a>
+        <div class="result__snippet">Search result page only.</div>
+      </div>
+      <div class="result">
+        <a class="result__a" href="https://duckduckgo.com/?q=parkway+auto+trade">DuckDuckGo result page</a>
+        <div class="result__snippet">Another internal page.</div>
+      </div>
+    `;
+    const homepageHtml = `
+      <html>
+        <head>
+          <title>Parkway Auto Trade | Used Cars in Toronto</title>
+        </head>
+        <body>
+          <h1>Parkway Auto Trade</h1>
+          <p>123 Weston Rd, Toronto, Ontario</p>
+          <p>Call us at (416) 555-0123</p>
+          <a href="/team">Meet the team</a>
+          <a href="/contact">Contact us</a>
+        </body>
+      </html>
+    `;
+
+    await withMockFetch(
+      (url) => {
+        if (url.startsWith("https://duckduckgo.com/html/")) {
+          return htmlResponse(weakSearchResultsHtml);
+        }
+
+        if (url === "https://parkwayauto.com") {
+          return htmlResponse(homepageHtml);
+        }
+
+        throw new Error(`Unexpected fetch URL in weak-search test: ${url}`);
+      },
+      async () => {
+        const snapshot = await discoverCompanyWebsite(buildCompany(), NOW);
+
+        assert.equal(snapshot.discoveredWebsite, "https://parkwayauto.com");
+        assert.equal(snapshot.confirmationStatus, "auto_confirmed");
+        assert(
+          snapshot.candidateDiagnostics.some(
+            (candidate) =>
+              candidate.sourceType === "search_result" &&
+              candidate.decision === "rejected",
+          ),
+          "keeps rejected weak search-result candidates distinguishable from inferred ones",
+        );
+        assert(
+          snapshot.candidateDiagnostics.some(
+            (candidate) =>
+              candidate.sourceType === "direct_domain_inference" &&
+              candidate.normalizedCandidate === "https://parkwayauto.com" &&
+              candidate.decision === "accepted",
+          ),
+          "auto-confirms a strong inferred domain candidate when weak search results fail",
+        );
+
+        const enrichmentInput = resolveWebsiteEnrichmentInput({
+          company: buildCompany(),
+          websiteDiscovery: snapshot,
+        });
+
+        assert.deepEqual(
+          enrichmentInput,
+          {
+            website: "https://parkwayauto.com",
+            status: "confirmed_website",
+            source: "discovery_confirmed",
+          },
+          "hands an auto-confirmed inferred domain into the enrichment flow",
+        );
+      },
+    );
+  }
+
+  {
+    const genericHomepageHtml = `
+      <html>
+        <head>
+          <title>Parkway</title>
+        </head>
+        <body>
+          <h1>Parkway</h1>
+          <p>Call us at (416) 555-0123</p>
+        </body>
+      </html>
+    `;
+
+    await withMockFetch(
+      (url) => {
+        if (url.startsWith("https://duckduckgo.com/html/")) {
+          return htmlResponse("<html><body>No results</body></html>");
+        }
+
+        if (url === "https://parkway.com") {
+          return htmlResponse(genericHomepageHtml);
+        }
+
+        throw new Error(`Unexpected fetch URL in generic-domain test: ${url}`);
+      },
+      async () => {
+        const snapshot = await discoverCompanyWebsite(
+          buildCompany({
+            name: "Parkway",
+            presence: {
+              googleBusinessProfileUrl:
+                "https://www.google.com/maps/place/Parkway+Toronto",
+            },
+          }),
+          NOW,
+        );
+
+        assert.equal(snapshot.confirmationStatus, "needs_review");
+        assert.equal(snapshot.candidateWebsite, "https://parkway.com");
+        assert(
+          snapshot.candidateDiagnostics.some(
+            (candidate) =>
+              candidate.sourceType === "direct_domain_inference" &&
+              candidate.normalizedCandidate === "https://parkway.com" &&
+              candidate.decision === "needs_review" &&
+              candidate.isGenericGuess,
+          ),
+          "generic inferred domains stay in review instead of auto-confirming without enough strong signals",
+        );
+      },
+    );
+  }
+
+  {
     const homepageHtml = `
       <html>
         <head>
@@ -256,6 +416,7 @@ async function main() {
         assert(
           snapshot.candidateDiagnostics.some(
             (candidate) =>
+              candidate.sourceType === "search_result" &&
               candidate.rawCandidate.includes("uddg=") &&
               candidate.normalizedCandidate === "https://www.parkwayauto.com" &&
               candidate.decision === "accepted",
@@ -283,7 +444,7 @@ async function main() {
             status: "confirmed_website",
             source: "discovery_confirmed",
           },
-          "hands an auto-confirmed discovery website into the enrichment flow",
+          "hands an auto-confirmed search-result discovery website into the enrichment flow",
         );
       },
     );

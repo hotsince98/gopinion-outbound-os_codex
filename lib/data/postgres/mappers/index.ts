@@ -53,13 +53,30 @@ function normalizeWebsiteDiscoveryCandidateDiagnostics(
             typeof candidate.rawCandidate === "string" &&
             typeof candidate.queryLabel === "string" &&
             typeof candidate.reason === "string" &&
-            (candidate.decision === "accepted" || candidate.decision === "rejected"),
+            typeof candidate.sourceType === "string" &&
+            (candidate.decision === "accepted" ||
+              candidate.decision === "rejected" ||
+              candidate.decision === "needs_review"),
         )
         .map((candidate) => ({
+          sourceType: candidate.sourceType,
+          sourceDetail: candidate.sourceDetail ?? undefined,
+          isGenericGuess: Boolean(candidate.isGenericGuess),
           rawCandidate: candidate.rawCandidate,
           normalizedCandidate: candidate.normalizedCandidate ?? undefined,
           queryLabel: candidate.queryLabel,
           title: candidate.title ?? undefined,
+          score:
+            typeof candidate.score === "number" && Number.isFinite(candidate.score)
+              ? candidate.score
+              : 0,
+          strongSignalCount:
+            typeof candidate.strongSignalCount === "number" &&
+            Number.isFinite(candidate.strongSignalCount)
+              ? candidate.strongSignalCount
+              : 0,
+          signalHits: listOrEmpty(candidate.signalHits),
+          signalMisses: listOrEmpty(candidate.signalMisses),
           decision: candidate.decision,
           reason: candidate.reason,
         }))

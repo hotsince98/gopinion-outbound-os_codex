@@ -2,6 +2,22 @@ import type { Company } from "@/lib/domain";
 
 export const websiteDiscoveryProviders = ["open_web"] as const;
 export type WebsiteDiscoveryProvider = (typeof websiteDiscoveryProviders)[number];
+export const websiteDiscoveryCandidateSourceTypes = [
+  "search_result",
+  "direct_domain_inference",
+  "operator_confirmed",
+  "imported",
+  "discovered_reviewed",
+] as const;
+export type WebsiteDiscoveryCandidateSourceType =
+  (typeof websiteDiscoveryCandidateSourceTypes)[number];
+export const websiteDiscoveryCandidateDecisions = [
+  "accepted",
+  "rejected",
+  "needs_review",
+] as const;
+export type WebsiteDiscoveryCandidateDecision =
+  (typeof websiteDiscoveryCandidateDecisions)[number];
 
 export interface WebsiteDiscoverySearchQuery {
   label: string;
@@ -16,14 +32,24 @@ export interface WebsiteDiscoveryCandidate {
   snippet: string;
   queryLabel: string;
   acceptanceReason: string;
+  sourceType: WebsiteDiscoveryCandidateSourceType;
+  sourceDetail?: string;
+  isGenericGuess: boolean;
 }
 
 export interface WebsiteDiscoveryCandidateDiagnostic {
+  sourceType: WebsiteDiscoveryCandidateSourceType;
+  sourceDetail?: string;
+  isGenericGuess: boolean;
   rawCandidate: string;
   normalizedCandidate?: string;
   queryLabel: string;
   title?: string;
-  decision: "accepted" | "rejected";
+  score: number;
+  strongSignalCount: number;
+  signalHits: string[];
+  signalMisses: string[];
+  decision: WebsiteDiscoveryCandidateDecision;
   reason: string;
 }
 
