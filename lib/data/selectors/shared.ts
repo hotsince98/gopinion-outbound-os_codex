@@ -53,11 +53,15 @@ export interface RankedContactPreview {
   slotLabel: string;
   label: string;
   roleLabel: string;
+  contactPathLabel: string;
   sourceLabel: string;
   qualityBadge: SelectorBadge;
   organizationBadge: SelectorBadge;
+  isNamedPerson: boolean;
   reason: string;
+  supportingReasons: string[];
   whyLower?: string;
+  demotionDetails: string[];
   warnings: string[];
 }
 
@@ -821,6 +825,22 @@ function getContactOrganizationBadge(
   return { label: "Org match pending", tone: "muted" };
 }
 
+function getContactPathLabel(contact: Contact) {
+  if (contact.email && contact.phone) {
+    return `${contact.email} • ${contact.phone}`;
+  }
+
+  if (contact.email) {
+    return contact.email;
+  }
+
+  if (contact.phone) {
+    return contact.phone;
+  }
+
+  return "No direct contact path attached yet";
+}
+
 export function getContactOrganizationBadgeForCompany(
   company: Company,
   contact: Contact | undefined,
@@ -857,19 +877,31 @@ export function getRankedContactPreviews(
         contact.phone ??
         "Unnamed contact",
       roleLabel: formatRoleLabel(contact),
+      contactPathLabel: getContactPathLabel(contact),
       sourceLabel: getContactSourceLabel(contact),
       qualityBadge: getContactQualityBadge(contact),
       organizationBadge: getContactOrganizationBadge(contact, companyHost),
+      isNamedPerson: Boolean(contact.fullName),
       reason:
         selection.selectionReasons[0] ??
         contact.quality?.selectionReasons[0] ??
         contact.confidence.signals[0] ??
         "Contact ranking reason pending",
+      supportingReasons: dedupeStrings([
+        ...selection.selectionReasons.slice(1, 3),
+        ...(contact.quality?.selectionReasons ?? []).slice(0, 2),
+      ]).slice(0, 3),
       whyLower:
         !selection.isPrimary
           ? selection.demotionReasons[0] ??
             contact.quality?.demotionReasons[0]
           : undefined,
+      demotionDetails: !selection.isPrimary
+        ? dedupeStrings([
+            ...selection.demotionReasons.slice(1, 3),
+            ...(contact.quality?.demotionReasons ?? []).slice(0, 2),
+          ]).slice(0, 3)
+        : [],
       warnings: getContactWarnings(contact),
     };
   });

@@ -10,6 +10,7 @@ import {
   buildContactQualitySnapshot,
   getCompanyHost,
   getContactSourceLabel,
+  isSameCompanyDomain,
 } from "@/lib/data/contacts/quality";
 import {
   buildRecordProvidedDiscoverySnapshot,
@@ -21,7 +22,10 @@ import {
   getConfiguredEnrichmentProvider,
   scanCompanyWebsiteWithProvider,
 } from "@/lib/data/enrichment/provider";
-import type { WebsiteScanResult } from "@/lib/data/enrichment/web";
+import type {
+  WebsiteNamedContactCandidate,
+  WebsiteScanResult,
+} from "@/lib/data/enrichment/web";
 import { parseImportedNoteArtifacts } from "@/lib/data/intake/notes";
 import {
   deriveContactRoleFromTitle,
@@ -81,6 +85,113 @@ function emailLikelyMatchesName(email: string | undefined, fullName: string | un
   return (
     localPart.includes(firstName) ||
     Boolean(lastName && localPart.includes(lastName))
+  );
+}
+
+function getNamedContactEvidenceScore(
+  candidate: WebsiteNamedContactCandidate,
+  companyHost: string | undefined,
+) {
+  let score = 0;
+
+  if (candidate.email) {
+    score += 18;
+  }
+
+  if (candidate.email && companyHost && isSameCompanyDomain(candidate.email, companyHost)) {
+    score += 24;
+  }
+
+  if (candidate.phone) {
+    score += 6;
+  }
+
+  if (candidate.title) {
+    score += 8;
+  }
+
+  if (candidate.pageKind === "staff") {
+    score += 10;
+  } else if (candidate.pageKind === "about" || candidate.pageKind === "contact") {
+    score += 5;
+  }
+
+  score += Math.min(candidate.evidence.length * 2, 8);
+
+  return score;
+}
+
+function sortNamedContacts(
+  namedContacts: WebsiteNamedContactCandidate[],
+  companyHost: string | undefined,
+) {
+  return [...namedContacts].sort((left, right) => {
+    const rightScore = getNamedContactEvidenceScore(right, companyHost);
+    const leftScore = getNamedContactEvidenceScore(left, companyHost);
+
+    if (rightScore !== leftScore) {
+      return rightScore - leftScore;
+    }
+
+    return left.fullName.localeCompare(right.fullName);
+  });
+}
+
+function buildNamedContactEvidenceNotes(candidate: WebsiteNamedContactCandidate) {
+  return dedupeStrings([
+    `Website enrichment found named contact: ${candidate.fullName}`,
+    candidate.title ? `Website enrichment found title: ${candidate.title}` : undefined,
+    candidate.email
+      ? `Website enrichment associated a direct email with ${candidate.fullName}: ${candidate.email}`
+      : undefined,
+    candidate.phone
+      ? `Website enrichment associated a phone line with ${candidate.fullName}: ${candidate.phone}`
+      : undefined,
+    candidate.pageKind
+      ? `Website enrichment found this contact on a ${candidate.pageKind.replaceAll("_", " ")} page`
+      : undefined,
+    ...candidate.evidence,
+  ]);
+}
+
+function mergeNamedContactIntoDraft(
+  draft: ContactDraft,
+  namedContact: WebsiteNamedContactCandidate | undefined,
+  fallbackEmail?: string,
+  fallbackPhone?: string,
+) {
+  if (!namedContact) {
+    if (fallbackEmail) {
+      draft.email = draft.email ?? fallbackEmail;
+    }
+
+    if (fallbackPhone) {
+      draft.phone = draft.phone ?? fallbackPhone;
+    }
+
+    return;
+  }
+
+  draft.fullName = draft.fullName ?? namedContact.fullName;
+  draft.title = draft.title ?? namedContact.title;
+  draft.role = draft.title ? deriveContactRoleFromTitle(draft.title) : draft.role;
+  draft.email = draft.email ?? namedContact.email ?? fallbackEmail;
+  draft.phone = draft.phone ?? namedContact.phone ?? fallbackPhone;
+  draft.notes = dedupeStrings([
+    ...draft.notes,
+    ...buildNamedContactEvidenceNotes(namedContact),
+  ]);
+}
+
+function findBestNamedContactForEmail(params: {
+  email: string;
+  namedContacts: WebsiteNamedContactCandidate[];
+  companyHost: string | undefined;
+}) {
+  return sortNamedContacts(params.namedContacts, params.companyHost).find(
+    (candidate) =>
+      normalizeEmail(candidate.email) === normalizeEmail(params.email) ||
+      emailLikelyMatchesName(params.email, candidate.fullName),
   );
 }
 
@@ -725,31 +836,67 @@ function buildWebsiteDrafts(params: {
   sourceUrls: string[];
   websiteEmails: string[];
   websitePhones: string[];
-  namedContacts: Array<{ fullName: string; title?: string; sourceUrl: string }>;
+  namedContacts: WebsiteNamedContactCandidate[];
 }) {
   const drafts = buildBaseDrafts(params.existingContacts);
   const primarySourceUrl = params.sourceUrls[0] ?? params.normalizedWebsite;
   const bestPhone = params.websitePhones[0];
+  const companyHost = getCompanyHost(
+    params.normalizedWebsite ??
+      params.company.presence.websiteUrl ??
+      params.company.enrichment?.websiteDiscovery?.discoveredWebsite,
+  );
+  const sortedNamedContacts = sortNamedContacts(params.namedContacts, companyHost);
+
+  for (const namedContact of sortedNamedContacts) {
+    if (!namedContact.email) {
+      continue;
+    }
+
+    const existingDraft =
+      findDraftByEmail(drafts, namedContact.email) ??
+      findDraftByName(drafts, namedContact.fullName);
+
+    if (existingDraft) {
+      mergeNamedContactIntoDraft(existingDraft, namedContact);
+      continue;
+    }
+
+    drafts.push({
+      id: createContactId(),
+      isNew: true,
+      wasPrimary: false,
+      fullName: namedContact.fullName,
+      title: namedContact.title,
+      role: namedContact.title
+        ? deriveContactRoleFromTitle(namedContact.title)
+        : "unknown",
+      email: namedContact.email,
+      phone: namedContact.phone,
+      linkedinUrl: undefined,
+      sourceKind: "observed",
+      source: createEnrichmentSource(params.now, namedContact.sourceUrl ?? primarySourceUrl),
+      notes: buildNamedContactEvidenceNotes(namedContact),
+      createdAt: params.now,
+    });
+  }
 
   for (const email of params.websiteEmails) {
-    const matchingName = params.namedContacts.find((candidate) =>
-      emailLikelyMatchesName(email, candidate.fullName),
-    );
+    const matchingName = findBestNamedContactForEmail({
+      email,
+      namedContacts: sortedNamedContacts,
+      companyHost,
+    });
     const existingDraft =
       findDraftByEmail(drafts, email) ??
       (matchingName ? findDraftByName(drafts, matchingName.fullName) : undefined);
 
     if (existingDraft) {
       existingDraft.email = existingDraft.email ?? email;
-      existingDraft.fullName = existingDraft.fullName ?? matchingName?.fullName;
-      existingDraft.title = existingDraft.title ?? matchingName?.title;
-      existingDraft.role = existingDraft.title
-        ? deriveContactRoleFromTitle(existingDraft.title)
-        : existingDraft.role;
+      mergeNamedContactIntoDraft(existingDraft, matchingName, email);
       existingDraft.notes = dedupeStrings([
         ...existingDraft.notes,
         `Website enrichment confirmed contact path: ${email}`,
-        matchingName?.title ? `Website enrichment found title: ${matchingName.title}` : undefined,
       ]);
       continue;
     }
@@ -770,39 +917,31 @@ function buildWebsiteDrafts(params: {
       source: createEnrichmentSource(params.now, matchingName?.sourceUrl ?? primarySourceUrl),
       notes: dedupeStrings([
         `Website enrichment discovered contact path: ${email}`,
-        matchingName?.fullName
-          ? `Website enrichment associated this inbox with ${matchingName.fullName}`
-          : undefined,
+        ...(matchingName ? buildNamedContactEvidenceNotes(matchingName) : []),
       ]),
       createdAt: params.now,
     });
   }
 
-  for (const namedContact of params.namedContacts) {
+  for (const namedContact of sortedNamedContacts) {
     const existingDraft =
       findDraftByName(drafts, namedContact.fullName) ??
+      findDraftByEmail(drafts, namedContact.email) ??
       drafts.find((draft) => emailLikelyMatchesName(draft.email, namedContact.fullName));
 
     if (existingDraft) {
-      existingDraft.fullName = existingDraft.fullName ?? namedContact.fullName;
-      existingDraft.title = existingDraft.title ?? namedContact.title;
-      existingDraft.role = existingDraft.title
-        ? deriveContactRoleFromTitle(existingDraft.title)
-        : existingDraft.role;
-
-      if (!existingDraft.phone && !existingDraft.email && bestPhone) {
-        existingDraft.phone = bestPhone;
-      }
-
-      existingDraft.notes = dedupeStrings([
-        ...existingDraft.notes,
-        `Website enrichment found named contact: ${namedContact.fullName}`,
-        namedContact.title ? `Website enrichment found title: ${namedContact.title}` : undefined,
-      ]);
+      mergeNamedContactIntoDraft(
+        existingDraft,
+        namedContact,
+        undefined,
+        bestPhone,
+      );
       continue;
     }
 
-    if (!bestPhone) {
+    const fallbackPhone = namedContact.phone ?? bestPhone;
+
+    if (!fallbackPhone) {
       continue;
     }
 
@@ -816,13 +955,14 @@ function buildWebsiteDrafts(params: {
         ? deriveContactRoleFromTitle(namedContact.title)
         : "unknown",
       email: undefined,
-      phone: bestPhone,
+      phone: fallbackPhone,
       linkedinUrl: undefined,
       sourceKind: "observed",
       source: createEnrichmentSource(params.now, namedContact.sourceUrl),
-      notes: [
-        `Website enrichment found a phone fallback for ${namedContact.fullName}.`,
-      ],
+      notes: dedupeStrings([
+        ...buildNamedContactEvidenceNotes(namedContact),
+        `Website enrichment kept a phone fallback for ${namedContact.fullName} because no safer direct inbox was confirmed.`,
+      ]),
       createdAt: params.now,
     });
   }

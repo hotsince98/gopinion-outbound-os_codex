@@ -11,6 +11,10 @@ export interface WebsiteNamedContactCandidate {
   fullName: string;
   title?: string;
   sourceUrl: string;
+  pageKind?: SupportingPageKind;
+  email?: string;
+  phone?: string;
+  evidence: string[];
 }
 
 export interface WebsiteScanResult {
@@ -179,6 +183,100 @@ function cleanRoleTitle(line: string) {
     .trim();
 }
 
+function getNearbyContactClues(params: {
+  lines: string[];
+  anchorIndexes: number[];
+  pageKind: SupportingPageKind;
+}) {
+  const nearbyIndexes = new Set<number>();
+
+  for (const anchorIndex of params.anchorIndexes) {
+    for (
+      let index = Math.max(0, anchorIndex - 2);
+      index <= Math.min(params.lines.length - 1, anchorIndex + 2);
+      index += 1
+    ) {
+      nearbyIndexes.add(index);
+    }
+  }
+
+  const nearbyLines = [...nearbyIndexes]
+    .sort((left, right) => left - right)
+    .map((index) => params.lines[index] ?? "");
+  const email = dedupeStrings(nearbyLines.flatMap((line) => extractEmails(line)))[0];
+  const phone = dedupeStrings(nearbyLines.flatMap((line) => extractPhones(line)))[0];
+  const evidence: string[] = [];
+
+  if (email) {
+    evidence.push(
+      `Direct email appeared near the contact on the ${params.pageKind.replaceAll("_", " ")} page`,
+    );
+  }
+
+  if (phone) {
+    evidence.push(
+      `Phone line appeared near the contact on the ${params.pageKind.replaceAll("_", " ")} page`,
+    );
+  }
+
+  return {
+    email,
+    phone,
+    evidence,
+  };
+}
+
+function getNamedContactCandidateScore(candidate: WebsiteNamedContactCandidate) {
+  let score = 0;
+
+  if (candidate.email) {
+    score += 12;
+  }
+
+  if (candidate.phone) {
+    score += 5;
+  }
+
+  if (candidate.title) {
+    score += 4;
+  }
+
+  if (candidate.pageKind === "staff") {
+    score += 4;
+  } else if (candidate.pageKind === "about" || candidate.pageKind === "contact") {
+    score += 2;
+  }
+
+  score += Math.min(candidate.evidence.length, 3);
+
+  return score;
+}
+
+function buildNamedContactCandidate(params: {
+  fullName: string;
+  title?: string;
+  sourceUrl: string;
+  pageKind: SupportingPageKind;
+  lines: string[];
+  anchorIndexes: number[];
+}) {
+  const nearbyClues = getNearbyContactClues({
+    lines: params.lines,
+    anchorIndexes: params.anchorIndexes,
+    pageKind: params.pageKind,
+  });
+
+  return {
+    fullName: params.fullName,
+    title: params.title,
+    sourceUrl: params.sourceUrl,
+    pageKind: params.pageKind,
+    email: nearbyClues.email,
+    phone: nearbyClues.phone,
+    evidence: nearbyClues.evidence,
+  } satisfies WebsiteNamedContactCandidate;
+}
+
 function extractNamedContacts(
   text: string,
   sourceUrl: string,
@@ -190,17 +288,20 @@ function extractNamedContacts(
     .filter((line) => line.length > 0 && line.length < 120);
   const matches: WebsiteNamedContactCandidate[] = [];
 
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
     const pairMatch = line.match(
       /^([A-Z][a-z.'-]+(?:\s+[A-Z][a-z.'-]+){1,3})\s*[-,|]\s*(.+)$/u,
     );
 
     if (pairMatch && ROLE_TITLE_PATTERN.test(pairMatch[2] ?? "")) {
-      matches.push({
+      matches.push(buildNamedContactCandidate({
         fullName: pairMatch[1],
         title: cleanRoleTitle(pairMatch[2] ?? ""),
         sourceUrl,
-      });
+        pageKind,
+        lines,
+        anchorIndexes: [index],
+      }));
       continue;
     }
 
@@ -209,11 +310,14 @@ function extractNamedContacts(
     );
 
     if (reverseMatch && ROLE_TITLE_PATTERN.test(reverseMatch[1] ?? "")) {
-      matches.push({
+      matches.push(buildNamedContactCandidate({
         fullName: reverseMatch[2],
         title: cleanRoleTitle(reverseMatch[1] ?? ""),
         sourceUrl,
-      });
+        pageKind,
+        lines,
+        anchorIndexes: [index],
+      }));
     }
   }
 
@@ -227,11 +331,14 @@ function extractNamedContacts(
       const roleLine = nextLines.find((candidate) => ROLE_TITLE_PATTERN.test(candidate));
 
       if (roleLine) {
-        matches.push({
+        matches.push(buildNamedContactCandidate({
           fullName: line,
           title: cleanRoleTitle(roleLine),
           sourceUrl,
-        });
+          pageKind,
+          lines,
+          anchorIndexes: [index, index + nextLines.indexOf(roleLine) + 1],
+        }));
       }
     }
 
@@ -242,11 +349,14 @@ function extractNamedContacts(
       const nameLine = nextLines.find((candidate) => looksLikePersonName(candidate));
 
       if (nameLine) {
-        matches.push({
+        matches.push(buildNamedContactCandidate({
           fullName: nameLine,
           title: cleanRoleTitle(line),
           sourceUrl,
-        });
+          pageKind,
+          lines,
+          anchorIndexes: [index, index + nextLines.indexOf(nameLine) + 1],
+        }));
       }
     }
   }
@@ -255,10 +365,27 @@ function extractNamedContacts(
 
   for (const match of matches) {
     const key = `${match.fullName.toLowerCase()}::${match.title?.toLowerCase() ?? ""}`;
+    const existing = deduped.get(key);
 
-    if (!deduped.has(key)) {
+    if (!existing) {
       deduped.set(key, match);
+      continue;
     }
+
+    deduped.set(
+      key,
+      getNamedContactCandidateScore(match) > getNamedContactCandidateScore(existing)
+        ? {
+            ...existing,
+            ...match,
+            evidence: dedupeStrings([...existing.evidence, ...match.evidence]),
+          }
+        : {
+            ...match,
+            ...existing,
+            evidence: dedupeStrings([...existing.evidence, ...match.evidence]),
+          },
+    );
   }
 
   return [...deduped.values()];

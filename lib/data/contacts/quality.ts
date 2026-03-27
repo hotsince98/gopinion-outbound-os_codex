@@ -374,6 +374,22 @@ function canBePrimaryContact(contact: Contact) {
   );
 }
 
+function isNamedDirectContact(contact: Contact, companyHost: string | undefined) {
+  return Boolean(
+    contact.fullName &&
+      contact.email &&
+      !isRoleInbox(contact.email) &&
+      isSameCompanyDomain(contact.email, companyHost),
+  );
+}
+
+function isBusinessInboxContact(contact: Contact) {
+  return (
+    contact.quality?.pathKind === "role_inbox" ||
+    contact.quality?.pathKind === "general_business_email"
+  );
+}
+
 function assessContactForPrimarySelection(
   contact: Contact,
   preferredContactId: Contact["id"] | undefined,
@@ -386,6 +402,8 @@ function assessContactForPrimarySelection(
   const roleBonus = getRoleSelectionBonus(contact, angleKey);
   const sameOrganizationDomain =
     Boolean(contact.email && companyHost && isSameCompanyDomain(contact.email, companyHost));
+  const isNamedSameDomainDirectEmail = isNamedDirectContact(contact, companyHost);
+  const isGenericInbox = isBusinessInboxContact(contact);
 
   if (sameOrganizationDomain) {
     selectionScore += 16;
@@ -429,6 +447,22 @@ function assessContactForPrimarySelection(
     selectionReasons.push("Named person is attached to the record");
   } else if (contact.quality?.pathKind !== "role_inbox") {
     demotionReasons.push("Named decision-maker still needs verification");
+  }
+
+  if (isNamedSameDomainDirectEmail) {
+    selectionScore += 22;
+    selectionReasons.push("Named person has a direct same-domain inbox");
+  } else if (isGenericInbox && sameOrganizationDomain) {
+    selectionScore += 6;
+    selectionReasons.push("Verified business inbox stays usable as the safest shared fallback");
+  }
+
+  if (contact.fullName && !contact.email && contact.phone) {
+    demotionReasons.push("Named candidate still relies on a phone fallback instead of a direct inbox");
+  }
+
+  if (contact.fullName && contact.email && isRoleInbox(contact.email)) {
+    demotionReasons.push("Email path is still a shared role inbox, not a direct named mailbox");
   }
 
   if (contact.title) {
@@ -531,6 +565,11 @@ export function rankContactsForPrimarySelection(
     return left.contact.createdAt.localeCompare(right.contact.createdAt);
   });
   const primary = ordered.find((candidate) => canBePrimaryContact(candidate.contact));
+  const namedCandidates = ordered.filter((candidate) => Boolean(candidate.contact.fullName));
+  const primaryIsInboxFallback = primary
+    ? isBusinessInboxContact(primary.contact) &&
+      namedCandidates.some((candidate) => candidate.contact.id !== primary.contact.id)
+    : false;
 
   return ordered.map((candidate, index) => {
     const isPrimary = candidate.contact.id === primary?.contact.id;
@@ -546,10 +585,19 @@ export function rankContactsForPrimarySelection(
       isPrimary,
       selectionReasons: dedupeStrings([
         ...candidate.selectionReasons,
+        isPrimary && primaryIsInboxFallback
+          ? "Business inbox stayed primary because named candidates were found but did not clear the safer direct-path bar"
+          : undefined,
         isPrimary ? "Selected as the primary outreach contact" : undefined,
       ]),
       demotionReasons: dedupeStrings([
         ...candidate.demotionReasons,
+        !isPrimary &&
+        primaryIsInboxFallback &&
+        Boolean(candidate.contact.fullName) &&
+        !isNamedDirectContact(candidate.contact, options?.companyHost)
+          ? "Named candidate was found, but no stronger same-domain direct inbox was verified"
+          : undefined,
         !isPrimary && primary
           ? `${primaryLabel} ranked higher for primary outreach`
           : undefined,

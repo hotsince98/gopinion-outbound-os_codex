@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { basicWebsiteEnrichmentProvider } from "@/lib/data/enrichment/providers/basic";
+import { classifySupportingPageCandidate } from "@/lib/data/enrichment/site-pages";
 import type { WebsiteScanResult } from "@/lib/data/enrichment/web";
 import type {
   WebsiteEnrichmentProviderAdapter,
@@ -419,6 +420,8 @@ function mapWorkerResultToWebsiteScanResult(
       fullName: person.full_name,
       title: person.title,
       sourceUrl: person.source_url,
+      pageKind: classifySupportingPageCandidate({ href: person.source_url }),
+      evidence: [`Scrapling reported this named contact with ${person.confidence} confidence`],
     })),
     categoryClues: dedupeStrings(result.category_clues),
     evidenceSummary,

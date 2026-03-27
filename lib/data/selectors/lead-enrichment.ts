@@ -1,3 +1,4 @@
+import { getCompanyHost } from "@/lib/data/contacts/quality";
 import { buildCampaignAssignmentPanelView } from "@/lib/data/selectors/campaign-assignment";
 import {
   deriveWorkflowState,
@@ -41,6 +42,7 @@ import {
   getWorkflowReason,
   hasWebsiteCandidate,
   listCompanyBundles,
+  type CompanyBundle,
   type RankedContactPreview,
   type SelectorBadge,
   type WorkspaceStat,
@@ -84,6 +86,10 @@ export interface LeadEnrichmentQueueRowView {
   contactCountLabel: string;
   contactConfidenceBadge: SelectorBadge;
   contactCandidates: RankedContactPreview[];
+  primaryContactLabel: string;
+  secondaryContactLabel: string;
+  namedCandidateSummary: string;
+  relatedAccountSignals: string[];
   decisionMaker: string;
   primaryContactSource: string;
   primaryContactSelectionReason: string;
@@ -108,6 +114,124 @@ export interface LeadEnrichmentWorkspaceView {
   };
 }
 
+function buildSharedSignalMap(bundles: CompanyBundle[]) {
+  const hostGroups = new Map<string, Set<string>>();
+  const emailGroups = new Map<string, Set<string>>();
+  const nameGroups = new Map<string, Set<string>>();
+
+  for (const bundle of bundles) {
+    const host = getCompanyHost(
+      bundle.company.presence.websiteUrl ??
+        bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite,
+    );
+
+    if (host) {
+      const existing = hostGroups.get(host) ?? new Set<string>();
+      existing.add(bundle.company.id);
+      hostGroups.set(host, existing);
+    }
+
+    for (const contact of bundle.contacts) {
+      if (contact.email) {
+        const emailKey = contact.email.trim().toLowerCase();
+        const existing = emailGroups.get(emailKey) ?? new Set<string>();
+        existing.add(bundle.company.id);
+        emailGroups.set(emailKey, existing);
+      }
+
+      if (contact.fullName) {
+        const nameKey = contact.fullName.trim().toLowerCase();
+        const existing = nameGroups.get(nameKey) ?? new Set<string>();
+        existing.add(bundle.company.id);
+        nameGroups.set(nameKey, existing);
+      }
+    }
+  }
+
+  return {
+    hostGroups,
+    emailGroups,
+    nameGroups,
+  };
+}
+
+function getRelatedAccountSignals(
+  bundle: CompanyBundle,
+  sharedSignals: ReturnType<typeof buildSharedSignalMap>,
+) {
+  const signals: string[] = [];
+  const host = getCompanyHost(
+    bundle.company.presence.websiteUrl ??
+      bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite,
+  );
+
+  if (host) {
+    const sharedHostCount = sharedSignals.hostGroups.get(host)?.size ?? 0;
+
+    if (sharedHostCount > 1) {
+      signals.push(
+        `Website host pattern matches ${sharedHostCount - 1} other compan${
+          sharedHostCount === 2 ? "y" : "ies"
+        } in view`,
+      );
+    }
+  }
+
+  for (const contact of bundle.contacts) {
+    if (contact.email) {
+      const sharedEmailCount =
+        sharedSignals.emailGroups.get(contact.email.trim().toLowerCase())?.size ?? 0;
+
+      if (sharedEmailCount > 1) {
+        signals.push(
+          `Contact email ${contact.email} appears on ${sharedEmailCount} companies in view`,
+        );
+        break;
+      }
+    }
+  }
+
+  for (const contact of bundle.contacts) {
+    if (contact.fullName) {
+      const sharedNameCount =
+        sharedSignals.nameGroups.get(contact.fullName.trim().toLowerCase())?.size ?? 0;
+
+      if (sharedNameCount > 1) {
+        signals.push(
+          `Named contact ${contact.fullName} appears across ${sharedNameCount} companies in view`,
+        );
+        break;
+      }
+    }
+  }
+
+  return signals.slice(0, 3);
+}
+
+function getNamedCandidateSummary(bundle: CompanyBundle) {
+  const namedSelections = bundle.rankedContacts.filter((selection) =>
+    Boolean(selection.contact.fullName),
+  );
+
+  if (namedSelections.length === 0) {
+    return "No named candidates were found on the current public pages yet.";
+  }
+
+  const primaryNamed = namedSelections.find((selection) => selection.isPrimary);
+
+  if (primaryNamed?.contact.fullName) {
+    return `${primaryNamed.contact.fullName} is the current primary named contact path.`;
+  }
+
+  const topNamedCandidates = namedSelections
+    .slice(0, 2)
+    .map((selection) => selection.contact.fullName)
+    .filter((value): value is string => Boolean(value))
+    .join(" • ");
+
+  return `Named candidates were found (${topNamedCandidates}), but the business inbox stayed primary as the safer verified fallback.`;
+}
+
 export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWorkspaceView> {
   const snapshot = await getSelectorDataSnapshot();
   const rows = listCompanyBundles(snapshot)
@@ -121,6 +245,7 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
       );
     })
     .sort((left, right) => right.company.createdAt.localeCompare(left.company.createdAt));
+  const sharedSignals = buildSharedSignalMap(rows);
   const campaignAssignment = buildCampaignAssignmentPanelView({
     bundles: rows,
     snapshot,
@@ -164,6 +289,7 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
     campaignAssignment,
     rows: rows.map((bundle) => {
       const assignment = assignmentByCompanyId.get(bundle.company.id);
+      const contactCandidates = getRankedContactPreviews(bundle);
 
       return {
         companyId: bundle.company.id,
@@ -204,7 +330,13 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
         contactCoverage: getContactCoverageLabel(bundle),
         contactCountLabel: getRankedContactCountLabel(bundle),
         contactConfidenceBadge: getContactQualityBadge(bundle.primaryContact),
-        contactCandidates: getRankedContactPreviews(bundle),
+        contactCandidates,
+        primaryContactLabel:
+          contactCandidates[0]?.label ?? "Primary contact pending",
+        secondaryContactLabel:
+          contactCandidates[1]?.label ?? "No secondary contact yet",
+        namedCandidateSummary: getNamedCandidateSummary(bundle),
+        relatedAccountSignals: getRelatedAccountSignals(bundle, sharedSignals),
         decisionMaker: getDecisionMakerLabel(bundle),
         primaryContactSource: getContactSourceLabel(bundle.primaryContact),
         primaryContactSelectionReason: getPrimaryContactSelectionReason(bundle),

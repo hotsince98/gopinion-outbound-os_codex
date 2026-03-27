@@ -29,13 +29,27 @@ export function ContactRankingStack(props: Readonly<{
                 label={item.organizationBadge.label}
                 tone={item.organizationBadge.tone}
               />
+              {item.isNamedPerson ? (
+                <StatusBadge label="Named person" tone="accent" />
+              ) : null}
             </div>
             <p className="mt-3 break-words text-sm font-medium text-copy">{item.label}</p>
             <p className="mt-1 text-sm text-muted">{item.roleLabel}</p>
+            <p className="mt-2 break-words text-sm text-copy">{item.contactPathLabel}</p>
             <p className="mt-2 text-sm text-copy">{item.reason}</p>
+            {item.supportingReasons.map((reason) => (
+              <p key={`${item.id}-${reason}`} className="mt-2 text-sm text-muted">
+                {reason}
+              </p>
+            ))}
             {item.whyLower ? (
               <p className="mt-2 text-sm text-muted">{item.whyLower}</p>
             ) : null}
+            {item.demotionDetails.map((reason) => (
+              <p key={`${item.id}-demotion-${reason}`} className="mt-2 text-sm text-muted">
+                {reason}
+              </p>
+            ))}
             <p className="mt-2 break-words text-sm text-muted">{item.sourceLabel}</p>
             {item.warnings[0] ? (
               <p className="mt-2 break-words text-sm text-warning">{item.warnings[0]}</p>
