@@ -47,7 +47,7 @@ function EnrichmentQueueCard(props: Readonly<{
   const { row } = props;
 
   return (
-    <div className="surface-muted min-w-0 p-4">
+    <div className="surface-panel min-w-0 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -79,8 +79,8 @@ function EnrichmentQueueCard(props: Readonly<{
         </label>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <div className="min-w-0 space-y-3">
+      <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="surface-muted min-w-0 p-4">
           <div className="flex flex-wrap gap-2">
             <StatusBadge
               label={row.websiteDiscoveryBadge.label}
@@ -91,29 +91,31 @@ function EnrichmentQueueCard(props: Readonly<{
               tone={row.websiteDiscoveryConfidenceBadge.tone}
             />
           </div>
-          <p className="break-words text-sm text-copy">
+          <p className="mt-3 break-words text-sm text-copy">
             {row.website ?? "No website on record"}
           </p>
-          <p className="break-words text-sm text-muted">{row.websiteDiscovery}</p>
-          <p className="break-words text-sm text-copy">{row.websiteDiscoveryCandidate}</p>
-          <p className="break-words text-sm text-muted">
+          <p className="mt-2 break-words text-sm text-muted">{row.websiteDiscovery}</p>
+          <p className="mt-2 break-words text-sm text-copy">{row.websiteDiscoveryCandidate}</p>
+          <p className="mt-2 break-words text-sm text-muted">
             {row.websiteDiscoverySource} • {row.websiteDiscoveryReason}
           </p>
-          <ProviderRunSummary
-            badge={row.providerBadge}
-            label={row.providerLabel}
-            fallback={row.providerFallbackLabel}
-            evidence={row.providerEvidence}
-            pageUsage={row.supportingPageUsage}
-          />
-          <p className="break-words text-sm text-copy">{row.preferredSupportingPageLabel}</p>
-          <p className="text-sm text-muted">{row.preferredSupportingPageSource}</p>
+          <div className="mt-4">
+            <ProviderRunSummary
+              badge={row.providerBadge}
+              label={row.providerLabel}
+              fallback={row.providerFallbackLabel}
+              evidence={row.providerEvidence}
+              pageUsage={row.supportingPageUsage}
+            />
+          </div>
+          <p className="mt-4 break-words text-sm text-copy">{row.preferredSupportingPageLabel}</p>
+          <p className="mt-2 text-sm text-muted">{row.preferredSupportingPageSource}</p>
         </div>
 
-        <div className="min-w-0 space-y-3">
+        <div className="surface-muted min-w-0 p-4">
           <p className="text-sm text-copy">{row.angleLabel}</p>
-          <p className="text-sm text-muted">{row.angleReason}</p>
-          <p className="text-sm text-copy">First offer: {row.recommendedOffer}</p>
+          <p className="mt-2 text-sm text-muted">{row.angleReason}</p>
+          <p className="mt-3 text-sm text-copy">First offer: {row.recommendedOffer}</p>
           <div className="flex flex-wrap gap-2">
             <StatusBadge
               label={row.angleUrgencyBadge.label}
@@ -124,32 +126,36 @@ function EnrichmentQueueCard(props: Readonly<{
               tone={row.angleReviewPathBadge.tone}
             />
           </div>
-          <p className="text-sm text-muted">{row.segmentLabel}</p>
-          <p className="text-sm text-muted">{row.noteHintSummary}</p>
-          <p className="text-sm text-muted">{row.enrichmentSummary}</p>
-          <ConfidenceBreakdown
-            items={[
-              { label: "Website discovery", badge: row.websiteDiscoveryConfidenceBadge },
-              { label: "Primary contact quality", badge: row.contactConfidenceBadge },
-              { label: "Angle confidence", badge: row.angleConfidenceBadge },
-              { label: "Readiness confidence", badge: row.readinessConfidenceBadge },
-            ]}
-          />
+          <p className="mt-3 text-sm text-muted">{row.segmentLabel}</p>
+          <p className="mt-2 text-sm text-muted">{row.noteHintSummary}</p>
+          <p className="mt-2 text-sm text-muted">{row.enrichmentSummary}</p>
+          <div className="mt-4">
+            <ConfidenceBreakdown
+              items={[
+                { label: "Website discovery", badge: row.websiteDiscoveryConfidenceBadge },
+                { label: "Primary contact quality", badge: row.contactConfidenceBadge },
+                { label: "Angle confidence", badge: row.angleConfidenceBadge },
+                { label: "Readiness confidence", badge: row.readinessConfidenceBadge },
+              ]}
+            />
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
-        <div className="min-w-0 space-y-3">
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
+        <div className="surface-muted min-w-0 p-4">
           <p className="text-sm text-copy">{row.decisionMaker}</p>
-          <p className="text-sm text-copy">Secondary: {row.secondaryContactLabel}</p>
-          <p className="text-sm text-muted">{row.contactCoverage}</p>
-          <p className="text-sm text-muted">{row.namedCandidateSummary}</p>
+          <p className="mt-2 text-sm text-copy">Secondary: {row.secondaryContactLabel}</p>
+          <p className="mt-2 text-sm text-muted">{row.contactCoverage}</p>
+          <p className="mt-2 text-sm text-muted">{row.namedCandidateSummary}</p>
           {row.relatedAccountSignals[0] ? (
-            <p className="text-sm text-warning">{row.relatedAccountSignals.join(" • ")}</p>
+            <p className="mt-2 text-sm text-warning">{row.relatedAccountSignals.join(" • ")}</p>
           ) : null}
-          <ContactRankingStack totalLabel={row.contactCountLabel} items={row.contactCandidates} />
+          <div className="mt-4">
+            <ContactRankingStack totalLabel={row.contactCountLabel} items={row.contactCandidates} />
+          </div>
         </div>
-        <div className="min-w-0 space-y-3">
+        <div className="flex min-w-0 flex-col gap-3">
           <div className="flex flex-wrap gap-2">
             <StatusBadge
               label={row.recommendedCampaignStatusBadge.label}
@@ -160,10 +166,12 @@ function EnrichmentQueueCard(props: Readonly<{
               tone={row.assignmentDecisionBadge.tone}
             />
           </div>
-          <p className="text-sm text-copy">{row.recommendedCampaignName}</p>
-          <p className="text-sm text-copy">{row.readinessReason}</p>
-          <p className="text-sm text-muted">{row.assignmentDecisionReason}</p>
-          <p className="text-sm text-muted">{row.missingFieldsLabel}</p>
+          <div className="surface-muted p-4">
+            <p className="text-sm text-copy">{row.recommendedCampaignName}</p>
+            <p className="mt-2 text-sm text-copy">{row.readinessReason}</p>
+            <p className="mt-2 text-sm text-muted">{row.assignmentDecisionReason}</p>
+            <p className="mt-2 text-sm text-muted">{row.missingFieldsLabel}</p>
+          </div>
           <WebsiteDiscoveryReviewActions
             companyId={row.companyId}
             candidateWebsite={row.canReviewWebsiteCandidate ? row.candidateWebsite : undefined}
@@ -242,7 +250,7 @@ function CompareCompaniesPanel(props: Readonly<{
 
   if (props.mode === "compact") {
     return (
-      <div className="rounded-3xl border border-white/8 bg-black/20 p-5">
+      <div className="surface-panel p-5">
         <p className="micro-label">Selected comparison</p>
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full divide-y divide-white/8">
@@ -280,7 +288,7 @@ function CompareCompaniesPanel(props: Readonly<{
   }
 
   return (
-    <div className="rounded-3xl border border-white/8 bg-black/20 p-5">
+    <div className="surface-panel p-5">
       <p className="micro-label">Selected comparison</p>
       <div
         className="mt-4 grid gap-4"
@@ -289,7 +297,7 @@ function CompareCompaniesPanel(props: Readonly<{
         }}
       >
         {props.rows.map((row) => (
-          <div key={row.companyId} className="surface-muted min-w-0 p-4">
+          <div key={row.companyId} className="surface-muted min-w-0 p-5">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-medium text-copy">{row.companyName}</p>
               <StatusBadge label={row.readinessBadge.label} tone={row.readinessBadge.tone} />
@@ -639,7 +647,7 @@ export function LeadEnrichmentWorkspace({
       ) : null}
 
       <form action={formAction} className="space-y-4">
-        <div className="rounded-3xl border border-white/8 bg-black/20 p-5">
+        <div className="surface-panel p-5 lg:p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-2">
               <p className="micro-label">Bulk enrichment</p>
@@ -758,7 +766,7 @@ export function LeadEnrichmentWorkspace({
           ))}
         </div>
 
-        <div className="hidden overflow-hidden rounded-2xl border border-white/8 bg-black/10 2xl:block">
+        <div className="hidden overflow-hidden rounded-3xl border border-white/8 bg-black/10 2xl:block">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-white/8">
               <thead className="bg-white/[0.03]">

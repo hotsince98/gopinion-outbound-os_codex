@@ -10,8 +10,8 @@ export function AppShell({
     <div className="relative min-h-screen bg-ink text-copy">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(111,202,255,0.08),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.05),transparent_22%)]" />
 
-      <div className="relative mx-auto flex min-h-screen max-w-[1680px] flex-col lg:flex-row">
-        <aside className="border-b border-white/8 bg-white/[0.03] px-4 py-4 lg:min-h-screen lg:w-[304px] lg:border-b-0 lg:border-r lg:px-6 lg:py-6">
+      <div className="relative mx-auto flex min-h-screen max-w-[1540px] flex-col lg:flex-row">
+        <aside className="border-b border-white/8 bg-white/[0.025] px-4 py-4 lg:min-h-screen lg:w-[288px] lg:border-b-0 lg:border-r lg:px-5 lg:py-5">
           <div className="surface-panel px-5 py-5">
             <p className="eyebrow">GoPinion</p>
             <h1 className="mt-3 text-xl font-semibold tracking-tight text-copy">
@@ -45,7 +45,7 @@ export function AppShell({
 
         <div className="flex min-h-screen flex-1 flex-col">
           <header className="sticky top-0 z-20 border-b border-white/8 bg-ink/80 backdrop-blur-2xl">
-            <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+            <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-7 xl:px-8">
               <div>
                 <p className="eyebrow">Outbound Operating System</p>
                 <p className="mt-2 text-sm text-muted">
@@ -68,7 +68,7 @@ export function AppShell({
             </div>
           </header>
 
-          <main className="flex-1 px-5 py-6 lg:px-8 lg:py-8">{children}</main>
+          <main className="flex-1 px-5 py-6 lg:px-7 lg:py-7 xl:px-8 xl:py-8">{children}</main>
         </div>
       </div>
     </div>

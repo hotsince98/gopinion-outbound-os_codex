@@ -47,18 +47,18 @@ a {
 
 @layer components {
   .surface-panel {
-    @apply rounded-3xl border border-white/10 bg-white/5 shadow-panel shadow-black/70 backdrop-blur-xl;
+    @apply rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] shadow-panel shadow-black/60 backdrop-blur-xl;
   }
 
   .surface-muted {
-    @apply rounded-2xl border border-white/10 bg-white/5 shadow-innerline;
+    @apply rounded-2xl border border-white/10 bg-white/[0.04] shadow-innerline;
   }
 
   .eyebrow {
-    @apply text-[0.68rem] font-medium uppercase tracking-[0.28em] text-muted;
+    @apply text-[0.66rem] font-medium uppercase tracking-[0.3em] text-muted;
   }
 
   .micro-label {
-    @apply text-[0.7rem] font-medium uppercase tracking-[0.24em] text-muted;
+    @apply text-[0.68rem] font-medium uppercase tracking-[0.24em] text-muted;
   }
 }

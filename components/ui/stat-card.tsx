@@ -20,11 +20,11 @@ export function StatCard({
   tone?: keyof typeof toneClasses;
 }>) {
   return (
-    <article className="surface-panel p-5">
+    <article className="surface-panel p-5 lg:p-6">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="micro-label">{label}</p>
-          <p className="mt-4 text-3xl font-semibold tracking-tight text-copy">
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-copy">
             {value}
           </p>
         </div>
@@ -41,7 +41,11 @@ export function StatCard({
         ) : null}
       </div>
 
-      {detail ? <p className="mt-4 text-sm leading-6 text-muted">{detail}</p> : null}
+      {detail ? (
+        <div className="mt-4 border-t border-white/8 pt-4">
+          <p className="text-sm leading-6 text-muted">{detail}</p>
+        </div>
+      ) : null}
     </article>
   );
 }

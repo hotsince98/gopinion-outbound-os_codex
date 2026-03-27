@@ -18,7 +18,7 @@ export function SectionCard({
 }>) {
   return (
     <section className={cn("surface-panel overflow-hidden", className)}>
-      <div className="flex flex-col gap-3 border-b border-white/8 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+      <div className="flex flex-col gap-3 border-b border-white/8 bg-white/[0.02] px-5 py-4 lg:flex-row lg:items-start lg:justify-between lg:px-6">
         <div className="max-w-2xl">
           <p className="text-base font-medium text-copy">{title}</p>
           {description ? (

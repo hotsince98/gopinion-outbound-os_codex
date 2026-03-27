@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
 import { WebsiteDiscoveryReviewActions } from "@/components/leads/website-discovery-review-actions";
 import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
@@ -27,9 +28,23 @@ type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
+function FilterGroup(props: Readonly<{
+  title: string;
+  description: string;
+  children: ReactNode;
+}>) {
+  return (
+    <div className="surface-muted p-4 lg:p-5">
+      <p className="micro-label">{props.title}</p>
+      <p className="mt-2 text-sm leading-6 text-muted">{props.description}</p>
+      <div className="mt-4">{props.children}</div>
+    </div>
+  );
+}
+
 function LeadQueueCard({ row }: Readonly<{ row: LeadRowView }>) {
   return (
-    <div className="surface-muted min-w-0 p-4">
+    <div className="surface-panel min-w-0 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -58,11 +73,8 @@ function LeadQueueCard({ row }: Readonly<{ row: LeadRowView }>) {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <div className="min-w-0 space-y-3">
-          <p className="text-sm font-medium text-copy">{row.angleLabel}</p>
-          <p className="text-sm text-muted">{row.angleReason}</p>
-          <p className="text-sm text-copy">First offer: {row.recommendedOffer}</p>
+      <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="surface-muted min-w-0 p-4">
           <div className="flex flex-wrap gap-2">
             <StatusBadge
               label={row.websiteDiscoveryBadge.label}
@@ -73,72 +85,84 @@ function LeadQueueCard({ row }: Readonly<{ row: LeadRowView }>) {
               tone={row.websiteDiscoveryConfidenceBadge.tone}
             />
           </div>
-          <p className="break-words text-sm text-copy">{row.websiteDiscovery}</p>
-          <p className="break-words text-sm text-muted">
+          <p className="text-sm font-medium text-copy">{row.angleLabel}</p>
+          <p className="mt-2 text-sm text-muted">{row.angleReason}</p>
+          <p className="mt-3 text-sm text-copy">First offer: {row.recommendedOffer}</p>
+          <p className="mt-3 break-words text-sm text-copy">{row.websiteDiscovery}</p>
+          <p className="mt-2 break-words text-sm text-muted">
             {row.websiteDiscoverySource} • {row.websiteDiscoveryReason}
           </p>
-          <ProviderRunSummary
-            badge={row.providerBadge}
-            label={row.providerLabel}
-            fallback={row.providerFallbackLabel}
-            evidence={row.providerEvidence}
-            pageUsage={row.supportingPageUsage}
-          />
+          <div className="mt-4">
+            <ProviderRunSummary
+              badge={row.providerBadge}
+              label={row.providerLabel}
+              fallback={row.providerFallbackLabel}
+              evidence={row.providerEvidence}
+              pageUsage={row.supportingPageUsage}
+            />
+          </div>
         </div>
 
-        <div className="min-w-0 space-y-3">
+        <div className="surface-muted min-w-0 p-4">
           <p className="text-sm text-copy">{row.workflowReason}</p>
-          <ConfidenceBreakdown
-            items={[
-              { label: "Website discovery", badge: row.websiteDiscoveryConfidenceBadge },
-              { label: "Primary contact quality", badge: row.contactConfidenceBadge },
-              { label: "Angle confidence", badge: row.angleConfidenceBadge },
-              { label: "Readiness confidence", badge: row.readinessConfidenceBadge },
-            ]}
-          />
-          <ContactRankingStack
-            totalLabel={row.contactCountLabel}
-            items={row.contactCandidates}
-          />
+          <div className="mt-4">
+            <ConfidenceBreakdown
+              items={[
+                { label: "Website discovery", badge: row.websiteDiscoveryConfidenceBadge },
+                { label: "Primary contact quality", badge: row.contactConfidenceBadge },
+                { label: "Angle confidence", badge: row.angleConfidenceBadge },
+                { label: "Readiness confidence", badge: row.readinessConfidenceBadge },
+              ]}
+            />
+          </div>
+          <div className="mt-4">
+            <ContactRankingStack
+              totalLabel={row.contactCountLabel}
+              items={row.contactCandidates}
+            />
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 space-y-3 border-t border-white/8 pt-4">
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge
-            label={row.recommendedCampaignStatusBadge.label}
-            tone={row.recommendedCampaignStatusBadge.tone}
-          />
-          <StatusBadge
-            label={row.assignmentDecisionBadge.label}
-            tone={row.assignmentDecisionBadge.tone}
-          />
-          <StatusBadge
-            label={row.angleReviewPathBadge.label}
-            tone={row.angleReviewPathBadge.tone}
-          />
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="surface-muted min-w-0 p-4">
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge
+              label={row.recommendedCampaignStatusBadge.label}
+              tone={row.recommendedCampaignStatusBadge.tone}
+            />
+            <StatusBadge
+              label={row.assignmentDecisionBadge.label}
+              tone={row.assignmentDecisionBadge.tone}
+            />
+            <StatusBadge
+              label={row.angleReviewPathBadge.label}
+              tone={row.angleReviewPathBadge.tone}
+            />
+          </div>
+          <p className="mt-3 text-sm text-copy">{row.recommendedCampaignName}</p>
+          <p className="mt-2 text-sm text-muted">{row.assignmentDecisionReason}</p>
+          <p className="mt-3 break-words text-sm text-copy">{row.websiteLabel}</p>
+          <p className="mt-2 text-sm text-muted">{row.enrichmentSummary}</p>
+          <p className="mt-2 text-sm text-muted">{row.missingFieldsLabel}</p>
+          <p className="mt-3 text-sm leading-6 text-copy">{row.nextAction}</p>
         </div>
-        <p className="text-sm text-copy">{row.recommendedCampaignName}</p>
-        <p className="text-sm text-muted">{row.assignmentDecisionReason}</p>
-        <p className="break-words text-sm text-copy">{row.websiteLabel}</p>
-        <p className="text-sm text-muted">{row.enrichmentSummary}</p>
-        <p className="text-sm text-muted">{row.missingFieldsLabel}</p>
-        <p className="text-sm leading-6 text-copy">{row.nextAction}</p>
-        <WebsiteDiscoveryReviewActions
-          companyId={row.companyId}
-          candidateWebsite={row.canReviewWebsiteCandidate ? row.candidateWebsite : undefined}
-          officialWebsite={row.officialWebsite}
-        />
-        <div className="flex flex-wrap gap-3">
+
+        <div className="flex min-w-0 flex-col gap-3">
+          <WebsiteDiscoveryReviewActions
+            companyId={row.companyId}
+            candidateWebsite={row.canReviewWebsiteCandidate ? row.candidateWebsite : undefined}
+            officialWebsite={row.officialWebsite}
+          />
           <Link
             href={`/companies?companyId=${row.companyId}`}
-            className="text-sm font-medium text-accent transition hover:text-copy"
+            className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
           >
             Open company profile
           </Link>
           <Link
             href="/leads/enrichment"
-            className="text-sm font-medium text-warning transition hover:text-copy"
+            className="rounded-full border border-warning/30 bg-warning/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-warning/50 hover:bg-warning/15"
           >
             Open enrichment queue
           </Link>
@@ -181,21 +205,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
           {row.importedLabel} • {row.sourceLabel}
         </p>
       </div>,
-      <div key={`${row.companyId}-priority`} className="space-y-2">
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge
-            label={row.priorityBadge.label}
-            tone={row.priorityBadge.tone}
-          />
-          <StatusBadge
-            label={row.angleUrgencyBadge.label}
-            tone={row.angleUrgencyBadge.tone}
-          />
-        </div>
-        <p className="text-sm text-copy">{row.angleLabel}</p>
-        <p className="text-sm text-muted">{row.segmentLabel}</p>
-      </div>,
-      <div key={`${row.companyId}-enrichment`} className="space-y-2">
+      <div key={`${row.companyId}-discovery`} className="space-y-3">
         <div className="flex flex-wrap gap-2">
           <StatusBadge
             label={row.enrichmentBadge.label}
@@ -206,15 +216,19 @@ export default async function LeadsPage({ searchParams }: PageProps) {
             tone={row.websiteDiscoveryBadge.tone}
           />
           <StatusBadge
+            label={row.priorityBadge.label}
+            tone={row.priorityBadge.tone}
+          />
+          <StatusBadge
             label={row.websiteDiscoveryConfidenceBadge.label}
             tone={row.websiteDiscoveryConfidenceBadge.tone}
           />
         </div>
         <p className="text-sm text-copy">{row.websiteDiscovery}</p>
-        <p className="text-sm text-copy">{row.websiteDiscoveryCandidate}</p>
         <p className="text-sm text-muted">
           {row.websiteDiscoverySource} • {row.websiteDiscoveryReason}
         </p>
+        <p className="text-sm text-copy">{row.websiteDiscoveryCandidate}</p>
         <p className="text-sm text-muted">
           {row.preferredSupportingPageLabel} • {row.preferredSupportingPageSource}
         </p>
@@ -225,14 +239,29 @@ export default async function LeadsPage({ searchParams }: PageProps) {
           evidence={row.providerEvidence}
           pageUsage={row.supportingPageUsage}
         />
+      </div>,
+      <div key={`${row.companyId}-offer`} className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge
+            label={row.angleUrgencyBadge.label}
+            tone={row.angleUrgencyBadge.tone}
+          />
+          <StatusBadge
+            label={row.angleReviewPathBadge.label}
+            tone={row.angleReviewPathBadge.tone}
+          />
+        </div>
+        <p className="text-sm font-medium text-copy">{row.recommendedOffer}</p>
+        <p className="text-sm text-copy">{row.angleLabel}</p>
+        <p className="text-sm text-muted">{row.angleReason}</p>
+        <p className="text-sm text-muted">{row.segmentAngle}</p>
         <p className="text-sm text-muted">{row.noteHintSummary}</p>
       </div>,
-      <div key={`${row.companyId}-status`} className="space-y-2">
-        <StatusBadge
-          label={row.statusBadge.label}
-          tone={row.statusBadge.tone}
-        />
-        <p className="text-sm text-copy">{row.workflowReason}</p>
+      <div key={`${row.companyId}-contact`} className="space-y-3">
+        <p className="text-xs uppercase tracking-[0.18em] text-muted">
+          {row.decisionMakerConfidence}
+        </p>
+        <p className="text-sm text-muted">{row.contactCoverage}</p>
         <ConfidenceBreakdown
           items={[
             {
@@ -253,23 +282,6 @@ export default async function LeadsPage({ searchParams }: PageProps) {
             },
           ]}
         />
-      </div>,
-      <div key={`${row.companyId}-offer`} className="space-y-2">
-        <p className="text-sm font-medium text-copy">{row.recommendedOffer}</p>
-        <p className="text-sm text-copy">{row.angleReason}</p>
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge
-            label={row.angleReviewPathBadge.label}
-            tone={row.angleReviewPathBadge.tone}
-          />
-        </div>
-        <p className="text-sm text-muted">{row.segmentAngle}</p>
-      </div>,
-      <div key={`${row.companyId}-contact`} className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.18em] text-muted">
-          {row.decisionMakerConfidence}
-        </p>
-        <p className="text-sm text-muted">{row.contactCoverage}</p>
         <ContactRankingStack
           totalLabel={row.contactCountLabel}
           items={row.contactCandidates}
@@ -289,6 +301,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         <p className="text-sm text-copy">{row.recommendedCampaignName}</p>
         <p className="text-sm text-muted">{row.assignmentDecisionReason}</p>
         <p className="text-sm text-copy">{row.websiteLabel}</p>
+        <p className="text-sm text-copy">{row.workflowReason}</p>
         <p className="text-sm text-muted">{row.enrichmentSummary}</p>
         <p className="text-sm text-muted">{row.missingFieldsLabel}</p>
         <p className="text-xs uppercase tracking-[0.18em] text-muted">
@@ -323,7 +336,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
       <PageHeader
         eyebrow="Lead Intake"
         title="Prospect intake and review queue"
-        description="Work the top of funnel using typed lead records, website discovery, notes parsing, and enrichment-readiness signals. The selector layer keeps the workflow logic out of the UI while operators get a sharper daily queue."
+        description="Work the top of funnel with a cleaner operator queue for website discovery, contact-path quality, and campaign routing without losing the underlying diagnostics."
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -356,7 +369,7 @@ export default async function LeadsPage({ searchParams }: PageProps) {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         {view.stats.map((stat) => (
           <StatCard
             key={stat.label}
@@ -371,7 +384,11 @@ export default async function LeadsPage({ searchParams }: PageProps) {
 
       <SegmentedControl items={queueItems} />
 
-      <FilterPanel>
+      <FilterPanel
+        title="Queue filters"
+        description="Shape the queue around fit, freshness, readiness, and contact coverage without cramming every control into one stretched block."
+        bodyClassName="space-y-4"
+      >
         <form className="space-y-4">
           <input
             type="hidden"
@@ -379,238 +396,252 @@ export default async function LeadsPage({ searchParams }: PageProps) {
             value={view.filters.values.queue === "all" ? "" : view.filters.values.queue}
           />
 
-          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1.5fr_repeat(5,minmax(0,1fr))] 2xl:items-end">
-            <label className="space-y-2">
-              <span className="micro-label">Search</span>
-              <input
-                type="search"
-                name="q"
-                defaultValue={view.filters.values.q}
-                placeholder="Search company, market, source, website, or contact"
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.05]"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">Industry / ICP</span>
-              <select
-                name="icp"
-                defaultValue={view.filters.values.icp}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.icpOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">Priority tier</span>
-              <select
-                name="tier"
-                defaultValue={view.filters.values.tier}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.tierOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">Enrichment</span>
-              <select
-                name="enrichment"
-                defaultValue={view.filters.values.enrichment}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.enrichmentOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">Company status</span>
-              <select
-                name="status"
-                defaultValue={view.filters.values.status}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.statusOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">Sort</span>
-              <select
-                name="sort"
-                defaultValue={view.filters.values.sort}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.sortOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-            <label className="space-y-2">
-              <span className="micro-label">Imported</span>
-              <select
-                name="imported"
-                defaultValue={view.filters.values.imported}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.importedOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">Enriched</span>
-              <select
-                name="enriched"
-                defaultValue={view.filters.values.enriched}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.enrichedOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">State / province</span>
-              <select
-                name="state"
-                defaultValue={view.filters.values.state}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.stateOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">City</span>
-              <select
-                name="city"
-                defaultValue={view.filters.values.city}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.cityOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">Source</span>
-              <select
-                name="source"
-                defaultValue={view.filters.values.source}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.sourceOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">Readiness confidence</span>
-              <select
-                name="confidence"
-                defaultValue={view.filters.values.confidence}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.confidenceOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] 2xl:items-end">
-            <label className="space-y-2">
-              <span className="micro-label">Website</span>
-              <select
-                name="website"
-                defaultValue={view.filters.values.website}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.websiteOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">Contact path</span>
-              <select
-                name="contact"
-                defaultValue={view.filters.values.contact}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.contactOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="micro-label">Primary contact</span>
-              <select
-                name="primary"
-                defaultValue={view.filters.values.primary}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-              >
-                {view.filters.primaryOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <button
-              type="submit"
-              className="rounded-2xl border border-accent/30 bg-accent/10 px-5 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.95fr)]">
+            <FilterGroup
+              title="Core queue shaping"
+              description="Start with the ICP, status, and ordering controls you use most while triaging the queue."
             >
-              Apply filters
-            </button>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2 md:col-span-2">
+                  <span className="micro-label">Search</span>
+                  <input
+                    type="search"
+                    name="q"
+                    defaultValue={view.filters.values.q}
+                    placeholder="Search company, market, source, website, or contact"
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.05]"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">Industry / ICP</span>
+                  <select
+                    name="icp"
+                    defaultValue={view.filters.values.icp}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.icpOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">Priority tier</span>
+                  <select
+                    name="tier"
+                    defaultValue={view.filters.values.tier}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.tierOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">Enrichment</span>
+                  <select
+                    name="enrichment"
+                    defaultValue={view.filters.values.enrichment}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.enrichmentOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">Company status</span>
+                  <select
+                    name="status"
+                    defaultValue={view.filters.values.status}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.statusOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2 md:col-span-2">
+                  <span className="micro-label">Sort</span>
+                  <select
+                    name="sort"
+                    defaultValue={view.filters.values.sort}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.sortOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </FilterGroup>
+
+            <FilterGroup
+              title="Timing and territory"
+              description="Narrow the queue by freshness, geography, source, and readiness confidence."
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="micro-label">Imported</span>
+                  <select
+                    name="imported"
+                    defaultValue={view.filters.values.imported}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.importedOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">Enriched</span>
+                  <select
+                    name="enriched"
+                    defaultValue={view.filters.values.enriched}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.enrichedOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">State / province</span>
+                  <select
+                    name="state"
+                    defaultValue={view.filters.values.state}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.stateOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">City</span>
+                  <select
+                    name="city"
+                    defaultValue={view.filters.values.city}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.cityOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">Source</span>
+                  <select
+                    name="source"
+                    defaultValue={view.filters.values.source}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.sourceOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">Readiness confidence</span>
+                  <select
+                    name="confidence"
+                    defaultValue={view.filters.values.confidence}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.confidenceOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </FilterGroup>
+
+            <FilterGroup
+              title="Coverage and routing"
+              description="Focus on website presence, contact-path quality, and whether a primary contact has already been selected."
+            >
+              <div className="grid gap-4">
+                <label className="space-y-2">
+                  <span className="micro-label">Website</span>
+                  <select
+                    name="website"
+                    defaultValue={view.filters.values.website}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.websiteOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">Contact path</span>
+                  <select
+                    name="contact"
+                    defaultValue={view.filters.values.contact}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.contactOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">Primary contact</span>
+                  <select
+                    name="primary"
+                    defaultValue={view.filters.values.primary}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.primaryOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex flex-wrap gap-3 pt-1">
+                  <button
+                    type="submit"
+                    className="rounded-2xl border border-accent/30 bg-accent/10 px-5 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
+                  >
+                    Apply filters
+                  </button>
+                  {view.hasActiveFilters ? (
+                    <Link
+                      href="/leads"
+                      className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
+                    >
+                      Reset filters
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            </FilterGroup>
           </div>
         </form>
       </FilterPanel>
@@ -639,11 +670,9 @@ export default async function LeadsPage({ searchParams }: PageProps) {
           <TableShell
             columns={[
               "Company",
-              "Priority / angle",
-              "Enrichment",
-              "Workflow",
-              "First offer / routing",
-              "Primary contact",
+              "Discovery / queue",
+              "Angle / offer",
+              "Contact path",
               "Next action",
             ]}
             rows={rows}

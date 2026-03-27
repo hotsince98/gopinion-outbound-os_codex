@@ -10,14 +10,16 @@ export function ConfidenceBreakdown(props: Readonly<{
   }>;
 }>) {
   return (
-    <div className="space-y-2">
+    <div className="grid gap-2 sm:grid-cols-2">
       {props.items.map((item) => (
         <div
           key={item.label}
-          className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/8 bg-black/10 px-3 py-2"
+          className="flex min-w-0 flex-col gap-2 rounded-2xl border border-white/8 bg-black/10 px-3 py-3"
         >
           <p className="text-sm text-muted">{item.label}</p>
-          <StatusBadge label={item.badge.label} tone={item.badge.tone} />
+          <div>
+            <StatusBadge label={item.badge.label} tone={item.badge.tone} />
+          </div>
         </div>
       ))}
     </div>

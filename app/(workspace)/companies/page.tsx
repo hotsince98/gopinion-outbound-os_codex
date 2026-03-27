@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
 import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
 import { ContactRankingStack } from "@/components/enrichment/contact-ranking-stack";
@@ -29,6 +30,20 @@ type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
+function FilterGroup(props: Readonly<{
+  title: string;
+  description: string;
+  children: ReactNode;
+}>) {
+  return (
+    <div className="surface-muted p-4 lg:p-5">
+      <p className="micro-label">{props.title}</p>
+      <p className="mt-2 text-sm leading-6 text-muted">{props.description}</p>
+      <div className="mt-4">{props.children}</div>
+    </div>
+  );
+}
+
 function CompanyQueueCard(props: Readonly<{
   row: CompanyListRowView;
   href: string;
@@ -36,7 +51,7 @@ function CompanyQueueCard(props: Readonly<{
   const { row } = props;
 
   return (
-    <div className="surface-muted min-w-0 p-4">
+    <div className="surface-panel min-w-0 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <Link
@@ -60,19 +75,19 @@ function CompanyQueueCard(props: Readonly<{
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <div className="space-y-2">
+      <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="surface-muted p-4">
           <p className="text-sm text-copy">{row.fitScore}</p>
-          <p className="text-sm font-medium text-copy">{row.recommendedOffer}</p>
-          <p className="text-sm text-copy">{row.angleLabel}</p>
-          <p className="text-sm text-muted">{row.angleReason}</p>
+          <p className="mt-3 text-sm font-medium text-copy">{row.recommendedOffer}</p>
+          <p className="mt-2 text-sm text-copy">{row.angleLabel}</p>
+          <p className="mt-2 text-sm text-muted">{row.angleReason}</p>
         </div>
-        <div className="space-y-2">
+        <div className="surface-muted p-4">
           <p className="text-sm text-copy">{row.contactCoverage}</p>
-          <p className="text-xs uppercase tracking-[0.18em] text-muted">
+          <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted">
             {row.decisionMakerConfidence}
           </p>
-          <p className="text-sm text-muted">{row.campaignStatus}</p>
+          <p className="mt-2 text-sm text-muted">{row.campaignStatus}</p>
         </div>
       </div>
     </div>
@@ -140,7 +155,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
       <PageHeader
         eyebrow="Companies"
         title="Company intelligence workspace"
-        description="Inspect dealer fit, review health, contact coverage, and readiness without leaving the operational shell. The view stays backed by selectors and typed entities so the next persistence step can slot in cleanly."
+        description="Inspect fit, review posture, website discovery, and contact coverage in a cleaner operator workspace without changing the underlying typed workflow."
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -167,7 +182,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
         {view.stats.map((stat) => (
           <StatCard
             key={stat.label}
@@ -180,74 +195,101 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         ))}
       </div>
 
-      <FilterPanel>
-        <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[1.5fr_repeat(3,minmax(0,1fr))_auto] 2xl:items-end">
-          <label className="space-y-2">
-            <span className="micro-label">Search</span>
-            <input
-              type="search"
-              name="q"
-              defaultValue={view.filters.values.q}
-              placeholder="Search company, market, or contact"
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.05]"
-            />
-          </label>
-
-          <label className="space-y-2">
-            <span className="micro-label">Industry / ICP</span>
-            <select
-              name="icp"
-              defaultValue={view.filters.values.icp}
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-            >
-              {view.filters.icpOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label} ({option.count})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-2">
-            <span className="micro-label">Priority tier</span>
-            <select
-              name="tier"
-              defaultValue={view.filters.values.tier}
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-            >
-              {view.filters.tierOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label} ({option.count})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-2">
-            <span className="micro-label">Readiness</span>
-            <select
-              name="readiness"
-              defaultValue={view.filters.values.readiness}
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
-            >
-              {view.filters.readinessOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label} ({option.count})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <button
-            type="submit"
-            className="rounded-2xl border border-accent/30 bg-accent/10 px-5 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
+      <FilterPanel
+        title="Workspace filters"
+        description="Keep the company list readable by shaping the view around fit, readiness, and the specific account you want to inspect."
+      >
+        <form className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
+          <FilterGroup
+            title="Search and fit"
+            description="Narrow the list by company, market, contact, or ICP fit."
           >
-            Apply filters
-          </button>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="space-y-2 md:col-span-2">
+                <span className="micro-label">Search</span>
+                <input
+                  type="search"
+                  name="q"
+                  defaultValue={view.filters.values.q}
+                  placeholder="Search company, market, or contact"
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.05]"
+                />
+              </label>
+
+              <label className="space-y-2">
+                <span className="micro-label">Industry / ICP</span>
+                <select
+                  name="icp"
+                  defaultValue={view.filters.values.icp}
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                >
+                  {view.filters.icpOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} ({option.count})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-2">
+                <span className="micro-label">Priority tier</span>
+                <select
+                  name="tier"
+                  defaultValue={view.filters.values.tier}
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                >
+                  {view.filters.tierOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} ({option.count})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </FilterGroup>
+
+          <FilterGroup
+            title="Readiness and actions"
+            description="Focus on the companies that are ready to review now, then apply or reset the current view."
+          >
+            <div className="grid gap-4">
+              <label className="space-y-2">
+                <span className="micro-label">Readiness</span>
+                <select
+                  name="readiness"
+                  defaultValue={view.filters.values.readiness}
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                >
+                  {view.filters.readinessOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} ({option.count})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="flex flex-wrap gap-3 pt-1">
+                <button
+                  type="submit"
+                  className="rounded-2xl border border-accent/30 bg-accent/10 px-5 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
+                >
+                  Apply filters
+                </button>
+                {view.hasActiveFilters ? (
+                  <Link
+                    href="/companies"
+                    className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
+                  >
+                    Reset filters
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          </FilterGroup>
         </form>
       </FilterPanel>
 
-      <div className="grid gap-6 2xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)]">
         <SectionCard
           title="Company intelligence queue"
           description={`${view.resultLabel}. Select a company to inspect its fit, reputation posture, and decision-maker coverage.`}
@@ -287,7 +329,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
           description="A first-pass profile assembled from typed company, contact, offer, and campaign records."
         >
           {view.selectedCompany ? (
-            <div className="space-y-5">
+            <div className="space-y-6">
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge
@@ -312,7 +354,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                     {view.selectedCompany.icpLabel}
                   </p>
                 </div>
-                <div className="surface-muted p-4">
+                <div className="surface-muted p-5">
                   <p className="micro-label">Suggested next action</p>
                   <p className="mt-3 text-sm leading-6 text-copy">
                     {view.selectedCompany.suggestedNextAction}
@@ -323,7 +365,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
               <DetailList items={view.selectedCompany.basics} />
               <DetailList items={view.selectedCompany.reputation} />
 
-              <div className="surface-muted p-4">
+              <div className="surface-muted p-5">
                 <p className="micro-label">Recommended angle</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <StatusBadge
@@ -350,7 +392,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 </p>
               </div>
 
-              <div className="surface-muted p-4">
+              <div className="surface-muted p-5">
                 <p className="micro-label">Recommended offer</p>
                 <p className="mt-3 text-base font-medium text-copy">
                   {view.selectedCompany.recommendedOffer.name}
@@ -366,7 +408,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 </p>
               </div>
 
-              <div className="surface-muted p-4">
+              <div className="surface-muted p-5">
                 <p className="micro-label">Confidence breakdown</p>
                 <div className="mt-3">
                   <ConfidenceBreakdown
@@ -418,7 +460,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                   reason={view.selectedCompany.preferredSupportingPage.reason}
                 />
 
-                <div className="surface-muted p-4">
+                <div className="surface-muted p-5">
                   <p className="micro-label">Top recommended outreach contact</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <StatusBadge
@@ -439,7 +481,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
               </div>
 
               <div className="grid gap-4 xl:grid-cols-2">
-                <div className="surface-muted p-4">
+                <div className="surface-muted p-5">
                   <p className="micro-label">Provider transparency</p>
                   <div className="mt-3">
                     <ProviderRunSummary
@@ -452,7 +494,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                   </div>
                 </div>
 
-                <div className="surface-muted p-4">
+                <div className="surface-muted p-5">
                   <p className="micro-label">Ranked outreach contacts</p>
                   <div className="mt-3">
                     <ContactRankingStack
@@ -463,7 +505,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 </div>
               </div>
 
-              <div className="surface-muted p-4">
+              <div className="surface-muted p-5">
                 <CampaignEnrollmentPanel
                   title="Campaign assignment"
                   description="Use the selected company profile to assign the best-fit campaign, enroll when the contact path is strong enough, or route it to review when the angle is strong but the path still needs operator judgment."
@@ -473,7 +515,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
               </div>
 
               <div className="grid gap-4 xl:grid-cols-2">
-                <div className="surface-muted p-4">
+                <div className="surface-muted p-5">
                   <p className="micro-label">Likely pains / notes</p>
                   <div className="mt-3 space-y-2">
                     {[...view.selectedCompany.pains, ...view.selectedCompany.notes].map(
@@ -486,7 +528,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                   </div>
                 </div>
 
-                <div className="surface-muted p-4">
+                <div className="surface-muted p-5">
                   <p className="micro-label">Campaign context</p>
                   <div className="mt-3 space-y-2">
                     {view.selectedCompany.campaignSummary.map((item) => (
@@ -498,7 +540,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 </div>
               </div>
 
-              <div className="surface-muted p-4">
+              <div className="surface-muted p-5">
                 <p className="micro-label">Decision-maker coverage</p>
                 <div className="mt-3 space-y-3">
                   {view.selectedCompany.contacts.length > 0 ? (

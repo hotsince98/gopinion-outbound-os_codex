@@ -60,8 +60,8 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Operations Dashboard"
-        title="Dealer-first outbound command deck"
-        description="Track execution across lead qualification, campaigns, reply flow, and booking readiness. This shell now reads from typed domain entities through the shared repository boundary, whether the backend is mock or Supabase-backed."
+        title="Operator command deck"
+        description="Scan the most important queue, campaign, and blocker signals first so the next human action is obvious without digging through the full workspace."
         actions={
           <div className="flex items-center gap-3">
             <Link
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
         {dashboard.stats.map((stat) => (
           <StatCard
             key={stat.label}
@@ -90,7 +90,7 @@ export default async function DashboardPage() {
       <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
         <SectionCard
           title="Priority dealer queue"
-          description="Highest-signal accounts that should be ready for human review before enrollment."
+          description="High-signal accounts that should be ready for human review before enrollment."
         >
           <TableShell
             columns={["Company", "Offer", "Decision-maker hypothesis", "Next step"]}
@@ -102,18 +102,20 @@ export default async function DashboardPage() {
 
         <SectionCard
           title="Learning signals"
-          description="Outcome notes the system should eventually capture as structured insights."
+          description="Outcome notes worth turning into repeatable playbooks and structured learning."
         >
           {dashboard.learningSignals.length > 0 ? (
-            <div className="space-y-3">
+            <div className="grid gap-3">
               {dashboard.learningSignals.map((signal) => (
                 <div
                   key={signal.id}
-                  className="surface-muted p-4 transition hover:border-white/12 hover:bg-white/[0.05]"
+                  className="surface-muted p-5 transition hover:border-white/12 hover:bg-white/[0.05]"
                 >
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <p className="text-sm font-medium text-copy">{signal.title}</p>
-                    <span className="micro-label">{signal.tag}</span>
+                    <span className="rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[0.68rem] font-medium uppercase tracking-[0.18em] text-muted">
+                      {signal.tag}
+                    </span>
                   </div>
                   <p className="text-sm leading-6 text-muted">{signal.summary}</p>
                 </div>
@@ -144,12 +146,12 @@ export default async function DashboardPage() {
 
         <SectionCard
           title="Pipeline blockers"
-          description="Operational friction points that still need data or workflow coverage."
+          description="Operational friction points that still need data, tooling, or workflow coverage."
         >
           {dashboard.blockers.length > 0 ? (
             <div className="space-y-3">
               {dashboard.blockers.map((blocker) => (
-                <div key={blocker.id} className="surface-muted p-4">
+                <div key={blocker.id} className="surface-muted p-5">
                   <div className="mb-2 flex items-center gap-3">
                     <span className="h-2.5 w-2.5 rounded-full bg-warning/80" />
                     <p className="text-sm font-medium text-copy">{blocker.title}</p>

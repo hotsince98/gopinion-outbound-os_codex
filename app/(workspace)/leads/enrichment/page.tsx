@@ -18,7 +18,7 @@ export default async function LeadEnrichmentPage() {
       <PageHeader
         eyebrow="Lead Enrichment"
         title="Bulk website enrichment queue"
-        description="Run the first-pass enrichment workflow against public company websites so imported leads can move out of the needs-enrichment queue with real contact-path evidence."
+        description="Run the first-pass website and contact-path workflow in a cleaner review queue so promising leads move toward readiness with less operator friction."
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -37,7 +37,7 @@ export default async function LeadEnrichmentPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
         {view.stats.map((stat) => (
           <StatCard
             key={stat.label}

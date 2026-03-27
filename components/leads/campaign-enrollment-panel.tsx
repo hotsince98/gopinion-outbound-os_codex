@@ -80,7 +80,7 @@ export function CampaignEnrollmentPanel({
 
   if (panel.rows.length === 0) {
     return (
-      <div className="surface-muted p-4">
+      <div className="surface-muted p-5">
         <p className="micro-label">Campaign enrollment</p>
         <p className="mt-3 text-sm leading-6 text-muted">
           No visible leads are available for assignment in this view right now.
@@ -102,31 +102,31 @@ export function CampaignEnrollmentPanel({
           <p className="text-sm font-medium text-copy">{state.message}</p>
           {state.summary ? (
             <div className="mt-4 grid gap-3 md:grid-cols-5">
-              <div className="surface-muted p-4">
+              <div className="surface-muted p-5">
                 <p className="micro-label">Assigned</p>
                 <p className="mt-2 text-2xl font-semibold text-copy">
                   {state.summary.assignedCount}
                 </p>
               </div>
-              <div className="surface-muted p-4">
+              <div className="surface-muted p-5">
                 <p className="micro-label">Enrolled</p>
                 <p className="mt-2 text-2xl font-semibold text-copy">
                   {state.summary.enrolledCount}
                 </p>
               </div>
-              <div className="surface-muted p-4">
+              <div className="surface-muted p-5">
                 <p className="micro-label">Needs review</p>
                 <p className="mt-2 text-2xl font-semibold text-copy">
                   {state.summary.reviewCount}
                 </p>
               </div>
-              <div className="surface-muted p-4">
+              <div className="surface-muted p-5">
                 <p className="micro-label">Blocked</p>
                 <p className="mt-2 text-2xl font-semibold text-copy">
                   {state.summary.blockedCount}
                 </p>
               </div>
-              <div className="surface-muted p-4">
+              <div className="surface-muted p-5">
                 <p className="micro-label">Failed</p>
                 <p className="mt-2 text-2xl font-semibold text-copy">
                   {state.summary.failedCount}
@@ -137,7 +137,7 @@ export function CampaignEnrollmentPanel({
           {state.summary?.results.length ? (
             <div className="mt-4 space-y-3">
               {state.summary.results.slice(0, 8).map((result) => (
-                <div key={result.companyId} className="surface-muted p-4">
+                <div key={result.companyId} className="surface-muted p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-copy">
@@ -178,7 +178,7 @@ export function CampaignEnrollmentPanel({
       ) : null}
 
       <form action={formAction} className="space-y-4">
-        <div className="rounded-3xl border border-white/8 bg-black/20 p-5">
+        <div className="surface-panel p-5 lg:p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="space-y-2">
               <p className="micro-label">{title}</p>
@@ -229,7 +229,7 @@ export function CampaignEnrollmentPanel({
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-white/8 bg-black/10">
+        <div className="overflow-hidden rounded-3xl border border-white/8 bg-black/10">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-white/8">
               <thead className="bg-white/[0.03]">

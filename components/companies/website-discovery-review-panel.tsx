@@ -40,7 +40,7 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
   const canRerun = Boolean(props.officialWebsite);
 
   return (
-    <div className="surface-muted min-w-0 p-4">
+    <div className="surface-muted min-w-0 p-5">
       <div className="flex flex-wrap items-center gap-2">
         <p className="micro-label">Website discovery review</p>
         <StatusBadge
@@ -55,18 +55,36 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
         {reviewTarget ?? "No website candidate available yet"}
       </p>
       {props.reason ? (
-        <p className="mt-2 break-words text-sm leading-6 text-copy">{props.reason}</p>
+        <p className="mt-3 break-words text-sm leading-6 text-copy">{props.reason}</p>
       ) : null}
-      <p className="mt-3 break-words text-sm leading-6 text-muted">
-        {props.sourceLabel ?? "Discovery source pending"}
-        {props.reviewSourceLabel ? ` • ${props.reviewSourceLabel}` : ""}
-        {props.reviewedAtLabel ? ` • ${props.reviewedAtLabel}` : ""}
-      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
+          <p className="micro-label">Discovery source</p>
+          <p className="mt-2 break-words text-sm text-muted">
+            {props.sourceLabel ?? "Discovery source pending"}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
+          <p className="micro-label">Review source</p>
+          <p className="mt-2 break-words text-sm text-muted">
+            {props.reviewSourceLabel ?? "No operator review yet"}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
+          <p className="micro-label">Reviewed</p>
+          <p className="mt-2 break-words text-sm text-muted">
+            {props.reviewedAtLabel ?? "Pending"}
+          </p>
+        </div>
+      </div>
       {props.candidateDiagnostics && props.candidateDiagnostics.length > 0 ? (
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
           <p className="micro-label">Candidate diagnostics</p>
-          {props.candidateDiagnostics.map((diagnostic) => (
-            <p key={diagnostic} className="break-words text-sm leading-6 text-muted">
+          {props.candidateDiagnostics.map((diagnostic, index) => (
+            <p
+              key={`${index}-${diagnostic}`}
+              className="mt-2 break-words text-sm leading-6 text-muted"
+            >
               {diagnostic}
             </p>
           ))}
