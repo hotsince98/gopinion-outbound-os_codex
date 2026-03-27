@@ -199,6 +199,59 @@ function getImportedNoteLines(company: Company) {
   });
 }
 
+const confirmedWebsiteDiscoveryStatuses = new Set<
+  NonNullable<CompanyEnrichmentSnapshot["websiteDiscovery"]>["confirmationStatus"]
+>(["record_provided", "auto_confirmed", "operator_confirmed"]);
+
+function getConfirmedDiscoveryWebsite(
+  websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"],
+) {
+  if (!websiteDiscovery?.discoveredWebsite) {
+    return undefined;
+  }
+
+  const normalizedWebsite = normalizeWebsiteUrl(websiteDiscovery.discoveredWebsite);
+
+  if (!normalizedWebsite) {
+    return undefined;
+  }
+
+  if (confirmedWebsiteDiscoveryStatuses.has(websiteDiscovery.confirmationStatus)) {
+    return normalizedWebsite;
+  }
+
+  if (
+    websiteDiscovery.confirmationStatus === "rejected" ||
+    websiteDiscovery.confirmationStatus === "needs_review"
+  ) {
+    return undefined;
+  }
+
+  return !websiteDiscovery.operatorReview &&
+    (websiteDiscovery.status === "record_provided" ||
+      websiteDiscovery.status === "discovered")
+    ? normalizedWebsite
+    : undefined;
+}
+
+function getPersistedVerifiedWebsite(params: {
+  website?: string;
+  company: Company;
+  websiteDiscovery?: CompanyEnrichmentSnapshot["websiteDiscovery"];
+}) {
+  return (
+    normalizeWebsiteUrl(params.website) ??
+    getConfirmedDiscoveryWebsite(params.websiteDiscovery) ??
+    normalizeWebsiteUrl(params.company.presence.websiteUrl)
+  );
+}
+
+function shouldPreservePreviousDiscoveryReview(
+  previousWebsiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"],
+) {
+  return Boolean(previousWebsiteDiscovery?.operatorReview);
+}
+
 function buildWebsiteDiscoverySummary(
   websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"],
   resolvedWebsite: string | undefined,
@@ -384,13 +437,9 @@ export function resolveWebsiteEnrichmentInput(params: {
 }) {
   const recordWebsite = normalizeWebsiteUrl(params.company.presence.websiteUrl);
   const noteWebsite = normalizeWebsiteUrl(params.noteWebsite);
-  const confirmedDiscoveryWebsite =
-    params.websiteDiscovery?.confirmationStatus &&
-    ["record_provided", "auto_confirmed", "operator_confirmed"].includes(
-      params.websiteDiscovery.confirmationStatus,
-    )
-      ? normalizeWebsiteUrl(params.websiteDiscovery.discoveredWebsite)
-      : undefined;
+  const confirmedDiscoveryWebsite = getConfirmedDiscoveryWebsite(
+    params.websiteDiscovery,
+  );
   const candidateWebsite =
     params.websiteDiscovery?.confirmationStatus === "needs_review"
       ? normalizeWebsiteUrl(params.websiteDiscovery.candidateWebsite)
@@ -441,8 +490,15 @@ function buildProviderInputEvidence(params: {
   websiteDiscovery: CompanyEnrichmentSnapshot["websiteDiscovery"];
   websiteScan: WebsiteScanResult;
 }) {
+  const confirmedDiscoveryWebsite = getConfirmedDiscoveryWebsite(
+    params.websiteDiscovery,
+  );
+
   if (params.input.status === "confirmed_website") {
     return dedupeStrings([
+      confirmedDiscoveryWebsite
+        ? `Discovery confirmed website ${confirmedDiscoveryWebsite}`
+        : undefined,
       params.input.website
         ? `Crawler input: confirmed website ${params.input.website}`
         : undefined,
@@ -997,8 +1053,13 @@ function updateCompanyReadiness(params: {
   now: string;
 }) {
   const hasWebsiteEvidence = params.sourceUrls.length > 0;
+  const persistedWebsite = getPersistedVerifiedWebsite({
+    website: params.normalizedWebsite,
+    company: params.company,
+    websiteDiscovery: params.websiteDiscovery,
+  });
   const hasWebsiteCandidate = Boolean(
-    params.normalizedWebsite ?? params.websiteDiscovery?.discoveredWebsite,
+    persistedWebsite,
   );
   const hasReviewableWebsiteCandidate = Boolean(
     params.websiteDiscovery?.confirmationStatus === "needs_review" &&
@@ -1022,7 +1083,7 @@ function updateCompanyReadiness(params: {
   const nextPresence = {
     ...params.company.presence,
     hasWebsite: hasWebsiteCandidate,
-    websiteUrl: params.normalizedWebsite ?? params.company.presence.websiteUrl,
+    websiteUrl: persistedWebsite,
     primaryPhone: params.bestPhone ?? params.company.presence.primaryPhone,
   };
   const outreachAngle = classifyCompanyOutreachAngle({
@@ -1092,7 +1153,7 @@ function updateCompanyReadiness(params: {
     hasWebsiteEvidence
       ? `Website enrichment scanned ${params.sourceUrls.length} page${params.sourceUrls.length === 1 ? "" : "s"}`
       : hasWebsiteCandidate
-        ? "Website was identified but still needs manual verification"
+        ? `Verified website stored on record: ${persistedWebsite}`
         : hasReviewableWebsiteCandidate
           ? "Search discovery found a likely official website that still needs operator confirmation"
           : "Website enrichment could not verify the public site",
@@ -1187,6 +1248,9 @@ async function enrichSingleCompany(
     (hint) => hint.kind === "website",
   )?.source;
   const previousWebsiteDiscovery = company.enrichment?.websiteDiscovery;
+  const preservePreviousReviewState = shouldPreservePreviousDiscoveryReview(
+    previousWebsiteDiscovery,
+  );
   const normalizedRecordedWebsite = normalizeWebsiteUrl(company.presence.websiteUrl);
   const normalizedPreviousWebsite = normalizeWebsiteUrl(
     previousWebsiteDiscovery?.discoveredWebsite ??
@@ -1240,9 +1304,15 @@ async function enrichSingleCompany(
             previousWebsiteDiscovery.extractedEvidence,
           ),
           preferredSupportingPage: previousWebsiteDiscovery.preferredSupportingPage,
-          confirmationStatus: previousWebsiteDiscovery.confirmationStatus,
-          confirmationReason: previousWebsiteDiscovery.confirmationReason,
-          operatorReview: previousWebsiteDiscovery.operatorReview,
+          confirmationStatus: preservePreviousReviewState
+            ? previousWebsiteDiscovery.confirmationStatus
+            : undefined,
+          confirmationReason: preservePreviousReviewState
+            ? previousWebsiteDiscovery.confirmationReason
+            : undefined,
+          operatorReview: preservePreviousReviewState
+            ? previousWebsiteDiscovery.operatorReview
+            : undefined,
           lastError: baseWebsiteDiscovery.lastError,
         })
       : baseWebsiteDiscovery;
@@ -1267,7 +1337,11 @@ async function enrichSingleCompany(
     websiteScan,
     now,
   });
-  const normalizedWebsite = websiteScan.normalizedWebsite ?? resolvedWebsite;
+  const normalizedWebsite = getPersistedVerifiedWebsite({
+    website: websiteScan.normalizedWebsite ?? resolvedWebsite,
+    company,
+    websiteDiscovery,
+  });
   const host = getCompanyHost(normalizedWebsite);
   const foundEmails = dedupeStrings([
     ...noteArtifacts.hints
@@ -1489,7 +1563,7 @@ async function enrichSingleCompany(
     foundEmails,
     foundPhones,
     pagesChecked: websiteScan.pagesChecked,
-    website: normalizedWebsite,
+    website: updatedCompany.presence.websiteUrl,
     websiteDiscoveryCandidate:
       enrichedWebsiteDiscovery.candidateWebsite ??
       enrichedWebsiteDiscovery.discoveredWebsite,

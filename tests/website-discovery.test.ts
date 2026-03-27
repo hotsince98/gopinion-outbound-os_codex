@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import type { Company } from "@/lib/domain";
 import { discoverCompanyWebsite } from "@/lib/data/enrichment/discovery";
-import { resolveWebsiteEnrichmentInput } from "@/lib/data/enrichment/service";
+import { getDataAccess, resetDataAccessCache } from "@/lib/data/access";
+import {
+  resolveWebsiteEnrichmentInput,
+  runLeadEnrichment,
+} from "@/lib/data/enrichment/service";
 import {
   extractSearchCandidatesFromHtml,
   openWebWebsiteDiscoveryProvider,
 } from "@/lib/data/enrichment/discovery-providers/open-web";
+import { mockCompanies, mockContacts } from "@/lib/data/mock/store";
 
 const NOW = "2026-03-27T12:00:00.000Z";
 
@@ -760,7 +765,240 @@ async function main() {
     );
   }
 
+  {
+    const homepageHtml = `
+      <html>
+        <head>
+          <title>Parkway Auto Trade | Toronto Used Cars</title>
+        </head>
+        <body>
+          <h1>Parkway Auto Trade</h1>
+          <p>123 Weston Rd, Toronto, Ontario</p>
+          <p>Call us at (416) 555-0123</p>
+          <a href="/team">Meet the team</a>
+          <a href="/contact">Contact us</a>
+        </body>
+      </html>
+    `;
+    const contactHtml = `
+      <html>
+        <head>
+          <title>Contact Parkway Auto Trade</title>
+        </head>
+        <body>
+          <h1>Contact Parkway Auto Trade</h1>
+          <p>123 Weston Rd, Toronto, Ontario</p>
+          <p>Phone: (416) 555-0123</p>
+          <p>Email: sales@parkwayautotrade.com</p>
+        </body>
+      </html>
+    `;
+    const teamHtml = `
+      <html>
+        <head>
+          <title>Parkway Auto Trade Team</title>
+        </head>
+        <body>
+          <h1>Meet the team</h1>
+          <p>Dave Singh, General Manager</p>
+          <p>Email: dave@parkwayautotrade.com</p>
+        </body>
+      </html>
+    `;
+    const seededCompany = buildCompany({
+      id: "company_parkway_auto_trade_persistence",
+      status: "new",
+      presence: {
+        hasWebsite: false,
+        websiteUrl: undefined,
+      },
+      enrichment: {
+        confidenceLevel: "none",
+        confidenceScore: 0,
+        contactPath: "none",
+        enrichmentSource: "record_only",
+        providerRun: undefined,
+        sourceUrls: [],
+        pagesChecked: [],
+        foundEmails: [],
+        foundPhones: [],
+        foundNames: [],
+        websiteDiscovery: {
+          status: "not_found",
+          confirmationStatus: "not_found",
+          confirmationReason:
+            "Previous discovery did not produce a confirmed website to crawl.",
+          confidenceLevel: "none",
+          confidenceScore: 0,
+          discoveredWebsite: undefined,
+          candidateWebsite: undefined,
+          candidateUrls: [],
+          candidateDiagnostics: [],
+          matchedSignals: [],
+          supportingPageUrls: [],
+          contactPageUrls: [],
+          staffPageUrls: [],
+          extractedEvidence: [],
+          debugNotes: [],
+          preferredSupportingPage: undefined,
+          operatorReview: undefined,
+          source: seededCompanySource(),
+          lastCheckedAt: "2026-03-26T12:00:00.000Z",
+          lastError: "Website discovery did not produce a confirmed website to crawl.",
+        },
+        noteHints: [],
+        segment: undefined,
+        outreachAngle: undefined,
+        descriptionSnippet: undefined,
+        missingFields: ["website", "primary_contact"],
+        manualReviewRequired: true,
+        linkedinVerificationNeeded: false,
+        linkedinVerified: false,
+        lastEnrichedAt: undefined,
+        lastAttemptedAt: "2026-03-26T12:00:00.000Z",
+        lastError: "Website discovery did not produce a confirmed website to crawl.",
+      },
+    });
+    const originalBackend = process.env.DATA_BACKEND;
+    const originalProvider = process.env.ENRICHMENT_PROVIDER;
+    const startingCompanyCount = mockCompanies.length;
+    const startingContactCount = mockContacts.length;
+
+    function restoreMockStore() {
+      mockCompanies.splice(startingCompanyCount);
+      mockContacts.splice(startingContactCount);
+      resetDataAccessCache();
+
+      if (originalBackend === undefined) {
+        delete process.env.DATA_BACKEND;
+      } else {
+        process.env.DATA_BACKEND = originalBackend;
+      }
+
+      if (originalProvider === undefined) {
+        delete process.env.ENRICHMENT_PROVIDER;
+      } else {
+        process.env.ENRICHMENT_PROVIDER = originalProvider;
+      }
+    }
+
+    process.env.DATA_BACKEND = "mock";
+    process.env.ENRICHMENT_PROVIDER = "basic";
+    mockCompanies.push(seededCompany);
+    resetDataAccessCache();
+
+    try {
+      await withMockFetch(
+        (url) => {
+          if (url.startsWith("https://duckduckgo.com/html/")) {
+            return htmlResponse("<html><body>No results</body></html>");
+          }
+
+          if (url === "https://www.parkwayautotrade.com") {
+            return htmlResponse(
+              homepageHtml,
+              "https://www.parkwayautotrade.com/",
+            );
+          }
+
+          if (url === "https://www.parkwayautotrade.com/contact") {
+            return htmlResponse(contactHtml);
+          }
+
+          if (url === "https://www.parkwayautotrade.com/team") {
+            return htmlResponse(teamHtml);
+          }
+
+          throw Object.assign(new Error(`getaddrinfo ENOTFOUND ${url}`), {
+            cause: { code: "ENOTFOUND" },
+          });
+        },
+        async () => {
+          const summary = await runLeadEnrichment({
+            scope: "single",
+            companyIds: [seededCompany.id],
+          });
+          const result = summary.results.find(
+            (candidate) => candidate.companyId === seededCompany.id,
+          );
+          const updatedCompany = await getDataAccess().companies.getById(
+            seededCompany.id,
+          );
+
+          assert(result, "returns a lead enrichment result for the Parkway-like lead");
+          assert(updatedCompany, "persists the updated Parkway-like company record");
+          assert.equal(
+            result.websiteDiscoveryConfirmationStatus,
+            "auto_confirmed",
+          );
+          assert.equal(result.website, "https://www.parkwayautotrade.com");
+          assert.equal(
+            updatedCompany.presence.websiteUrl,
+            "https://www.parkwayautotrade.com",
+          );
+          assert.equal(
+            updatedCompany.enrichment?.websiteDiscovery?.confirmationStatus,
+            "auto_confirmed",
+          );
+          assert.equal(result.providerInputStatus, "confirmed_website");
+          assert.equal(
+            result.providerInputWebsite,
+            "https://www.parkwayautotrade.com",
+          );
+          assert.equal(result.providerCrawlAttempted, true);
+          assert.equal(
+            updatedCompany.enrichment?.providerRun?.inputStatus,
+            "confirmed_website",
+          );
+          assert.equal(
+            updatedCompany.enrichment?.providerRun?.inputWebsite,
+            "https://www.parkwayautotrade.com",
+          );
+          assert(
+            result.providerEvidence.some((value) =>
+              value.includes(
+                "Discovery confirmed website https://www.parkwayautotrade.com",
+              ),
+            ),
+            "captures that the confirmed website was handed into downstream enrichment",
+          );
+          assert(
+            result.providerEvidence.some((value) =>
+              value.includes(
+                "Crawler input: confirmed website https://www.parkwayautotrade.com",
+              ),
+            ),
+            "records the confirmed website that was passed into the provider run",
+          );
+          assert(
+            !/no verified website on record/i.test(result.readinessReason),
+            "does not report that no verified website is on record after auto-confirming and storing the site",
+          );
+          assert(
+            Boolean(result.preferredSupportingPageUrl),
+            "keeps a preferred supporting page after enrichment",
+          );
+          assert(
+            result.staffPageUrls.length > 0 || result.contactPageUrls.length > 0,
+            "keeps supporting pages on the final enrichment result",
+          );
+        },
+      );
+    } finally {
+      restoreMockStore();
+    }
+  }
+
   console.log("website-discovery.test.ts: all assertions passed");
+}
+
+function seededCompanySource() {
+  return {
+    kind: "mock" as const,
+    provider: "test-suite",
+    label: "Test suite",
+    observedAt: NOW,
+  };
 }
 
 main().catch((error) => {

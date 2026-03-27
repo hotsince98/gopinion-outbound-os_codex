@@ -313,6 +313,11 @@ export function LeadEnrichmentWorkspace({
                       Website candidate: {result.websiteDiscoveryCandidate}
                     </p>
                   ) : null}
+                  {result.website ? (
+                    <p className="mt-2 text-sm text-copy">
+                      Verified website on record: {result.website}
+                    </p>
+                  ) : null}
                   {result.websiteDiscoveryConfirmationStatus ? (
                     <p className="mt-2 text-sm text-muted">
                       Discovery status:{" "}
@@ -335,10 +340,15 @@ export function LeadEnrichmentWorkspace({
                   {result.providerInputStatus ? (
                     <p className="mt-2 text-sm text-muted">
                       {result.providerInputStatus === "confirmed_website"
-                        ? `Crawler input: confirmed website ${result.providerInputWebsite ?? "available"}`
+                        ? `Downstream enrichment input: confirmed website ${result.providerInputWebsite ?? "available"}`
                         : result.providerInputStatus === "candidate_website"
-                          ? `Crawler input held: candidate website ${result.providerInputWebsite ?? "pending"} still needs confirmation`
-                          : "Crawler input: no confirmed website was available"}
+                          ? `Downstream enrichment input held: candidate website ${result.providerInputWebsite ?? "pending"} still needs confirmation`
+                          : "Downstream enrichment input: no confirmed website was available"}
+                    </p>
+                  ) : null}
+                  {result.providerCrawlAttempted != null ? (
+                    <p className="mt-2 text-sm text-muted">
+                      Downstream crawl: {result.providerCrawlAttempted ? "ran" : "did not run"}
                     </p>
                   ) : null}
                   {result.providerCrawledWebsite ? (

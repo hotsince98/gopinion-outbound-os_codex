@@ -1,6 +1,7 @@
 import { initialIcpProfiles } from "@/lib/data/config/icp";
 import { priorityTierDefinitions } from "@/lib/data/config/priority-tiers";
 import { getCompanyHost, isSameCompanyDomain } from "@/lib/data/contacts/quality";
+import { normalizeWebsiteUrl } from "@/lib/data/intake/validation";
 import {
   deriveWorkflowState,
   getCompanyBundle,
@@ -97,6 +98,36 @@ function dedupeStrings(values: Array<string | undefined>) {
   return Array.from(
     new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))),
   );
+}
+
+function getConfirmedDiscoveryWebsite(company: Company) {
+  const websiteDiscovery = company.enrichment?.websiteDiscovery;
+  const normalizedWebsite = normalizeWebsiteUrl(websiteDiscovery?.discoveredWebsite);
+
+  if (!normalizedWebsite || !websiteDiscovery) {
+    return undefined;
+  }
+
+  if (
+    ["record_provided", "auto_confirmed", "operator_confirmed"].includes(
+      websiteDiscovery.confirmationStatus,
+    )
+  ) {
+    return normalizedWebsite;
+  }
+
+  if (
+    websiteDiscovery.confirmationStatus === "rejected" ||
+    websiteDiscovery.confirmationStatus === "needs_review"
+  ) {
+    return undefined;
+  }
+
+  return !websiteDiscovery.operatorReview &&
+    (websiteDiscovery.status === "record_provided" ||
+      websiteDiscovery.status === "discovered")
+    ? normalizedWebsite
+    : undefined;
 }
 
 export function formatPriorityLabel(tier: PriorityTier) {
@@ -934,9 +965,14 @@ function getNormalizedProviderRun(company: Company) {
   const fallbackUsed =
     providerRun.fallbackUsed ||
     (!!fallbackReason && providerRun.requestedProvider === "scrapling");
+  const confirmedDiscoveryWebsite = getConfirmedDiscoveryWebsite(company);
+  const recordWebsite = normalizeWebsiteUrl(company.presence.websiteUrl);
   const inputStatus =
     providerRun.inputStatus ??
-    (providerRun.crawledWebsite || company.enrichment?.sourceUrls.length
+    (providerRun.crawledWebsite ||
+    company.enrichment?.sourceUrls.length ||
+    confirmedDiscoveryWebsite ||
+    recordWebsite
       ? "confirmed_website"
       : company.enrichment?.websiteDiscovery?.confirmationStatus === "needs_review" &&
           company.enrichment.websiteDiscovery.candidateWebsite
@@ -947,8 +983,8 @@ function getNormalizedProviderRun(company: Company) {
     (inputStatus === "candidate_website"
       ? company.enrichment?.websiteDiscovery?.candidateWebsite
       : providerRun.crawledWebsite ??
-        company.enrichment?.websiteDiscovery?.discoveredWebsite ??
-        company.presence.websiteUrl);
+        recordWebsite ??
+        confirmedDiscoveryWebsite);
   const crawlAttempted =
     providerRun.crawlAttempted ??
     Boolean(providerRun.crawledWebsite || company.enrichment?.sourceUrls.length);
