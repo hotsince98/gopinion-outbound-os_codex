@@ -101,7 +101,7 @@ export function CampaignEnrollmentPanel({
         >
           <p className="text-sm font-medium text-copy">{state.message}</p>
           {state.summary ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-5">
+            <div className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr))]">
               <div className="surface-muted p-5">
                 <p className="micro-label">Assigned</p>
                 <p className="mt-2 text-2xl font-semibold text-copy">
@@ -179,7 +179,7 @@ export function CampaignEnrollmentPanel({
 
       <form action={formAction} className="space-y-4">
         <div className="surface-panel p-5 lg:p-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="space-y-4">
             <div className="space-y-2">
               <p className="micro-label">{title}</p>
               <p className="text-sm leading-6 text-muted">{description}</p>
@@ -189,7 +189,7 @@ export function CampaignEnrollmentPanel({
               </p>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[minmax(0,18rem)_repeat(2,auto)] md:items-end">
+            <div className="grid gap-3">
               <label className="space-y-2">
                 <span className="micro-label">Target campaign</span>
                 <select
@@ -206,25 +206,27 @@ export function CampaignEnrollmentPanel({
                 </select>
               </label>
 
-              <button
-                type="submit"
-                name="mode"
-                value="assign"
-                disabled={isPending || selectedCompanyIds.length === 0}
-                className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isPending ? "Working..." : `Assign selected (${selectedCompanyIds.length})`}
-              </button>
+              <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))]">
+                <button
+                  type="submit"
+                  name="mode"
+                  value="assign"
+                  disabled={isPending || selectedCompanyIds.length === 0}
+                  className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isPending ? "Working..." : `Assign selected (${selectedCompanyIds.length})`}
+                </button>
 
-              <button
-                type="submit"
-                name="mode"
-                value="enroll"
-                disabled={isPending || selectedCompanyIds.length === 0}
-                className="rounded-full border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isPending ? "Working..." : `Enroll selected (${selectedCompanyIds.length})`}
-              </button>
+                <button
+                  type="submit"
+                  name="mode"
+                  value="enroll"
+                  disabled={isPending || selectedCompanyIds.length === 0}
+                  className="rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isPending ? "Working..." : `Enroll selected (${selectedCompanyIds.length})`}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -288,7 +290,7 @@ export function CampaignEnrollmentPanel({
                   </span>
                 </div>
 
-                <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+                <div className="mt-4 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))]">
                   <div className="surface-muted p-4">
                     <p className="micro-label">Campaign recommendation</p>
                     <p className="mt-3 text-sm font-medium text-copy">

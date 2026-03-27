@@ -10,7 +10,7 @@ export function ConfidenceBreakdown(props: Readonly<{
   }>;
 }>) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))]">
       {props.items.map((item) => (
         <div
           key={item.label}

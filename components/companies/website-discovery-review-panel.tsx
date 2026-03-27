@@ -51,13 +51,16 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
           <StatusBadge label={props.confidenceLabel} tone="muted" />
         ) : null}
       </div>
-      <p className="mt-3 break-words text-base font-medium text-copy">
-        {reviewTarget ?? "No website candidate available yet"}
-      </p>
+      <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+        <p className="micro-label">Review target</p>
+        <p className="mt-2 break-words text-[0.95rem] font-medium leading-6 text-copy">
+          {reviewTarget ?? "No website candidate available yet"}
+        </p>
+      </div>
       {props.reason ? (
-        <p className="mt-3 break-words text-sm leading-6 text-copy">{props.reason}</p>
+        <p className="mt-4 break-words text-sm leading-6 text-copy">{props.reason}</p>
       ) : null}
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <div className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(10.5rem,1fr))]">
         <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
           <p className="micro-label">Discovery source</p>
           <p className="mt-2 break-words text-sm text-muted">
@@ -116,7 +119,7 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
             {state.message}
           </p>
         ) : null}
-        <div className="flex flex-wrap gap-3">
+        <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))]">
           {canConfirm ? (
             <button
               type="submit"

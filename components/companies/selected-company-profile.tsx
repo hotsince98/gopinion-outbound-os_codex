@@ -24,6 +24,15 @@ function TextList(props: Readonly<{ items: string[]; empty: string }>) {
   );
 }
 
+function MetaItem(props: Readonly<{ label: string; value: string }>) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-black/10 p-4">
+      <p className="micro-label">{props.label}</p>
+      <p className="mt-2 break-words text-sm leading-6 text-copy">{props.value}</p>
+    </div>
+  );
+}
+
 export function SelectedCompanyProfile({
   company,
 }: Readonly<{
@@ -50,7 +59,7 @@ export function SelectedCompanyProfile({
       description={`${company.market} • ${company.subindustry} • ${company.icpLabel}`}
       contentClassName="space-y-5"
     >
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
         <div className="surface-muted p-5">
           <div className="flex flex-wrap gap-2">
             <StatusBadge
@@ -110,7 +119,7 @@ export function SelectedCompanyProfile({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
         <div className="surface-muted p-5">
           <p className="micro-label">Website and discovery</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -123,20 +132,25 @@ export function SelectedCompanyProfile({
               tone={company.websiteDiscovery.confidenceBadge.tone}
             />
           </div>
-          <p className="mt-3 break-words text-sm font-medium text-copy">
-            {company.websiteDiscovery.officialWebsite ?? company.websiteDiscovery.candidate}
-          </p>
-          <p className="mt-2 break-words text-sm text-muted">
-            {company.websiteDiscovery.label}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-muted">
+          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+            <p className="micro-label">Official website</p>
+            <p className="mt-2 break-words text-[0.95rem] font-medium leading-6 text-copy">
+              {company.websiteDiscovery.officialWebsite ?? company.websiteDiscovery.candidate}
+            </p>
+          </div>
+          <div className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
+            <MetaItem label="Discovery status" value={company.websiteDiscovery.label} />
+            <MetaItem
+              label="Preferred page"
+              value={company.preferredSupportingPage.label}
+            />
+            <MetaItem
+              label="Page source"
+              value={company.preferredSupportingPage.sourceLabel}
+            />
+          </div>
+          <p className="mt-4 text-sm leading-6 text-muted">
             {company.websiteDiscovery.reason}
-          </p>
-          <p className="mt-3 text-sm text-copy">
-            Preferred page: {company.preferredSupportingPage.label}
-          </p>
-          <p className="mt-2 text-sm text-muted">
-            {company.preferredSupportingPage.sourceLabel}
           </p>
         </div>
 
@@ -148,11 +162,14 @@ export function SelectedCompanyProfile({
               tone={company.topRecommendedContact.qualityBadge.tone}
             />
           </div>
-          <p className="mt-3 text-sm text-muted">{company.contactSummary.totalLabel}</p>
-          <p className="mt-3 text-base font-medium text-copy">
-            {company.topRecommendedContact.label}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-muted">
+          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+            <p className="micro-label">Primary outreach path</p>
+            <p className="mt-2 text-base font-medium text-copy">
+              {company.topRecommendedContact.label}
+            </p>
+            <p className="mt-2 text-sm text-muted">{company.contactSummary.totalLabel}</p>
+          </div>
+          <p className="mt-4 text-sm leading-6 text-muted">
             {company.topRecommendedContact.reason}
           </p>
           <div className="mt-4">
@@ -164,7 +181,7 @@ export function SelectedCompanyProfile({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
         <div className="surface-muted p-5">
           <p className="micro-label">Angle and readiness</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -187,9 +204,10 @@ export function SelectedCompanyProfile({
           <p className="mt-2 text-sm leading-6 text-copy">
             {company.outreachAngle.reason}
           </p>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            Segment lens: {company.outreachAngle.segmentLabel}
-          </p>
+          <div className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
+            <MetaItem label="Segment lens" value={company.outreachAngle.segmentLabel} />
+            <MetaItem label="Offer CTA" value={company.recommendedOffer.cta} />
+          </div>
           <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
             <p className="micro-label">Recommended offer</p>
             <p className="mt-3 text-base font-medium text-copy">
@@ -201,22 +219,29 @@ export function SelectedCompanyProfile({
             <p className="mt-3 text-sm leading-6 text-copy">
               {company.recommendedOffer.angle}
             </p>
-            <p className="mt-3 text-sm leading-6 text-muted">
-              {company.recommendedOffer.cta}
-            </p>
           </div>
         </div>
 
         <div className="surface-muted p-5">
           <p className="micro-label">Fit and reputation context</p>
-          <div className="mt-3 grid gap-4">
-            <DetailList items={company.basics} />
-            <DetailList items={company.reputation} />
+          <div className="mt-3 space-y-4">
+            <div>
+              <p className="text-sm font-medium text-copy">Company basics</p>
+              <div className="mt-3">
+                <DetailList items={company.basics} />
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-copy">Reputation signals</p>
+              <div className="mt-3">
+                <DetailList items={company.reputation} />
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(26rem,1fr))]">
         <div className="surface-muted p-5">
           <p className="micro-label">Likely pains and operator notes</p>
           <div className="mt-3 space-y-4">

@@ -14,7 +14,7 @@ export function DetailList({
     <div
       className={
         columns === 2
-          ? "grid gap-3 sm:grid-cols-2"
+          ? "grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))]"
           : "grid gap-3"
       }
     >

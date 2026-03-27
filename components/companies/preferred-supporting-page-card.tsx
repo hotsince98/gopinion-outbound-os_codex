@@ -36,9 +36,17 @@ export function PreferredSupportingPageCard(props: Readonly<{
           tone={props.sourceLabel === "Operator confirmed" ? "success" : "accent"}
         />
       </div>
-      <p className="mt-3 break-words text-sm text-copy">{props.label}</p>
+      <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+        <p className="micro-label">Current page</p>
+        <p className="mt-2 break-words text-[0.95rem] font-medium leading-6 text-copy">
+          {props.label}
+        </p>
+        {props.currentUrl ? (
+          <p className="mt-2 break-words text-sm text-muted">{props.currentUrl}</p>
+        ) : null}
+      </div>
       {props.reason ? (
-        <p className="mt-2 break-words text-sm leading-6 text-muted">{props.reason}</p>
+        <p className="mt-4 break-words text-sm leading-6 text-muted">{props.reason}</p>
       ) : null}
       <form action={formAction} className="mt-4 space-y-3">
         <input type="hidden" name="companyId" value={props.companyId} />
@@ -64,7 +72,7 @@ export function PreferredSupportingPageCard(props: Readonly<{
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isPending ? "Saving..." : "Save preferred page"}
         </button>

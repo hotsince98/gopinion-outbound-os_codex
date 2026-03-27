@@ -265,23 +265,26 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 description="Keep the most important next-step context close to the selected company without squeezing the main profile."
               >
                 <div className="space-y-4">
-                  <div className="surface-muted p-4">
+                  <div className="surface-muted p-5">
                     <p className="micro-label">Recommended action</p>
                     <p className="mt-3 text-sm leading-6 text-copy">
                       {view.selectedCompany.suggestedNextAction}
                     </p>
                   </div>
-                  <div className="surface-muted p-4">
+                  <div className="surface-muted p-5">
                     <p className="micro-label">Campaign context</p>
-                    <div className="mt-3 space-y-2">
+                    <div className="mt-3 space-y-3">
                       {view.selectedCompany.campaignSummary.map((item) => (
-                        <p key={item} className="text-sm leading-6 text-muted">
-                          {item}
-                        </p>
+                        <div
+                          key={item}
+                          className="rounded-2xl border border-white/8 bg-black/10 p-4"
+                        >
+                          <p className="text-sm leading-6 text-muted">{item}</p>
+                        </div>
                       ))}
                     </div>
                   </div>
-                  <div className="surface-muted p-4">
+                  <div className="surface-muted p-5">
                     <p className="micro-label">Provider transparency</p>
                     <div className="mt-3">
                       <ProviderRunSummary

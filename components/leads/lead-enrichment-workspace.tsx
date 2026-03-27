@@ -122,6 +122,15 @@ function QueueListItem(props: Readonly<{
   );
 }
 
+function MetaItem(props: Readonly<{ label: string; value: string }>) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-black/10 p-4">
+      <p className="micro-label">{props.label}</p>
+      <p className="mt-2 break-words text-sm leading-6 text-copy">{props.value}</p>
+    </div>
+  );
+}
+
 function FocusedCompanyProfile({
   row,
 }: Readonly<{
@@ -148,7 +157,7 @@ function FocusedCompanyProfile({
       description={`${row.market} • ${row.subindustry}`}
       contentClassName="space-y-5"
     >
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
         <div className="surface-muted p-5">
           <div className="flex flex-wrap gap-2">
             <StatusBadge label={row.readinessBadge.label} tone={row.readinessBadge.tone} />
@@ -161,18 +170,23 @@ function FocusedCompanyProfile({
               tone={row.websiteDiscoveryConfidenceBadge.tone}
             />
           </div>
-          <p className="mt-4 break-words text-sm font-medium text-copy">
-            {row.website ?? "No verified website on record"}
-          </p>
-          <p className="mt-2 break-words text-sm text-muted">{row.websiteDiscovery}</p>
-          <p className="mt-2 break-words text-sm text-copy">
-            {row.websiteDiscoveryCandidate}
-          </p>
-          <p className="mt-2 break-words text-sm leading-6 text-muted">
+          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+            <p className="micro-label">Verified website</p>
+            <p className="mt-2 break-words text-[0.95rem] font-medium leading-6 text-copy">
+              {row.website ?? "No verified website on record"}
+            </p>
+            <p className="mt-2 break-words text-sm text-muted">
+              {row.websiteDiscoveryCandidate}
+            </p>
+          </div>
+          <div className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
+            <MetaItem label="Discovery status" value={row.websiteDiscovery} />
+            <MetaItem label="Page focus" value={row.preferredSupportingPageLabel} />
+            <MetaItem label="Page source" value={row.preferredSupportingPageSource} />
+          </div>
+          <p className="mt-4 break-words text-sm leading-6 text-muted">
             {row.websiteDiscoverySource} • {row.websiteDiscoveryReason}
           </p>
-          <p className="mt-3 text-sm text-copy">{row.preferredSupportingPageLabel}</p>
-          <p className="mt-2 text-sm text-muted">{row.preferredSupportingPageSource}</p>
         </div>
 
         <div className="surface-muted p-5">
@@ -190,13 +204,16 @@ function FocusedCompanyProfile({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
         <div className="surface-muted p-5">
           <p className="micro-label">Contact coverage</p>
-          <p className="mt-3 text-base font-medium text-copy">{row.decisionMaker}</p>
-          <p className="mt-2 text-sm text-muted">
-            Secondary: {row.secondaryContactLabel}
-          </p>
+          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+            <p className="micro-label">Primary outreach path</p>
+            <p className="mt-2 text-base font-medium text-copy">{row.decisionMaker}</p>
+            <p className="mt-2 text-sm text-muted">
+              Secondary: {row.secondaryContactLabel}
+            </p>
+          </div>
           <p className="mt-2 text-sm text-muted">{row.contactCoverage}</p>
           <p className="mt-2 text-sm text-muted">{row.namedCandidateSummary}</p>
           {row.relatedAccountSignals[0] ? (
@@ -223,9 +240,11 @@ function FocusedCompanyProfile({
           </div>
           <p className="mt-3 text-base font-medium text-copy">{row.angleLabel}</p>
           <p className="mt-2 text-sm leading-6 text-muted">{row.angleReason}</p>
-          <p className="mt-3 text-sm text-copy">First offer: {row.recommendedOffer}</p>
-          <p className="mt-2 text-sm text-muted">{row.segmentLabel}</p>
-          <p className="mt-2 text-sm text-muted">{row.noteHintSummary}</p>
+          <div className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
+            <MetaItem label="First offer" value={row.recommendedOffer} />
+            <MetaItem label="Segment" value={row.segmentLabel} />
+          </div>
+          <p className="mt-3 text-sm text-muted">{row.noteHintSummary}</p>
           <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
             <p className="micro-label">Readiness summary</p>
             <p className="mt-3 text-sm leading-6 text-copy">{row.readinessReason}</p>
@@ -718,12 +737,15 @@ export function LeadEnrichmentWorkspace({
                 description="Take website-review and contact-routing actions on the current company without collapsing the queue."
               >
                 <div className="space-y-4">
-                  <div className="surface-muted p-4">
+                  <div className="surface-muted p-5">
                     <p className="micro-label">Website review</p>
-                    <p className="mt-3 break-words text-sm text-copy">
-                      {activeRow.website ?? activeRow.websiteDiscoveryCandidate}
-                    </p>
-                    <p className="mt-2 break-words text-sm text-muted">
+                    <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+                      <p className="micro-label">Current website</p>
+                      <p className="mt-2 break-words text-[0.95rem] font-medium leading-6 text-copy">
+                        {activeRow.website ?? activeRow.websiteDiscoveryCandidate}
+                      </p>
+                    </div>
+                    <p className="mt-4 break-words text-sm text-muted">
                       {activeRow.websiteDiscoverySource} • {activeRow.websiteDiscoveryReason}
                     </p>
                     <div className="mt-4">
@@ -739,10 +761,15 @@ export function LeadEnrichmentWorkspace({
                       />
                     </div>
                   </div>
-                  <div className="surface-muted p-4">
+                  <div className="surface-muted p-5">
                     <p className="micro-label">Primary contact</p>
-                    <p className="mt-3 text-sm text-copy">{activeRow.primaryContactLabel}</p>
-                    <p className="mt-2 text-sm text-muted">
+                    <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+                      <p className="micro-label">Chosen path</p>
+                      <p className="mt-2 text-sm font-medium text-copy">
+                        {activeRow.primaryContactLabel}
+                      </p>
+                    </div>
+                    <p className="mt-4 text-sm text-muted">
                       {activeRow.primaryContactSelectionReason}
                     </p>
                     {activeRow.primaryContactWarnings[0] ? (

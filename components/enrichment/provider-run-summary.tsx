@@ -15,7 +15,7 @@ export function ProviderRunSummary(props: Readonly<{
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge label={props.badge.label} tone={props.badge.tone} />
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))]">
         <div className="surface-muted min-w-0 p-3">
           <p className="micro-label">Provider</p>
           <p className="mt-2 break-words text-sm text-copy">{props.label}</p>
