@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { RecentReviewList } from "@/components/reviews/recent-review-list";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatCard } from "@/components/ui/stat-card";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { TableShell } from "@/components/ui/table-shell";
 import { getDashboardView } from "@/lib/data/selectors/dashboard";
 
@@ -114,16 +116,22 @@ export default async function DashboardPage() {
                 >
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <p className="text-sm font-medium text-copy">{review.companyName}</p>
-                    <span className="rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[0.68rem] font-medium uppercase tracking-[0.18em] text-muted">
-                      {review.badgeLabel}
-                    </span>
+                    <StatusBadge
+                      label={review.badge.label}
+                      tone={review.badge.tone}
+                    />
                   </div>
                   <p className="text-sm text-muted">{review.market}</p>
                   <p className="mt-3 text-sm leading-6 text-copy">{review.summary}</p>
                   <p className="mt-2 text-sm text-muted">{review.metaLabel}</p>
-                  {review.snippet ? (
-                    <p className="mt-3 text-sm leading-6 text-muted">{review.snippet}</p>
-                  ) : null}
+                  <div className="mt-4">
+                    <RecentReviewList
+                      items={review.recentReviews}
+                      maxItems={2}
+                      compact
+                      emptyMessage="No recent review snippets are attached on this company yet."
+                    />
+                  </div>
                 </div>
               ))}
             </div>

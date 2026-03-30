@@ -1,5 +1,6 @@
 import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
 import { ContactRankingStack } from "@/components/enrichment/contact-ranking-stack";
+import { RecentReviewList } from "@/components/reviews/recent-review-list";
 import { DetailList } from "@/components/ui/detail-list";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
@@ -78,10 +79,10 @@ export function SelectedCompanyProfile({
           <p className="mt-4 text-sm leading-6 text-copy">{company.reviewSnapshot}</p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <StatusBadge
-              label={company.latestReview.badge.label}
-              tone={company.latestReview.badge.tone}
+              label={company.reviewContext.badge.label}
+              tone={company.reviewContext.badge.tone}
             />
-            <p className="text-sm text-muted">{company.latestReview.metaLabel}</p>
+            <p className="text-sm text-muted">{company.reviewContext.metaLabel}</p>
           </div>
           <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
             <p className="micro-label">Suggested next action</p>
@@ -163,27 +164,25 @@ export function SelectedCompanyProfile({
 
         <div className="surface-muted p-5">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="micro-label">Latest public review</p>
+            <p className="micro-label">Recent public reviews</p>
             <StatusBadge
-              label={company.latestReview.badge.label}
-              tone={company.latestReview.badge.tone}
+              label={company.reviewContext.badge.label}
+              tone={company.reviewContext.badge.tone}
             />
           </div>
-          <p className="mt-3 text-sm leading-6 text-copy">{company.latestReview.summary}</p>
+          <p className="mt-3 text-sm leading-6 text-copy">{company.reviewContext.summary}</p>
           <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
-            <p className="micro-label">Review context</p>
+            <p className="micro-label">Review pressure summary</p>
             <p className="mt-2 text-sm leading-6 text-copy">
-              {company.latestReview.metaLabel}
+              {company.reviewContext.metaLabel}
             </p>
-            {company.latestReview.snippet ? (
-              <p className="mt-3 text-sm leading-6 text-muted">
-                {company.latestReview.snippet}
-              </p>
-            ) : (
-              <p className="mt-3 text-sm leading-6 text-muted">
-                No latest review snippet is attached on this company yet.
-              </p>
-            )}
+          </div>
+          <div className="mt-4">
+            <RecentReviewList
+              items={company.reviewContext.reviews}
+              maxItems={3}
+              emptyMessage="No recent review snippets are attached on this company yet."
+            />
           </div>
         </div>
 

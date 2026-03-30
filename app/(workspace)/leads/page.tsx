@@ -7,6 +7,7 @@ import { SelectedCompanyProfile } from "@/components/companies/selected-company-
 import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
 import { ContactRankingStack } from "@/components/enrichment/contact-ranking-stack";
 import { ProviderRunSummary } from "@/components/enrichment/provider-run-summary";
+import { RecentReviewList } from "@/components/reviews/recent-review-list";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPanel } from "@/components/ui/filter-panel";
 import { PageHeader } from "@/components/ui/page-header";
@@ -86,6 +87,15 @@ function LeadQueueListItem(props: Readonly<{
       </div>
       <p className="mt-3 text-sm text-copy">{row.recommendedOffer}</p>
       <p className="mt-2 text-sm text-muted">{row.latestReviewSummary}</p>
+      <p className="mt-1 text-sm text-muted">{row.latestReviewMetaLabel}</p>
+      <div className="mt-3">
+        <RecentReviewList
+          items={row.recentReviews}
+          maxItems={2}
+          compact
+          emptyMessage="No recent review snippets are attached yet."
+        />
+      </div>
       <p className="mt-2 text-sm text-muted">{row.workflowReason}</p>
       <p className="mt-2 text-sm text-muted">{row.contactCoverage}</p>
     </Link>

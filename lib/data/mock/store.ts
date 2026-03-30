@@ -44,6 +44,24 @@ export const mockCompanies: Company[] = [
           publishedAt: "2026-03-26T15:00:00.000Z",
           responseStatus: "not_responded",
         },
+        {
+          source: "google",
+          snippet:
+            "Sales was polite, but I had to follow up twice before anyone answered my title question.",
+          rating: 3.0,
+          author: "Rina H.",
+          publishedAt: "2026-03-24T10:30:00.000Z",
+          responseStatus: "not_responded",
+        },
+        {
+          source: "google",
+          snippet:
+            "They resolved the issue eventually and the staff was respectful once I got the right person.",
+          rating: 4.0,
+          author: "Evan C.",
+          publishedAt: "2026-03-20T08:45:00.000Z",
+          responseStatus: "responded",
+        },
       ],
     },
     softwareToolCountEstimate: 2,
@@ -231,6 +249,24 @@ export const mockCompanies: Company[] = [
           publishedAt: "2026-03-29T18:15:00.000Z",
           responseStatus: "not_responded",
         },
+        {
+          source: "google",
+          snippet:
+            "The buying process felt rushed and I am still waiting on a promised follow-up call.",
+          rating: 2.0,
+          author: "Marcus D.",
+          publishedAt: "2026-03-27T12:20:00.000Z",
+          responseStatus: "not_responded",
+        },
+        {
+          source: "google",
+          snippet:
+            "Inventory was solid, but communication after the sale has been uneven.",
+          rating: 3.0,
+          author: "Angela K.",
+          publishedAt: "2026-03-22T09:10:00.000Z",
+          responseStatus: "responded",
+        },
       ],
     },
     softwareToolCountEstimate: 2,
@@ -292,6 +328,24 @@ export const mockCompanies: Company[] = [
           author: "Connor L.",
           publishedAt: "2026-03-27T16:45:00.000Z",
           responseStatus: "not_responded",
+        },
+        {
+          source: "google",
+          snippet:
+            "Good selection overall, although the post-sale process felt slower than promised.",
+          rating: 3.0,
+          author: "Tanya M.",
+          publishedAt: "2026-03-25T13:15:00.000Z",
+          responseStatus: "responded",
+        },
+        {
+          source: "google",
+          snippet:
+            "I eventually got help, but the first response took too long for a simple title update.",
+          rating: 3.0,
+          author: "Victor P.",
+          publishedAt: "2026-03-19T11:00:00.000Z",
+          responseStatus: "responded",
         },
       ],
     },

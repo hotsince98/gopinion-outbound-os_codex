@@ -6,7 +6,12 @@ import type {
   Sequence,
 } from "@/lib/domain";
 import { selectPrimaryContact } from "@/lib/data/contacts/quality";
-import { getLatestReviewSignal } from "@/lib/data/selectors/shared";
+import {
+  getLatestReviewSignal,
+  getRecentReviewContext,
+  type RecentReviewPreview,
+  type SelectorBadge,
+} from "@/lib/data/selectors/shared";
 import { buildIdMap, getSelectorDataSnapshot } from "@/lib/data/selectors/snapshot";
 
 export interface DashboardStat {
@@ -47,10 +52,11 @@ export interface DashboardReviewWatchItem {
   companyId: string;
   companyName: string;
   market: string;
-  badgeLabel: string;
+  badge: SelectorBadge;
   summary: string;
   metaLabel: string;
   snippet?: string;
+  recentReviews: RecentReviewPreview[];
 }
 
 export interface DashboardBlocker {
@@ -201,6 +207,7 @@ function getReviewWatchlist(companies: Company[]) {
     .map((company) => ({
       company,
       latestReview: getLatestReviewSignal(company),
+      recentReviewContext: getRecentReviewContext(company),
     }))
     .filter(({ latestReview }) => latestReview.priorityRank > 0)
     .sort((left, right) => {
@@ -211,14 +218,15 @@ function getReviewWatchlist(companies: Company[]) {
       return right.company.createdAt.localeCompare(left.company.createdAt);
     })
     .slice(0, 4)
-    .map(({ company, latestReview }) => ({
+    .map(({ company, latestReview, recentReviewContext }) => ({
       companyId: company.id,
       companyName: company.name,
       market: `${company.location.city}, ${company.location.state}`,
-      badgeLabel: latestReview.badge.label,
+      badge: latestReview.badge,
       summary: latestReview.summary,
       metaLabel: latestReview.metaLabel,
       snippet: latestReview.snippet,
+      recentReviews: recentReviewContext.reviews,
     }));
 }
 

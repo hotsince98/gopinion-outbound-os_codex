@@ -58,6 +58,34 @@ export interface LatestReviewSignal {
   filterState: "missing" | "monitor" | "fresh" | "urgent";
 }
 
+export interface RecentReviewPreview {
+  id: string;
+  badge: SelectorBadge;
+  responseBadge: SelectorBadge;
+  ratingLabel: string;
+  authorLabel: string;
+  publishedLabel: string;
+  metaLabel: string;
+  snippet: string;
+  summary: string;
+  priorityRank: number;
+}
+
+export interface RecentReviewContext {
+  badge: SelectorBadge;
+  summary: string;
+  snippet?: string;
+  metaLabel: string;
+  priorityRank: number;
+  filterState: LatestReviewSignal["filterState"];
+  reviews: RecentReviewPreview[];
+  reviewCount: number;
+  urgentCount: number;
+  unansweredCount: number;
+  lowRatingCount: number;
+  freshCount: number;
+}
+
 export interface RankedContactPreview {
   id: string;
   slotLabel: string;
@@ -799,7 +827,32 @@ function reviewSnippetLooksNegative(review: CompanyLatestReview) {
   );
 }
 
-function getRelevantLatestReview(company: Company) {
+function pluralizeReviews(count: number) {
+  return count === 1 ? "review" : "reviews";
+}
+
+function getRecentReviewResponseBadge(review: CompanyLatestReview): SelectorBadge {
+  switch (review.responseStatus) {
+    case "responded":
+      return { label: "Responded", tone: "success" };
+    case "not_responded":
+      return { label: "No response", tone: "danger" };
+    case "unknown":
+    default:
+      return { label: "Response unknown", tone: "muted" };
+  }
+}
+
+function buildRecentReviewId(review: CompanyLatestReview, index: number) {
+  return [
+    review.source,
+    review.publishedAt ?? "undated",
+    review.author?.replaceAll(/\s+/g, "-").toLowerCase() ?? "unknown",
+    String(index),
+  ].join(":");
+}
+
+function getScoredRecentReviews(company: Company) {
   const reviews = company.presence.latestReviews ?? [];
 
   return [...reviews]
@@ -810,11 +863,13 @@ function getRelevantLatestReview(company: Company) {
       const hasComplaintLanguage = reviewSnippetLooksNegative(review);
       const hasResponseGap = review.responseStatus === "not_responded";
       const priorityRank =
-        (isLowRating || hasComplaintLanguage) && (isFresh || hasResponseGap)
-          ? 3
-          : isFresh
-            ? 2
-            : 1;
+        (isLowRating || hasComplaintLanguage) && hasResponseGap && isFresh
+          ? 4
+          : (isLowRating || hasComplaintLanguage) && (isFresh || hasResponseGap)
+            ? 3
+            : isFresh || hasResponseGap || isLowRating || hasComplaintLanguage
+              ? 2
+              : 1;
 
       return {
         review,
@@ -834,65 +889,173 @@ function getRelevantLatestReview(company: Company) {
       return (right.review.publishedAt ?? "").localeCompare(
         left.review.publishedAt ?? "",
       );
-    })[0];
+    });
 }
 
-export function getLatestReviewSignal(company: Company): LatestReviewSignal {
-  const relevantReview = getRelevantLatestReview(company);
+function getReviewItemBadge(params: {
+  isFresh: boolean;
+  isLowRating: boolean;
+  hasComplaintLanguage: boolean;
+  hasResponseGap: boolean;
+}): SelectorBadge {
+  if ((params.isLowRating || params.hasComplaintLanguage) && params.hasResponseGap) {
+    return { label: "Needs reply", tone: "danger" };
+  }
 
-  if (!relevantReview) {
+  if (params.isFresh || params.hasResponseGap) {
+    return { label: "Fresh signal", tone: "warning" };
+  }
+
+  return { label: "Review context", tone: "accent" };
+}
+
+function getReviewItemSummary(params: {
+  isFresh: boolean;
+  isLowRating: boolean;
+  hasComplaintLanguage: boolean;
+  hasResponseGap: boolean;
+}) {
+  if (params.hasResponseGap && (params.isLowRating || params.hasComplaintLanguage)) {
+    return "Low-star or complaint feedback is still unanswered.";
+  }
+
+  if (params.hasResponseGap) {
+    return "Customer follow-up is still unanswered.";
+  }
+
+  if (params.isLowRating) {
+    return "Low-star review worth using in outreach prep.";
+  }
+
+  if (params.hasComplaintLanguage) {
+    return "Complaint language suggests a trust or service issue.";
+  }
+
+  if (params.isFresh) {
+    return "Fresh review context for timely personalization.";
+  }
+
+  return "Review context is on file for operator prep.";
+}
+
+export function getRecentReviewContext(company: Company): RecentReviewContext {
+  const relevantReviews = getScoredRecentReviews(company).slice(0, 3);
+
+  if (relevantReviews.length === 0) {
     return {
       badge: { label: "No recent review context", tone: "muted" },
       summary: "No latest-review data is attached yet.",
       snippet: undefined,
-      metaLabel: "Import latest review context to prioritize live reputation issues faster.",
+      metaLabel: "Import recent review context to prioritize live reputation issues faster.",
       priorityRank: 0,
       filterState: "missing",
+      reviews: [],
+      reviewCount: 0,
+      urgentCount: 0,
+      unansweredCount: 0,
+      lowRatingCount: 0,
+      freshCount: 0,
     };
   }
 
-  const {
-    review,
-    ageInDays,
-    isFresh,
-    isLowRating,
-    hasComplaintLanguage,
-    hasResponseGap,
-  } = relevantReview;
-  const isUrgent = (isLowRating || hasComplaintLanguage) && (isFresh || hasResponseGap);
-  const filterState = isUrgent
-    ? "urgent"
-    : isFresh
-      ? "fresh"
-      : "monitor";
-  const badge: SelectorBadge = isUrgent
-    ? { label: "Review follow-up", tone: "danger" }
-    : isFresh
-      ? { label: "Fresh review signal", tone: "warning" }
-      : { label: "Review context on file", tone: "accent" };
-  const summary = isUrgent
-    ? `Recent review activity suggests a live response or reputation opportunity${review.author ? ` around ${review.author}` : ""}.`
-    : isFresh
-      ? "A fresh public review is available to make the outreach angle feel timely."
-      : "Older review context is available for personalization and operator prep.";
+  const reviews = relevantReviews.map((entry, index) => {
+    const ratingLabel =
+      entry.review.rating != null
+        ? `${entry.review.rating.toFixed(1)}★`
+        : "Rating unknown";
+    const authorLabel = entry.review.author ?? "Anonymous reviewer";
+    const publishedLabel = formatLatestReviewDate(entry.review);
+    const responseBadge = getRecentReviewResponseBadge(entry.review);
+    const metaParts = [
+      ratingLabel,
+      authorLabel,
+      publishedLabel,
+      responseBadge.label,
+    ];
+
+    return {
+      id: buildRecentReviewId(entry.review, index),
+      badge: getReviewItemBadge(entry),
+      responseBadge,
+      ratingLabel,
+      authorLabel,
+      publishedLabel,
+      metaLabel: metaParts.join(" • "),
+      snippet: entry.review.snippet,
+      summary: getReviewItemSummary(entry),
+      priorityRank: entry.priorityRank,
+    } satisfies RecentReviewPreview;
+  });
+
+  const urgentCount = relevantReviews.filter((review) => review.priorityRank >= 3).length;
+  const unansweredCount = relevantReviews.filter((review) => review.hasResponseGap).length;
+  const lowRatingCount = relevantReviews.filter((review) => review.isLowRating).length;
+  const freshCount = relevantReviews.filter((review) => review.isFresh).length;
+  const reviewCount = reviews.length;
+  const primaryReview = reviews[0];
+
+  const aggregate =
+    urgentCount >= 2
+      ? {
+          badge: { label: "Repeated review pressure", tone: "danger" } satisfies SelectorBadge,
+          summary: `${urgentCount} of the last ${reviewCount} relevant ${pluralizeReviews(reviewCount)} show active reputation pressure${unansweredCount > 0 ? `, with ${unansweredCount} still unanswered` : ""}.`,
+          priorityRank: 4,
+          filterState: "urgent" as const,
+        }
+      : urgentCount === 1
+        ? {
+            badge: { label: "Review follow-up", tone: "danger" } satisfies SelectorBadge,
+            summary: `One recent review needs attention${primaryReview?.authorLabel ? `, especially ${primaryReview.authorLabel}'s` : ""}.`,
+            priorityRank: 3,
+            filterState: "urgent" as const,
+          }
+        : freshCount >= 2
+          ? {
+              badge: { label: "Fresh review cluster", tone: "warning" } satisfies SelectorBadge,
+              summary: `${freshCount} fresh public reviews are available for timely personalization and response triage.`,
+              priorityRank: 2,
+              filterState: "fresh" as const,
+            }
+          : {
+              badge: { label: "Review context on file", tone: "accent" } satisfies SelectorBadge,
+              summary: `${reviewCount} recent relevant ${pluralizeReviews(reviewCount)} are on file for outreach prep and operator review.`,
+              priorityRank: 1,
+              filterState: "monitor" as const,
+            };
+
   const metaParts = [
-    review.rating != null ? `${review.rating.toFixed(1)}★` : undefined,
-    review.author,
-    formatLatestReviewDate(review),
-    review.responseStatus === "responded"
-      ? "Responded"
-      : review.responseStatus === "not_responded"
-        ? "No response yet"
-        : "Response unknown",
+    `${reviewCount} ${pluralizeReviews(reviewCount)}`,
+    unansweredCount > 0 ? `${unansweredCount} unanswered` : undefined,
+    lowRatingCount > 0 ? `${lowRatingCount} low-star` : undefined,
+    primaryReview ? `Most recent ${primaryReview.publishedLabel}` : undefined,
   ];
 
   return {
-    badge,
-    summary,
-    snippet: review.snippet,
+    badge: aggregate.badge,
+    summary: aggregate.summary,
+    snippet: primaryReview?.snippet,
     metaLabel: metaParts.filter((value): value is string => Boolean(value)).join(" • "),
-    priorityRank: isUrgent ? 3 : isFresh ? 2 : 1,
-    filterState,
+    priorityRank: aggregate.priorityRank,
+    filterState: aggregate.filterState,
+    reviews,
+    reviewCount,
+    urgentCount,
+    unansweredCount,
+    lowRatingCount,
+    freshCount,
+  };
+}
+
+export function getLatestReviewSignal(company: Company): LatestReviewSignal {
+  const context = getRecentReviewContext(company);
+
+  return {
+    badge: context.badge,
+    summary: context.summary,
+    snippet: context.snippet,
+    metaLabel: context.metaLabel,
+    priorityRank: context.priorityRank,
+    filterState: context.filterState,
   };
 }
 

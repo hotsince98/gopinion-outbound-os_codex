@@ -62,8 +62,10 @@ import {
   makeCountedOptions,
   matchesSearch,
   readSearchParam,
+  getRecentReviewContext,
   type EnrichmentState,
   type FilterOption,
+  type RecentReviewPreview,
   type RankedContactPreview,
   type SearchParamsInput,
   type SelectorBadge,
@@ -155,6 +157,7 @@ export interface LeadRowView {
   latestReviewSummary: string;
   latestReviewSnippet?: string;
   latestReviewMetaLabel: string;
+  recentReviews: RecentReviewPreview[];
   websiteLabel: string;
   websiteDiscovery: string;
   websiteDiscoveryBadge: SelectorBadge;
@@ -761,6 +764,7 @@ export async function getLeadsWorkspaceView(
   const rows = filteredBundles.map((bundle) => {
     const assignment = assignmentByCompanyId.get(bundle.company.id);
     const latestReview = getLatestReviewSignal(bundle.company);
+    const recentReviewContext = getRecentReviewContext(bundle.company);
 
     return {
       companyId: bundle.company.id,
@@ -796,6 +800,7 @@ export async function getLeadsWorkspaceView(
       latestReviewSummary: latestReview.summary,
       latestReviewSnippet: latestReview.snippet,
       latestReviewMetaLabel: latestReview.metaLabel,
+      recentReviews: recentReviewContext.reviews,
       websiteLabel:
         bundle.company.presence.websiteUrl ??
         bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite ??
