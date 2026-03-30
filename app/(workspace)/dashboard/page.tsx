@@ -46,7 +46,7 @@ export default async function DashboardPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/campaigns"
-              className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
+              className="button-primary"
             >
               Review campaigns
             </Link>
@@ -54,7 +54,7 @@ export default async function DashboardPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">
         {dashboard.stats.map((stat) => (
           <StatCard
             key={stat.label}
@@ -73,11 +73,11 @@ export default async function DashboardPage() {
           description="The highest-signal accounts to review first, combining fit, contact readiness, and fresh review pressure."
         >
           {dashboard.priorityLeads.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {dashboard.priorityLeads.map((lead) => (
-                <div key={lead.companyId} className="surface-muted p-5">
+                <div key={lead.companyId} className="surface-elevated p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <div className="min-w-0 space-y-1">
                       <p className="text-sm font-medium text-copy">{lead.companyName}</p>
                       <p className="mt-1 text-sm text-muted">{lead.market}</p>
                     </div>
@@ -85,11 +85,16 @@ export default async function DashboardPage() {
                       {lead.confidenceLabel}
                     </span>
                   </div>
-                  <p className="mt-4 text-sm text-copy">{lead.offerName}</p>
-                  <p className="mt-2 text-sm text-muted">{lead.decisionMakerLabel}</p>
-                  <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
-                    <p className="micro-label">Next operator move</p>
-                    <p className="mt-2 text-sm leading-6 text-copy">{lead.nextStep}</p>
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+                    <div className="surface-soft p-4">
+                      <p className="micro-label">Offer focus</p>
+                      <p className="mt-2 text-sm leading-6 text-copy">{lead.offerName}</p>
+                      <p className="mt-2 text-sm text-muted">{lead.decisionMakerLabel}</p>
+                    </div>
+                    <div className="surface-soft p-4">
+                      <p className="micro-label">Next operator move</p>
+                      <p className="mt-2 text-sm leading-6 text-copy">{lead.nextStep}</p>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -122,8 +127,10 @@ export default async function DashboardPage() {
                     />
                   </div>
                   <p className="text-sm text-muted">{review.market}</p>
-                  <p className="mt-3 text-sm leading-6 text-copy">{review.summary}</p>
-                  <p className="mt-2 text-sm text-muted">{review.metaLabel}</p>
+                  <div className="surface-soft mt-4 p-4">
+                    <p className="text-sm leading-6 text-copy">{review.summary}</p>
+                    <p className="mt-2 text-sm text-muted">{review.metaLabel}</p>
+                  </div>
                   <div className="mt-4">
                     <RecentReviewList
                       items={review.recentReviews}
@@ -166,7 +173,7 @@ export default async function DashboardPage() {
             {dashboard.learningSignals.length > 0 ? (
               <div className="space-y-3">
                 {dashboard.learningSignals.map((signal) => (
-                  <div key={signal.id} className="surface-muted p-5">
+                  <div key={signal.id} className="surface-soft p-5">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <p className="text-sm font-medium text-copy">{signal.title}</p>
                       <span className="rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[0.68rem] font-medium uppercase tracking-[0.18em] text-muted">
@@ -181,7 +188,7 @@ export default async function DashboardPage() {
             {dashboard.blockers.length > 0 ? (
               <div className="space-y-3">
                 {dashboard.blockers.map((blocker) => (
-                  <div key={blocker.id} className="surface-muted p-5">
+                  <div key={blocker.id} className="surface-soft p-5">
                     <div className="mb-2 flex items-center gap-3">
                       <span className="h-2.5 w-2.5 rounded-full bg-warning/80" />
                       <p className="text-sm font-medium text-copy">{blocker.title}</p>

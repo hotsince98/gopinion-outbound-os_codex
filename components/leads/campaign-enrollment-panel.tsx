@@ -178,7 +178,7 @@ export function CampaignEnrollmentPanel({
       ) : null}
 
       <form action={formAction} className="space-y-4">
-        <div className="surface-panel p-5 lg:p-6">
+        <div className="surface-panel overflow-hidden p-5 lg:p-6">
           <div className="space-y-4">
             <div className="space-y-2">
               <p className="micro-label">{title}</p>
@@ -195,7 +195,7 @@ export function CampaignEnrollmentPanel({
                 <select
                   name="campaignId"
                   defaultValue=""
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  className="field-shell"
                 >
                   <option value="">Use recommended campaign</option>
                   {panel.campaignOptions.map((option) => (
@@ -212,7 +212,7 @@ export function CampaignEnrollmentPanel({
                   name="mode"
                   value="assign"
                   disabled={isPending || selectedCompanyIds.length === 0}
-                  className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-[1.15rem] border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isPending ? "Working..." : `Assign selected (${selectedCompanyIds.length})`}
                 </button>
@@ -222,7 +222,7 @@ export function CampaignEnrollmentPanel({
                   name="mode"
                   value="enroll"
                   disabled={isPending || selectedCompanyIds.length === 0}
-                  className="rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-[1.15rem] border border-success/30 bg-success/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isPending ? "Working..." : `Enroll selected (${selectedCompanyIds.length})`}
                 </button>
@@ -231,7 +231,7 @@ export function CampaignEnrollmentPanel({
           </div>
         </div>
 
-        <div className="surface-panel p-5">
+        <div className="surface-panel p-5 lg:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <label className="inline-flex items-center gap-2 text-sm text-muted">
               <input
@@ -251,10 +251,10 @@ export function CampaignEnrollmentPanel({
             {panel.rows.map((row) => (
               <label
                 key={row.companyId}
-                className={`block rounded-3xl border p-4 transition ${
+                className={`block rounded-[1.6rem] border p-4 transition ${
                   selectedCompanyIds.includes(row.companyId)
-                    ? "border-accent/30 bg-accent/10"
-                    : "border-white/8 bg-black/10 hover:border-white/12 hover:bg-white/[0.04]"
+                    ? "surface-elevated border-accent/30"
+                    : "border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] hover:border-white/12 hover:bg-white/[0.04]"
                 }`}
               >
                 <input
@@ -291,7 +291,7 @@ export function CampaignEnrollmentPanel({
                 </div>
 
                 <div className="mt-4 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))]">
-                  <div className="surface-muted p-4">
+                  <div className="surface-soft p-4">
                     <p className="micro-label">Campaign recommendation</p>
                     <p className="mt-3 text-sm font-medium text-copy">
                       {row.recommendedCampaignName}
@@ -316,7 +316,7 @@ export function CampaignEnrollmentPanel({
                     <p className="mt-2 text-sm text-muted">{row.currentCampaignLabel}</p>
                   </div>
 
-                  <div className="surface-muted p-4">
+                  <div className="surface-soft p-4">
                     <div className="flex flex-wrap gap-2">
                       <StatusBadge
                         label={row.decisionBadge.label}

@@ -33,10 +33,10 @@ function FilterGroup(props: Readonly<{
   children: ReactNode;
 }>) {
   return (
-    <div className="surface-muted p-4 lg:p-5">
+    <div className="surface-muted p-5 lg:p-6">
       <p className="micro-label">{props.title}</p>
       <p className="mt-2 text-sm leading-6 text-muted">{props.description}</p>
-      <div className="mt-4">{props.children}</div>
+      <div className="mt-5">{props.children}</div>
     </div>
   );
 }
@@ -51,10 +51,10 @@ function CompanyQueueListItem(props: Readonly<{
   return (
     <Link
       href={props.href}
-      className={`block rounded-3xl border p-4 transition ${
+      className={`block rounded-[1.7rem] border p-4 transition ${
         props.isSelected
-          ? "border-accent/35 bg-accent/10"
-          : "border-white/8 bg-black/10 hover:border-white/12 hover:bg-white/[0.04]"
+          ? "surface-elevated border-accent/30"
+          : "border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] hover:border-white/12 hover:bg-white/[0.04]"
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -73,9 +73,14 @@ function CompanyQueueListItem(props: Readonly<{
           tone={row.angleUrgencyBadge.tone}
         />
       </div>
-      <p className="mt-3 text-sm text-copy">{row.recommendedOffer}</p>
-      <p className="mt-2 text-sm text-muted">{row.fitScore}</p>
-      <p className="mt-2 text-sm text-muted">{row.contactCoverage}</p>
+      <div className="surface-soft mt-4 p-4">
+        <p className="micro-label">Offer focus</p>
+        <p className="mt-2 text-sm leading-6 text-copy">{row.recommendedOffer}</p>
+      </div>
+      <div className="mt-3 space-y-2">
+        <p className="text-sm text-muted">{row.fitScore}</p>
+        <p className="text-sm text-muted">{row.contactCoverage}</p>
+      </div>
       <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted">
         {row.decisionMakerConfidence}
       </p>
@@ -97,20 +102,20 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/leads/intake"
-              className="rounded-full border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15"
+              className="button-success"
             >
               Create or import leads
             </Link>
             <Link
               href="/leads"
-              className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
+              className="button-primary"
             >
               Open lead queue
             </Link>
             {view.hasActiveFilters ? (
               <Link
                 href="/companies"
-                className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
+                className="button-secondary"
               >
                 Clear filters
               </Link>
@@ -119,7 +124,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
         {view.stats.map((stat) => (
           <StatCard
             key={stat.label}
@@ -209,14 +214,14 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
               <div className="flex flex-wrap gap-3 pt-1">
                 <button
                   type="submit"
-                  className="rounded-2xl border border-accent/30 bg-accent/10 px-5 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
+                  className="rounded-[1.15rem] border border-accent/30 bg-accent/10 px-5 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
                 >
                   Apply filters
                 </button>
                 {view.hasActiveFilters ? (
                   <Link
                     href="/companies"
-                    className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
+                    className="rounded-[1.15rem] border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
                   >
                     Reset filters
                   </Link>
@@ -227,14 +232,14 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
         </form>
       </FilterPanel>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(280px,320px)_minmax(0,1.55fr)_minmax(300px,360px)] 2xl:grid-cols-[minmax(300px,340px)_minmax(0,1.7fr)_minmax(320px,380px)]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(290px,330px)_minmax(0,1.65fr)_minmax(320px,390px)] 2xl:grid-cols-[minmax(310px,350px)_minmax(0,1.8fr)_minmax(340px,410px)]">
         <SectionCard
           title="Company queue"
           description={`${view.resultLabel}. Choose a company to open its full profile.`}
           className="xl:min-h-[calc(100vh-18rem)]"
         >
           {view.rows.length > 0 ? (
-            <div className="space-y-3 xl:max-h-[calc(100vh-24rem)] xl:overflow-y-auto xl:pr-1">
+            <div className="scrollbar-subtle space-y-3 xl:max-h-[calc(100vh-24rem)] xl:overflow-y-auto xl:pr-1">
               {view.rows.map((row) => (
                 <CompanyQueueListItem
                   key={row.companyId}
@@ -277,7 +282,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                       {view.selectedCompany.campaignSummary.map((item) => (
                         <div
                           key={item}
-                          className="rounded-2xl border border-white/8 bg-black/10 p-4"
+                          className="surface-soft p-4"
                         >
                           <p className="text-sm leading-6 text-muted">{item}</p>
                         </div>

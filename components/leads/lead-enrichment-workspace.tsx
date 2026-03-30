@@ -59,10 +59,10 @@ function QueueListItem(props: Readonly<{
 
   return (
     <div
-      className={`rounded-3xl border p-4 transition ${
+      className={`rounded-[1.7rem] border p-4 transition ${
         props.isActive
-          ? "border-accent/35 bg-accent/10"
-          : "border-white/8 bg-black/10 hover:border-white/12 hover:bg-white/[0.04]"
+          ? "surface-elevated border-accent/30"
+          : "border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] hover:border-white/12 hover:bg-white/[0.04]"
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -103,10 +103,15 @@ function QueueListItem(props: Readonly<{
           tone={row.latestReviewBadge.tone}
         />
       </div>
-      <p className="mt-3 text-sm text-copy">{row.recommendedOffer}</p>
-      <p className="mt-2 text-sm text-muted">{row.latestReviewSummary}</p>
-      <p className="mt-2 text-sm text-muted">{row.contactCoverage}</p>
-      <p className="mt-2 text-sm text-muted">{row.readinessReason}</p>
+      <div className="surface-soft mt-4 p-4">
+        <p className="micro-label">Why this company is in view</p>
+        <p className="mt-2 text-sm leading-6 text-copy">{row.recommendedOffer}</p>
+        <p className="mt-2 text-sm text-muted">{row.latestReviewSummary}</p>
+      </div>
+      <div className="mt-3 space-y-2">
+        <p className="text-sm text-muted">{row.contactCoverage}</p>
+        <p className="text-sm text-muted">{row.readinessReason}</p>
+      </div>
 
       <div className="mt-4 flex flex-wrap gap-3">
         <button
@@ -133,7 +138,7 @@ function QueueListItem(props: Readonly<{
 
 function MetaItem(props: Readonly<{ label: string; value: string }>) {
   return (
-    <div className="rounded-2xl border border-white/8 bg-black/10 p-4">
+    <div className="surface-soft p-4">
       <p className="micro-label">{props.label}</p>
       <p className="mt-2 break-words text-sm leading-6 text-copy">{props.value}</p>
     </div>
@@ -167,7 +172,7 @@ function FocusedCompanyProfile({
       contentClassName="space-y-5"
     >
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
-        <div className="surface-muted p-5">
+        <div className="surface-elevated p-5">
           <div className="flex flex-wrap gap-2">
             <StatusBadge label={row.readinessBadge.label} tone={row.readinessBadge.tone} />
             <StatusBadge
@@ -179,7 +184,7 @@ function FocusedCompanyProfile({
               tone={row.websiteDiscoveryConfidenceBadge.tone}
             />
           </div>
-          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+          <div className="surface-soft mt-4 p-4">
             <p className="micro-label">Verified website</p>
             <p className="mt-2 break-words text-[0.95rem] font-medium leading-6 text-copy">
               {row.website ?? "No verified website on record"}
@@ -207,7 +212,7 @@ function FocusedCompanyProfile({
             />
           </div>
           <p className="mt-3 text-sm leading-6 text-copy">{row.latestReviewSummary}</p>
-          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+          <div className="surface-soft mt-4 p-4">
             <p className="micro-label">Review metadata</p>
             <p className="mt-2 text-sm leading-6 text-copy">{row.latestReviewMetaLabel}</p>
             {row.latestReviewSnippet ? (
@@ -240,7 +245,7 @@ function FocusedCompanyProfile({
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
         <div className="surface-muted p-5">
           <p className="micro-label">Contact coverage</p>
-          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+          <div className="surface-soft mt-4 p-4">
             <p className="micro-label">Primary outreach path</p>
             <p className="mt-2 text-base font-medium text-copy">{row.decisionMaker}</p>
             <p className="mt-2 text-sm text-muted">
@@ -278,7 +283,7 @@ function FocusedCompanyProfile({
             <MetaItem label="Segment" value={row.segmentLabel} />
           </div>
           <p className="mt-3 text-sm text-muted">{row.noteHintSummary}</p>
-          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+          <div className="surface-soft mt-4 p-4">
             <p className="micro-label">Readiness summary</p>
             <p className="mt-3 text-sm leading-6 text-copy">{row.readinessReason}</p>
             <p className="mt-2 text-sm text-muted">{row.enrichmentSummary}</p>
@@ -361,7 +366,7 @@ function CompareCompaniesPanel(props: Readonly<{
               <p className="micro-label">{metric.label}</p>
               <div className="mt-3 grid gap-3 xl:grid-cols-2">
                 {props.rows.map((row) => (
-                  <div key={`${row.companyId}-${metric.label}`} className="rounded-2xl border border-white/8 bg-black/10 p-4">
+                  <div key={`${row.companyId}-${metric.label}`} className="surface-soft p-4">
                     <p className="text-sm font-medium text-copy">{row.companyName}</p>
                     <p className="mt-2 text-sm leading-6 text-muted">{metric.getValue(row)}</p>
                   </div>
@@ -586,13 +591,13 @@ export function LeadEnrichmentWorkspace({
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
             href="/leads"
-            className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
+            className="button-primary"
           >
             Back to leads
           </Link>
           <Link
             href="/leads/intake"
-            className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
+            className="button-secondary"
           >
             Import more leads
           </Link>
@@ -693,14 +698,14 @@ export function LeadEnrichmentWorkspace({
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(280px,320px)_minmax(0,1.55fr)_minmax(300px,360px)] 2xl:grid-cols-[minmax(300px,340px)_minmax(0,1.7fr)_minmax(320px,380px)]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(290px,330px)_minmax(0,1.65fr)_minmax(320px,390px)] 2xl:grid-cols-[minmax(310px,350px)_minmax(0,1.8fr)_minmax(340px,410px)]">
         <SectionCard
           title="Enrichment queue"
           description={`Review ${showSelectedOnly && visibleSelectedRows.length > 0 ? `${visibleSelectedRows.length} selected companies` : `${filteredRows.length} filtered companies`} and choose one to inspect deeply.`}
           className="xl:min-h-[calc(100vh-20rem)]"
         >
           <div className="space-y-4">
-            <div className="surface-muted p-4">
+            <div className="surface-muted p-5">
               <div className="grid gap-3">
                 <label className="space-y-2">
                   <span className="micro-label">Filter before enrichment</span>
@@ -709,7 +714,7 @@ export function LeadEnrichmentWorkspace({
                     value={queueSearch}
                     onChange={(event) => setQueueSearch(event.currentTarget.value)}
                     placeholder="Search company, market, website, contact, or review context"
-                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.05]"
+                    className="field-shell"
                   />
                 </label>
                 <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(10rem,1fr))]">
@@ -720,7 +725,7 @@ export function LeadEnrichmentWorkspace({
                       onChange={(event) =>
                         setReviewFilter(event.currentTarget.value as ReviewFilter)
                       }
-                      className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                      className="field-shell"
                     >
                       <option value="all">All review states</option>
                       <option value="urgent">Urgent review alerts</option>
@@ -736,7 +741,7 @@ export function LeadEnrichmentWorkspace({
                       onChange={(event) =>
                         setWebsiteFilter(event.currentTarget.value as WebsiteFilter)
                       }
-                      className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                      className="field-shell"
                     >
                       <option value="all">All website states</option>
                       <option value="verified">Verified website</option>
@@ -753,7 +758,7 @@ export function LeadEnrichmentWorkspace({
                           event.currentTarget.value as ContactPathFilter,
                         )
                       }
-                      className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                      className="field-shell"
                     >
                       <option value="all">All contact paths</option>
                       <option value="named">Named primary path</option>
@@ -789,7 +794,7 @@ export function LeadEnrichmentWorkspace({
               </div>
             </div>
 
-            <div className="space-y-3 xl:max-h-[calc(100vh-34rem)] xl:overflow-y-auto xl:pr-1">
+            <div className="scrollbar-subtle space-y-3 xl:max-h-[calc(100vh-34rem)] xl:overflow-y-auto xl:pr-1">
               {queueRows.length > 0 ? (
                 queueRows.map((row) => (
                   <QueueListItem
@@ -834,7 +839,7 @@ export function LeadEnrichmentWorkspace({
                 {showSelectedOnly && !compareMode ? " Hidden unrelated companies are temporarily removed from the queue list." : ""}
               </p>
 
-              <div className="surface-muted p-4">
+              <div className="surface-muted p-5">
                 <p className="micro-label">Enrichment scope</p>
                 <p className="mt-2 text-sm leading-6 text-muted">
                   Filter first, then enrich the visible slice, your explicit selection, or the focused company without losing the main profile.

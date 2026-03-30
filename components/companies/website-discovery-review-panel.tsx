@@ -51,7 +51,7 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
           <StatusBadge label={props.confidenceLabel} tone="muted" />
         ) : null}
       </div>
-      <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+      <div className="surface-soft mt-4 p-4">
         <p className="micro-label">Review target</p>
         <p className="mt-2 break-words text-[0.95rem] font-medium leading-6 text-copy">
           {reviewTarget ?? "No website candidate available yet"}
@@ -61,19 +61,19 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
         <p className="mt-4 break-words text-sm leading-6 text-copy">{props.reason}</p>
       ) : null}
       <div className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(10.5rem,1fr))]">
-        <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
+        <div className="surface-soft p-3">
           <p className="micro-label">Discovery source</p>
           <p className="mt-2 break-words text-sm text-muted">
             {props.sourceLabel ?? "Discovery source pending"}
           </p>
         </div>
-        <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
+        <div className="surface-soft p-3">
           <p className="micro-label">Review source</p>
           <p className="mt-2 break-words text-sm text-muted">
             {props.reviewSourceLabel ?? "No operator review yet"}
           </p>
         </div>
-        <div className="rounded-2xl border border-white/8 bg-black/10 p-3">
+        <div className="surface-soft p-3">
           <p className="micro-label">Reviewed</p>
           <p className="mt-2 break-words text-sm text-muted">
             {props.reviewedAtLabel ?? "Pending"}
@@ -81,7 +81,7 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
         </div>
       </div>
       {props.candidateDiagnostics && props.candidateDiagnostics.length > 0 ? (
-        <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+        <div className="surface-soft mt-4 p-4">
           <p className="micro-label">Candidate diagnostics</p>
           {props.candidateDiagnostics.map((diagnostic, index) => (
             <p
@@ -107,7 +107,7 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
             name="officialWebsite"
             defaultValue={props.officialWebsite ?? props.candidateWebsite}
             placeholder="https://dealer.example.com"
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.05]"
+            className="field-shell"
           />
         </label>
         {state.message ? (
@@ -126,7 +126,7 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
               name="intent"
               value="confirm_and_rerun"
               disabled={isPending}
-              className="rounded-full border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-60"
+              className="button-success disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isPending ? "Working..." : "Mark official + rerun"}
             </button>
@@ -137,7 +137,7 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
               name="intent"
               value="reject_candidate"
               disabled={isPending}
-              className="rounded-full border border-warning/30 bg-warning/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-warning/50 hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-60"
+              className="button-warning disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isPending ? "Working..." : "Reject candidate"}
             </button>
@@ -148,7 +148,7 @@ export function WebsiteDiscoveryReviewPanel(props: Readonly<{
               name="intent"
               value="rerun_enrichment"
               disabled={isPending}
-              className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
+              className="button-secondary disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isPending ? "Working..." : "Rerun enrichment"}
             </button>

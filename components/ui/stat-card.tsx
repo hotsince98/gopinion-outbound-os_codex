@@ -20,11 +20,12 @@ export function StatCard({
   tone?: keyof typeof toneClasses;
 }>) {
   return (
-    <article className="surface-panel p-5 lg:p-6">
-      <div className="flex items-start justify-between gap-4">
+    <article className="surface-panel relative overflow-hidden p-5 lg:p-6">
+      <div className="absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top_left,rgba(111,202,255,0.14),transparent_55%)]" />
+      <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="micro-label">{label}</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-copy">
+          <p className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-copy">
             {value}
           </p>
         </div>
@@ -42,7 +43,7 @@ export function StatCard({
       </div>
 
       {detail ? (
-        <div className="mt-5 border-t border-white/8 pt-4">
+        <div className="relative mt-5 border-t border-white/8 pt-4">
           <p className="text-sm leading-6 text-muted">{detail}</p>
         </div>
       ) : null}

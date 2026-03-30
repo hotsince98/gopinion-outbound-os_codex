@@ -12,22 +12,28 @@ export function PageHeader({
   actions?: ReactNode;
 }>) {
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-      <div className="max-w-3xl space-y-3">
-        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        <h2 className="text-3xl font-semibold tracking-tight text-copy sm:text-[2.6rem]">
-          {title}
-        </h2>
-        {description ? (
-          <p className="max-w-2xl text-sm leading-7 text-muted sm:text-[1.02rem]">
-            {description}
-          </p>
+    <section className="surface-panel overflow-hidden">
+      <div className="grid gap-6 bg-[radial-gradient(circle_at_top_left,rgba(111,202,255,0.12),transparent_36%),linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015))] px-6 py-6 lg:px-7 lg:py-7 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+        <div className="max-w-3xl space-y-4">
+          {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+          <div className="space-y-3">
+            <h2 className="text-3xl font-semibold tracking-[-0.03em] text-copy sm:text-[2.7rem]">
+              {title}
+            </h2>
+            {description ? (
+              <p className="max-w-2xl text-sm leading-7 text-muted sm:text-[1.02rem]">
+                {description}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        {actions ? (
+          <div className="surface-muted flex flex-wrap items-center gap-3 self-start px-4 py-4 xl:justify-end">
+            {actions}
+          </div>
         ) : null}
       </div>
-
-      {actions ? (
-        <div className="flex flex-wrap items-center gap-3 xl:justify-end">{actions}</div>
-      ) : null}
-    </div>
+    </section>
   );
 }

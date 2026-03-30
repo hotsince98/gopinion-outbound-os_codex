@@ -27,7 +27,7 @@ function TextList(props: Readonly<{ items: string[]; empty: string }>) {
 
 function MetaItem(props: Readonly<{ label: string; value: string }>) {
   return (
-    <div className="rounded-2xl border border-white/8 bg-black/10 p-4">
+    <div className="surface-soft p-4">
       <p className="micro-label">{props.label}</p>
       <p className="mt-2 break-words text-sm leading-6 text-copy">{props.value}</p>
     </div>
@@ -58,10 +58,10 @@ export function SelectedCompanyProfile({
     <SectionCard
       title={company.companyName}
       description={`${company.market} • ${company.subindustry} • ${company.icpLabel}`}
-      contentClassName="space-y-5"
+      contentClassName="space-y-6"
     >
-      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
-        <div className="surface-muted p-5">
+      <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
+        <div className="surface-elevated p-6">
           <div className="flex flex-wrap gap-2">
             <StatusBadge
               label={company.priorityBadge.label}
@@ -76,15 +76,19 @@ export function SelectedCompanyProfile({
               tone={company.readinessBadge.tone}
             />
           </div>
-          <p className="mt-4 text-sm leading-6 text-copy">{company.reviewSnapshot}</p>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <StatusBadge
-              label={company.reviewContext.badge.label}
-              tone={company.reviewContext.badge.tone}
-            />
-            <p className="text-sm text-muted">{company.reviewContext.metaLabel}</p>
+          <div className="mt-5 space-y-3">
+            <p className="text-base font-medium tracking-[-0.01em] text-copy">
+              {company.reviewSnapshot}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge
+                label={company.reviewContext.badge.label}
+                tone={company.reviewContext.badge.tone}
+              />
+              <p className="text-sm text-muted">{company.reviewContext.metaLabel}</p>
+            </div>
           </div>
-          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+          <div className="surface-soft mt-5 p-4">
             <p className="micro-label">Suggested next action</p>
             <p className="mt-3 text-sm leading-6 text-copy">
               {company.suggestedNextAction}
@@ -94,7 +98,7 @@ export function SelectedCompanyProfile({
 
         <div className="surface-muted p-5">
           <p className="micro-label">Confidence overview</p>
-          <div className="mt-3">
+          <div className="mt-4">
             <ConfidenceBreakdown
               items={[
                 {
@@ -127,7 +131,7 @@ export function SelectedCompanyProfile({
         </div>
       </div>
 
-      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
+      <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
         <div className="surface-muted p-5">
           <p className="micro-label">Website and discovery</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -140,7 +144,7 @@ export function SelectedCompanyProfile({
               tone={company.websiteDiscovery.confidenceBadge.tone}
             />
           </div>
-          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+          <div className="surface-soft mt-4 p-4">
             <p className="micro-label">Official website</p>
             <p className="mt-2 break-words text-[0.95rem] font-medium leading-6 text-copy">
               {company.websiteDiscovery.officialWebsite ?? company.websiteDiscovery.candidate}
@@ -171,7 +175,7 @@ export function SelectedCompanyProfile({
             />
           </div>
           <p className="mt-3 text-sm leading-6 text-copy">{company.reviewContext.summary}</p>
-          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+          <div className="surface-soft mt-4 p-4">
             <p className="micro-label">Review pressure summary</p>
             <p className="mt-2 text-sm leading-6 text-copy">
               {company.reviewContext.metaLabel}
@@ -198,7 +202,7 @@ export function SelectedCompanyProfile({
               tone={company.topRecommendedContact.qualityBadge.tone}
             />
           </div>
-          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+          <div className="surface-soft mt-4 p-4">
             <p className="micro-label">Primary outreach path</p>
             <p className="mt-2 text-base font-medium text-copy">
               {company.topRecommendedContact.label}
@@ -217,7 +221,7 @@ export function SelectedCompanyProfile({
         </div>
       </div>
 
-      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
+      <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
         <div className="surface-muted p-5">
           <p className="micro-label">Angle and readiness</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -244,7 +248,7 @@ export function SelectedCompanyProfile({
             <MetaItem label="Segment lens" value={company.outreachAngle.segmentLabel} />
             <MetaItem label="Offer CTA" value={company.recommendedOffer.cta} />
           </div>
-          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+          <div className="surface-soft mt-4 p-4">
             <p className="micro-label">Recommended offer</p>
             <p className="mt-3 text-base font-medium text-copy">
               {company.recommendedOffer.name}
@@ -277,7 +281,7 @@ export function SelectedCompanyProfile({
         </div>
       </div>
 
-      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(26rem,1fr))]">
+      <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(26rem,1fr))]">
         <div className="surface-muted p-5">
           <p className="micro-label">Likely pains and operator notes</p>
           <div className="mt-3 space-y-4">
@@ -309,7 +313,7 @@ export function SelectedCompanyProfile({
               company.contacts.map((contact) => (
                 <div
                   key={contact.id}
-                  className="rounded-2xl border border-white/8 bg-black/10 p-4"
+                  className="surface-soft p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">

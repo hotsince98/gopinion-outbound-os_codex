@@ -19,18 +19,18 @@ export function FilterPanel({
   return (
     <section className={cn("surface-panel overflow-hidden", className)}>
       {title || description || action ? (
-        <div className="flex flex-col gap-3 border-b border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-5 py-5 lg:flex-row lg:items-start lg:justify-between lg:px-6">
+        <div className="flex flex-col gap-4 border-b border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012))] px-6 py-5 lg:flex-row lg:items-start lg:justify-between lg:px-7 lg:py-6">
           <div className="max-w-2xl">
-            {title ? <p className="text-base font-medium text-copy">{title}</p> : null}
+            {title ? <p className="text-base font-medium tracking-[-0.01em] text-copy">{title}</p> : null}
             {description ? (
               <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
             ) : null}
           </div>
 
-          {action ? <div className="shrink-0">{action}</div> : null}
+          {action ? <div className="shrink-0 self-start">{action}</div> : null}
         </div>
       ) : null}
-      <div className={cn("px-5 py-5 lg:px-6 lg:py-6", bodyClassName)}>{children}</div>
+      <div className={cn("px-6 py-6 lg:px-7 lg:py-7", bodyClassName)}>{children}</div>
     </section>
   );
 }

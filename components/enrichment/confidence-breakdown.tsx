@@ -10,11 +10,11 @@ export function ConfidenceBreakdown(props: Readonly<{
   }>;
 }>) {
   return (
-    <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))]">
+    <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
       {props.items.map((item) => (
         <div
           key={item.label}
-          className="flex min-w-0 flex-col gap-2 rounded-2xl border border-white/8 bg-black/10 px-3 py-3"
+          className="surface-soft flex min-w-0 flex-col gap-3 px-4 py-4"
         >
           <p className="text-sm text-muted">{item.label}</p>
           <div>

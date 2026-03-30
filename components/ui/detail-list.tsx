@@ -19,7 +19,7 @@ export function DetailList({
       }
     >
       {items.map((item) => (
-        <div key={item.label} className="surface-muted p-5">
+        <div key={item.label} className="surface-soft p-5">
           <p className="micro-label">{item.label}</p>
           <p className="mt-3 text-sm leading-6 text-copy">{item.value}</p>
         </div>

@@ -4,14 +4,16 @@
 
 :root {
   color-scheme: dark;
-  --ink: 7 10 17;
-  --shell: 16 23 35;
+  --ink: 6 9 16;
+  --shell: 18 25 39;
   --line: 148 163 184;
   --copy: 232 238 247;
   --muted: 143 156 177;
   --accent: 111 202 255;
   --success: 92 214 170;
   --warning: 245 184 73;
+  --panel: 18 24 38;
+  --panel-soft: 13 18 29;
 }
 
 html {
@@ -22,9 +24,10 @@ html {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(94, 146, 213, 0.18), transparent 30%),
-    radial-gradient(circle at top right, rgba(92, 214, 170, 0.08), transparent 28%),
-    linear-gradient(180deg, #0a0e16 0%, #070a11 100%);
+    radial-gradient(circle at top left, rgba(96, 157, 236, 0.16), transparent 24%),
+    radial-gradient(circle at 88% 10%, rgba(92, 214, 170, 0.09), transparent 22%),
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.05), transparent 32%),
+    linear-gradient(180deg, #0b1019 0%, #070b12 54%, #05080f 100%);
   color: rgb(var(--copy));
   font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   text-rendering: optimizeLegibility;
@@ -48,18 +51,81 @@ a {
 
 @layer components {
   .surface-panel {
-    @apply rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.03))] shadow-panel shadow-black/60 backdrop-blur-xl;
+    @apply rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] shadow-panel shadow-black/60 backdrop-blur-xl;
+    box-shadow:
+      0 24px 60px rgba(0, 0, 0, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
 
   .surface-muted {
-    @apply rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] shadow-innerline;
+    @apply rounded-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] shadow-innerline;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .surface-elevated {
+    @apply rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(114,191,255,0.14),rgba(255,255,255,0.03))] shadow-panel shadow-black/60;
+    box-shadow:
+      0 24px 60px rgba(4, 10, 24, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .surface-soft {
+    @apply rounded-[1.25rem] border border-white/10 bg-black/10;
+  }
+
+  .button-primary {
+    @apply rounded-full border border-accent/35 bg-accent/10 px-4 py-2.5 text-sm font-medium text-copy transition hover:border-accent/55 hover:bg-accent/15;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .button-secondary {
+    @apply rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-copy transition hover:border-white/15 hover:bg-white/[0.06];
+  }
+
+  .button-success {
+    @apply rounded-full border border-success/30 bg-success/10 px-4 py-2.5 text-sm font-medium text-copy transition hover:border-success/45 hover:bg-success/15;
+  }
+
+  .button-warning {
+    @apply rounded-full border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm font-medium text-copy transition hover:border-warning/45 hover:bg-warning/15;
+  }
+
+  .field-shell {
+    @apply w-full rounded-[1.15rem] border border-white/10 bg-white/[0.035] px-4 py-3.5 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.055];
+  }
+
+  .quiet-rule {
+    @apply border-t border-white/8;
   }
 
   .eyebrow {
-    @apply text-[0.66rem] font-medium uppercase tracking-[0.3em] text-muted/90;
+    @apply text-[0.66rem] font-medium uppercase tracking-[0.32em] text-muted/85;
   }
 
   .micro-label {
-    @apply text-[0.68rem] font-medium uppercase tracking-[0.24em] text-muted/90;
+    @apply text-[0.68rem] font-medium uppercase tracking-[0.24em] text-muted/85;
+  }
+}
+
+@layer utilities {
+  .scrollbar-subtle {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
   }
 }

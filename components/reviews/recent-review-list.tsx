@@ -20,19 +20,21 @@ export function RecentReviewList(
       {items.map((item) => (
         <div
           key={item.id}
-          className={`rounded-2xl border border-white/8 bg-black/10 ${
+          className={`surface-soft ${
             props.compact ? "p-3.5" : "p-4"
           }`}
         >
-          <p className="text-xs uppercase tracking-[0.16em] text-muted">
-            {item.ratingLabel} • {item.authorLabel} • {item.publishedLabel}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge label={item.badge.label} tone={item.badge.tone} />
-            <StatusBadge
-              label={item.responseBadge.label}
-              tone={item.responseBadge.tone}
-            />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted">
+              {item.ratingLabel} • {item.authorLabel} • {item.publishedLabel}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge label={item.badge.label} tone={item.badge.tone} />
+              <StatusBadge
+                label={item.responseBadge.label}
+                tone={item.responseBadge.tone}
+              />
+            </div>
           </div>
           <p className="mt-3 text-sm leading-6 text-copy">{item.summary}</p>
           {!props.compact ? (

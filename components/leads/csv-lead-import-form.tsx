@@ -6,7 +6,7 @@ import { importLeadCsvAction } from "@/app/(workspace)/leads/intake/actions";
 import { initialCsvLeadImportActionState } from "@/app/(workspace)/leads/intake/action-state";
 
 const inputClassName =
-  "w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.05]";
+  "field-shell";
 
 export function CsvLeadImportForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +73,7 @@ export function CsvLeadImportForm() {
 
       {state.message ? (
         <div
-          className={`rounded-2xl border px-4 py-4 ${
+          className={`rounded-[1.4rem] border px-4 py-4 ${
             state.status === "success"
               ? "border-success/25 bg-success/10"
               : "border-warning/25 bg-warning/10"
@@ -82,25 +82,25 @@ export function CsvLeadImportForm() {
           <p className="text-sm font-medium text-copy">{state.message}</p>
           {state.summary ? (
             <div className="mt-3 grid gap-3 md:grid-cols-4">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="surface-soft p-3">
                 <p className="micro-label">Created companies</p>
                 <p className="mt-2 text-xl font-semibold text-copy">
                   {state.summary.createdCompanies}
                 </p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="surface-soft p-3">
                 <p className="micro-label">Created contacts</p>
                 <p className="mt-2 text-xl font-semibold text-copy">
                   {state.summary.createdContacts}
                 </p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="surface-soft p-3">
                 <p className="micro-label">Duplicate rows</p>
                 <p className="mt-2 text-xl font-semibold text-copy">
                   {state.summary.duplicateRows}
                 </p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="surface-soft p-3">
                 <p className="micro-label">Invalid rows</p>
                 <p className="mt-2 text-xl font-semibold text-copy">
                   {state.summary.invalidRows}
@@ -137,7 +137,7 @@ export function CsvLeadImportForm() {
 
         <textarea hidden readOnly name="csvText" value={csvText} />
 
-        <div className="space-y-4 rounded-3xl border border-white/8 bg-black/20 p-5">
+        <div className="surface-muted space-y-4 p-5">
           <div className="max-w-2xl space-y-2">
             <p className="micro-label">Expected columns</p>
             <p className="text-sm leading-6 text-muted">
@@ -146,7 +146,7 @@ export function CsvLeadImportForm() {
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="surface-soft p-4">
               <p className="micro-label">Core columns</p>
               <p className="mt-3 text-sm leading-6 text-muted">
                 `company name`, `company`, `business name`, `business`, `name`,
@@ -157,7 +157,7 @@ export function CsvLeadImportForm() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="surface-soft p-4">
               <p className="micro-label">Review columns</p>
               <p className="mt-3 text-sm leading-6 text-muted">
                 Legacy: `latest review snippet`, `latest review rating`, `latest review date`, `latest review author`, `latest review response status`
@@ -170,13 +170,13 @@ export function CsvLeadImportForm() {
         </div>
 
         {clientError ? (
-          <div className="rounded-2xl border border-warning/25 bg-warning/10 px-4 py-4">
+          <div className="rounded-[1.4rem] border border-warning/25 bg-warning/10 px-4 py-4">
             <p className="text-sm font-medium text-copy">{clientError}</p>
           </div>
         ) : null}
 
         {preview?.warnings.length ? (
-          <div className="rounded-2xl border border-warning/25 bg-warning/10 px-4 py-4">
+          <div className="rounded-[1.4rem] border border-warning/25 bg-warning/10 px-4 py-4">
             <p className="micro-label">Mapping warnings</p>
             <div className="mt-3 space-y-2">
               {preview.warnings.map((warning) => (
@@ -189,7 +189,7 @@ export function CsvLeadImportForm() {
         ) : null}
 
         {preview ? (
-          <div className="space-y-5 rounded-3xl border border-white/8 bg-black/20 p-5 lg:p-6">
+          <div className="surface-panel space-y-5 p-5 lg:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="micro-label">Preview</p>
@@ -204,13 +204,13 @@ export function CsvLeadImportForm() {
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="surface-soft p-4">
                 <p className="micro-label">Detected columns</p>
                 <p className="mt-3 text-sm leading-6 text-muted">
                   {preview.detectedColumns.join(" • ") || "None detected"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="surface-soft p-4">
                 <p className="micro-label">Detected mapping</p>
                 <div className="mt-3 space-y-2">
                   {preview.columnMappings.length ? (
@@ -265,7 +265,7 @@ export function CsvLeadImportForm() {
                       <p className="break-words text-sm text-muted">{row.website}</p>
                     ) : null}
                   </div>
-                  <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+                  <div className="surface-soft mt-4 p-4">
                     <p className="micro-label">Review import</p>
                     <p className="mt-2 text-sm text-copy">{row.reviewLabel}</p>
                     {row.reviewSnippets.length > 0 ? (
@@ -305,7 +305,7 @@ export function CsvLeadImportForm() {
           <button
             type="submit"
             disabled={isPending || !preview || preview.validRows === 0}
-            className="rounded-full border border-accent/30 bg-accent/10 px-5 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
+            className="button-primary disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPending ? "Importing leads..." : "Import CSV leads"}
           </button>

@@ -21,13 +21,13 @@ export default function LeadIntakePage() {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/leads"
-              className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
+              className="button-primary"
             >
               Back to leads
             </Link>
             <Link
               href="/companies"
-              className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
+              className="button-secondary"
             >
               Open companies
             </Link>
