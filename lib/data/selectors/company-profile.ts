@@ -16,6 +16,7 @@ import {
   getImportDateLabel,
   getIndustryLabel,
   getLastEnrichedLabel,
+  getLatestReviewSignal,
   getNoteHintSummary,
   getOutreachAngleConfidenceBadge,
   getOutreachAngleLabel,
@@ -83,6 +84,12 @@ export interface CompanyDetailView {
   subindustry: string;
   icpLabel: string;
   reviewSnapshot: string;
+  latestReview: {
+    badge: SelectorBadge;
+    summary: string;
+    snippet?: string;
+    metaLabel: string;
+  };
   priorityBadge: SelectorBadge;
   statusBadge: SelectorBadge;
   readinessBadge: SelectorBadge;
@@ -165,6 +172,7 @@ export function buildCompanyDetailView(params: {
     subindustry: getIndustryLabel(bundle.company),
     icpLabel: getIcpLabel(bundle.company),
     reviewSnapshot: getReviewSnapshot(bundle.company),
+    latestReview: getLatestReviewSignal(bundle.company),
     priorityBadge: getPriorityBadge(bundle.company.priorityTier),
     statusBadge: getCompanyStatusBadge(bundle.company.status),
     readinessBadge: getWorkflowBadge(deriveWorkflowState(bundle)),

@@ -22,6 +22,22 @@ export const reviewResponseBands = [
 ] as const;
 export type ReviewResponseBand = (typeof reviewResponseBands)[number];
 
+export const latestReviewResponseStatuses = [
+  "unknown",
+  "responded",
+  "not_responded",
+] as const;
+export type LatestReviewResponseStatus =
+  (typeof latestReviewResponseStatuses)[number];
+
+export const latestReviewSources = [
+  "google",
+  "manual_import",
+  "dealer_directory",
+  "other",
+] as const;
+export type LatestReviewSource = (typeof latestReviewSources)[number];
+
 export const companyBuyingStages = [
   "growth_oriented",
   "pain_aware",
@@ -314,6 +330,15 @@ export interface CompanyEnrichmentSnapshot {
   lastError?: string;
 }
 
+export interface CompanyLatestReview {
+  source: LatestReviewSource;
+  snippet: string;
+  rating?: number;
+  author?: string;
+  publishedAt?: IsoDateString;
+  responseStatus: LatestReviewResponseStatus;
+}
+
 export interface CompanyPresence {
   hasWebsite: boolean;
   websiteUrl?: string;
@@ -323,6 +348,7 @@ export interface CompanyPresence {
   googleRating?: number;
   reviewCount?: number;
   reviewResponseBand: ReviewResponseBand;
+  latestReviews?: CompanyLatestReview[];
 }
 
 export interface CompanyScoringSnapshot {

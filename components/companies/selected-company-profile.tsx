@@ -76,6 +76,13 @@ export function SelectedCompanyProfile({
             />
           </div>
           <p className="mt-4 text-sm leading-6 text-copy">{company.reviewSnapshot}</p>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <StatusBadge
+              label={company.latestReview.badge.label}
+              tone={company.latestReview.badge.tone}
+            />
+            <p className="text-sm text-muted">{company.latestReview.metaLabel}</p>
+          </div>
           <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
             <p className="micro-label">Suggested next action</p>
             <p className="mt-3 text-sm leading-6 text-copy">
@@ -152,6 +159,32 @@ export function SelectedCompanyProfile({
           <p className="mt-4 text-sm leading-6 text-muted">
             {company.websiteDiscovery.reason}
           </p>
+        </div>
+
+        <div className="surface-muted p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="micro-label">Latest public review</p>
+            <StatusBadge
+              label={company.latestReview.badge.label}
+              tone={company.latestReview.badge.tone}
+            />
+          </div>
+          <p className="mt-3 text-sm leading-6 text-copy">{company.latestReview.summary}</p>
+          <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+            <p className="micro-label">Review context</p>
+            <p className="mt-2 text-sm leading-6 text-copy">
+              {company.latestReview.metaLabel}
+            </p>
+            {company.latestReview.snippet ? (
+              <p className="mt-3 text-sm leading-6 text-muted">
+                {company.latestReview.snippet}
+              </p>
+            ) : (
+              <p className="mt-3 text-sm leading-6 text-muted">
+                No latest review snippet is attached on this company yet.
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="surface-muted p-5">

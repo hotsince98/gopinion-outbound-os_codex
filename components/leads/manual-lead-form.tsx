@@ -195,6 +195,77 @@ export function ManualLeadForm() {
           </label>
         </div>
 
+        <div className="surface-muted p-5">
+          <div className="space-y-2">
+            <p className="micro-label">Latest review signal</p>
+            <p className="text-sm leading-6 text-muted">
+              Optional recent review context helps the queue prioritize live reputation opportunities before enrichment runs.
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-[0.7fr_0.9fr_1fr_0.8fr]">
+            <label className="space-y-2">
+              <span className="micro-label">Latest review rating</span>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="5"
+                name="latestReviewRating"
+                placeholder="2.0"
+                className={inputClassName}
+              />
+              <FieldError message={state.fieldErrors?.latestReviewRating} />
+            </label>
+
+            <label className="space-y-2">
+              <span className="micro-label">Latest review date</span>
+              <input
+                type="date"
+                name="latestReviewDate"
+                className={inputClassName}
+              />
+              <FieldError message={state.fieldErrors?.latestReviewDate} />
+            </label>
+
+            <label className="space-y-2">
+              <span className="micro-label">Latest review author</span>
+              <input
+                type="text"
+                name="latestReviewAuthor"
+                placeholder="Jordan P."
+                className={inputClassName}
+              />
+              <FieldError message={state.fieldErrors?.latestReviewAuthor} />
+            </label>
+
+            <label className="space-y-2">
+              <span className="micro-label">Response status</span>
+              <select
+                name="latestReviewResponseStatus"
+                defaultValue=""
+                className={inputClassName}
+              >
+                <option value="">Unknown</option>
+                <option value="not_responded">No public response</option>
+                <option value="responded">Responded</option>
+              </select>
+              <FieldError message={state.fieldErrors?.latestReviewResponseStatus} />
+            </label>
+          </div>
+
+          <label className="mt-4 block space-y-2">
+            <span className="micro-label">Latest review snippet</span>
+            <textarea
+              name="latestReviewSnippet"
+              rows={3}
+              placeholder="“Bought a car here and still have not heard back about the issue we found after delivery.”"
+              className={`${inputClassName} min-h-24 resize-y`}
+            />
+            <FieldError message={state.fieldErrors?.latestReviewSnippet} />
+          </label>
+        </div>
+
         <div className="grid gap-4 xl:grid-cols-3">
           <label className="space-y-2">
             <span className="micro-label">Primary contact name</span>

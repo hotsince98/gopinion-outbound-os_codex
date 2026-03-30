@@ -14,6 +14,7 @@ export interface LeadQueueMutationActionState {
   status: "idle" | "success" | "error";
   message?: string;
   removedCount?: number;
+  deletedCount?: number;
 }
 
 export const initialLeadQueueMutationActionState: LeadQueueMutationActionState = {

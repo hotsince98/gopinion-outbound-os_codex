@@ -3,6 +3,7 @@ import type {
   CompanyId,
   Contact,
   ContactId,
+  LatestReviewResponseStatus,
 } from "@/lib/domain";
 
 export const supportedLeadIndustryOptions = [
@@ -25,6 +26,11 @@ export interface LeadIntakeInput {
   phone?: string;
   googleRating?: number;
   reviewCount?: number;
+  latestReviewSnippet?: string;
+  latestReviewRating?: number;
+  latestReviewAuthor?: string;
+  latestReviewDate?: string;
+  latestReviewResponseStatus?: LatestReviewResponseStatus;
   primaryContactName?: string;
   contactTitle?: string;
   contactEmail?: string;
@@ -45,6 +51,11 @@ export interface LeadIntakeFieldErrors {
   phone?: string;
   googleRating?: string;
   reviewCount?: string;
+  latestReviewSnippet?: string;
+  latestReviewRating?: string;
+  latestReviewAuthor?: string;
+  latestReviewDate?: string;
+  latestReviewResponseStatus?: string;
   primaryContactName?: string;
   contactTitle?: string;
   contactEmail?: string;

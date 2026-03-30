@@ -34,6 +34,17 @@ export const mockCompanies: Company[] = [
       googleRating: 3.5,
       reviewCount: 29,
       reviewResponseBand: "none",
+      latestReviews: [
+        {
+          source: "google",
+          snippet:
+            "Still waiting to hear back after asking about a repair issue right after delivery.",
+          rating: 2.0,
+          author: "Mason T.",
+          publishedAt: "2026-03-26T15:00:00.000Z",
+          responseStatus: "not_responded",
+        },
+      ],
     },
     softwareToolCountEstimate: 2,
     buyingStage: "pain_aware",
@@ -85,6 +96,17 @@ export const mockCompanies: Company[] = [
       googleRating: 3.6,
       reviewCount: 47,
       reviewResponseBand: "low",
+      latestReviews: [
+        {
+          source: "google",
+          snippet:
+            "The team was nice in person, but it took days to get a clear answer after the sale.",
+          rating: 3.0,
+          author: "Priya S.",
+          publishedAt: "2026-03-28T11:30:00.000Z",
+          responseStatus: "not_responded",
+        },
+      ],
     },
     softwareToolCountEstimate: 3,
     buyingStage: "growth_oriented",
@@ -137,6 +159,17 @@ export const mockCompanies: Company[] = [
       googleRating: 3.8,
       reviewCount: 64,
       reviewResponseBand: "inconsistent",
+      latestReviews: [
+        {
+          source: "google",
+          snippet:
+            "We eventually got everything sorted out, but the first follow-up took too long.",
+          rating: 3.0,
+          author: "Elena R.",
+          publishedAt: "2026-03-21T09:00:00.000Z",
+          responseStatus: "responded",
+        },
+      ],
     },
     softwareToolCountEstimate: 2,
     buyingStage: "pain_aware",
@@ -188,6 +221,17 @@ export const mockCompanies: Company[] = [
       googleRating: 3.4,
       reviewCount: 41,
       reviewResponseBand: "low",
+      latestReviews: [
+        {
+          source: "google",
+          snippet:
+            "I called twice about the issue with my paperwork and still have not heard back.",
+          rating: 1.0,
+          author: "Janelle P.",
+          publishedAt: "2026-03-29T18:15:00.000Z",
+          responseStatus: "not_responded",
+        },
+      ],
     },
     softwareToolCountEstimate: 2,
     buyingStage: "solution_aware",
@@ -239,6 +283,17 @@ export const mockCompanies: Company[] = [
       googleRating: 4.1,
       reviewCount: 92,
       reviewResponseBand: "inconsistent",
+      latestReviews: [
+        {
+          source: "google",
+          snippet:
+            "The inventory was solid, but I still have not received a call back about a title issue.",
+          rating: 2.0,
+          author: "Connor L.",
+          publishedAt: "2026-03-27T16:45:00.000Z",
+          responseStatus: "not_responded",
+        },
+      ],
     },
     softwareToolCountEstimate: 2,
     buyingStage: "pragmatic",
@@ -338,6 +393,17 @@ export const mockCompanies: Company[] = [
       googleRating: 3.7,
       reviewCount: 52,
       reviewResponseBand: "low",
+      latestReviews: [
+        {
+          source: "google",
+          snippet:
+            "Friendly team overall, but the follow-up after purchase felt slower than promised.",
+          rating: 3.0,
+          author: "Devin A.",
+          publishedAt: "2026-03-25T14:20:00.000Z",
+          responseStatus: "responded",
+        },
+      ],
     },
     softwareToolCountEstimate: 2,
     buyingStage: "pain_aware",

@@ -118,6 +118,14 @@ function calculateInitialFitScore(
           : 0;
   }
 
+  if (input.latestReviewSnippet) {
+    score += 4;
+  }
+
+  if (input.latestReviewRating != null && input.latestReviewRating <= 3.2) {
+    score += 4;
+  }
+
   if (hasContactInput(input)) {
     score += 8;
   }
@@ -165,6 +173,10 @@ function buildPainSignals(
     painSignals.push("Review volume is still relatively light");
   }
 
+  if (input.latestReviewRating != null && input.latestReviewRating <= 3.2) {
+    painSignals.push("Recent imported review suggests live reputation pressure");
+  }
+
   if (
     input.googleRating != null &&
     input.reviewCount != null &&
@@ -191,6 +203,23 @@ function buildPainSignals(
   return dedupeStrings(painSignals);
 }
 
+function buildLatestReviews(input: LeadIntakeInput) {
+  if (!input.latestReviewSnippet) {
+    return undefined;
+  }
+
+  return [
+    {
+      source: "manual_import" as const,
+      snippet: input.latestReviewSnippet,
+      rating: input.latestReviewRating,
+      author: input.latestReviewAuthor,
+      publishedAt: input.latestReviewDate,
+      responseStatus: input.latestReviewResponseStatus ?? "unknown",
+    },
+  ];
+}
+
 function buildScoringReasons(
   input: LeadIntakeInput,
   normalizedWebsite: string | undefined,
@@ -208,6 +237,9 @@ function buildScoringReasons(
     input.reviewCount != null || input.googleRating != null
       ? "Public review signals are available"
       : "Public review signals still need enrichment",
+    input.latestReviewSnippet
+      ? "Latest review context is available for prioritization"
+      : "No latest review context is attached yet",
   ];
 
   reasons.push(`Initial intake fit score set to ${fitScore}`);
@@ -245,6 +277,7 @@ function buildCompanyRecord(
   const scoringBucket = getScoreBucket(fitScore);
   const priorityTier = getPriorityTier(fitScore);
   const icpProfileId = deriveIcpProfileId(input, normalizedWebsite, fitScore);
+  const latestReviews = buildLatestReviews(input);
   const segment = classifyCompanySegment({
     presence: {
       hasWebsite: Boolean(normalizedWebsite),
@@ -255,6 +288,7 @@ function buildCompanyRecord(
       googleRating: input.googleRating,
       reviewCount: input.reviewCount,
       reviewResponseBand: "none",
+      latestReviews,
     },
     softwareToolCountEstimate: undefined,
     now,
@@ -269,6 +303,7 @@ function buildCompanyRecord(
       googleRating: input.googleRating,
       reviewCount: input.reviewCount,
       reviewResponseBand: "none",
+      latestReviews,
     },
     segment,
     manualReviewRequired: enrichment.manualReviewRequired,
@@ -300,6 +335,7 @@ function buildCompanyRecord(
       googleRating: input.googleRating,
       reviewCount: input.reviewCount,
       reviewResponseBand: "none",
+      latestReviews,
     },
     buyingStage: "unknown",
     painSignals: buildPainSignals(

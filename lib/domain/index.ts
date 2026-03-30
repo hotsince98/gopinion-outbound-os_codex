@@ -12,6 +12,7 @@ export * from "@/lib/domain/insight";
 export * from "@/lib/domain/memory-entry";
 export * from "@/lib/domain/icp";
 export * from "@/lib/domain/settings";
+export * from "@/lib/domain/workspace-view";
 export * from "@/lib/domain/lead-intake";
 export * from "@/lib/domain/lead-enrichment";
 export * from "@/lib/domain/campaign-enrollment";

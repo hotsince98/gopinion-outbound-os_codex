@@ -107,6 +107,43 @@ const csvFieldDefinitions: CsvFieldDefinition[] = [
     aliases: ["reviewcount", "reviews", "google_reviews", "numberofreviews"],
   },
   {
+    key: "latestReviewSnippet",
+    label: "Latest review snippet",
+    aliases: [
+      "latestreview",
+      "latestreviewsnippet",
+      "latestreviewtext",
+      "recentreview",
+      "recentreviewtext",
+      "reviewsnippet",
+    ],
+  },
+  {
+    key: "latestReviewRating",
+    label: "Latest review rating",
+    aliases: ["latestreviewrating", "recentreviewrating", "reviewrating"],
+  },
+  {
+    key: "latestReviewAuthor",
+    label: "Latest review author",
+    aliases: ["latestreviewauthor", "recentreviewauthor", "reviewauthor"],
+  },
+  {
+    key: "latestReviewDate",
+    label: "Latest review date",
+    aliases: ["latestreviewdate", "recentreviewdate", "reviewdate"],
+  },
+  {
+    key: "latestReviewResponseStatus",
+    label: "Latest review response status",
+    aliases: [
+      "latestreviewresponsestatus",
+      "latestreviewresponse",
+      "reviewresponsestatus",
+      "reviewresponse",
+    ],
+  },
+  {
     key: "primaryContactName",
     label: "Primary contact name",
     aliases: ["primarycontactname", "contactname", "contact_full_name"],
@@ -544,6 +581,14 @@ export function parseLeadCsvText(text: string): ParsedLeadCsv {
           phone: rawPhone,
           googleRating: readCell(row, fieldMatches.googleRating?.index),
           reviewCount: readCell(row, fieldMatches.reviewCount?.index),
+          latestReviewSnippet: readCell(row, fieldMatches.latestReviewSnippet?.index),
+          latestReviewRating: readCell(row, fieldMatches.latestReviewRating?.index),
+          latestReviewAuthor: readCell(row, fieldMatches.latestReviewAuthor?.index),
+          latestReviewDate: readCell(row, fieldMatches.latestReviewDate?.index),
+          latestReviewResponseStatus: readCell(
+            row,
+            fieldMatches.latestReviewResponseStatus?.index,
+          ),
           primaryContactName: readCell(row, fieldMatches.primaryContactName?.index),
           contactTitle: readCell(row, fieldMatches.contactTitle?.index),
           contactEmail: parsedEmails[0],

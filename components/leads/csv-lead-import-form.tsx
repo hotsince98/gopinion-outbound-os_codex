@@ -143,8 +143,10 @@ export function CsvLeadImportForm() {
             `company name`, `company`, `business name`, `business`, `name`,
             `address`, `website`, `phone`, `emails`, `category`, `city`,
             `state`, `zip`, `country`, `google rating`, `review count`,
-            `number of reviews`, `primary contact name`, `contact title`,
-            `contact email`, `notes`
+            `number of reviews`, `latest review snippet`, `latest review rating`,
+            `latest review date`, `latest review author`,
+            `latest review response status`, `primary contact name`,
+            `contact title`, `contact email`, `notes`
           </p>
         </div>
 

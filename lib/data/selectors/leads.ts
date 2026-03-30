@@ -25,6 +25,7 @@ import {
   getImportDateLabel,
   getIndustryLabel,
   getLastEnrichedLabel,
+  getLatestReviewSignal,
   getMissingFieldsLabel,
   getNoteHintSummary,
   getOutreachAngleConfidenceBadge,
@@ -76,12 +77,21 @@ type EnrichedWindowFilter = "all" | "today" | "last_7_days" | "not_enriched";
 type PresenceFilter = "all" | "has" | "missing";
 type PrimarySelectionFilter = "all" | "selected" | "missing";
 type ConfidenceFilter = "all" | "high" | "medium" | "low" | "none";
+type ReviewSignalFilter = "all" | "urgent" | "fresh" | "with_context" | "missing";
+type WebsiteReviewFilter =
+  | "all"
+  | "needs_review"
+  | "confirmed"
+  | "rejected"
+  | "unverified";
+type ContactPathFilter = "all" | "named" | "fallback" | "missing";
 type LeadSortOption =
   | "newest"
   | "oldest"
   | "recently_enriched"
   | "highest_confidence"
-  | "highest_priority";
+  | "highest_priority"
+  | "review_priority";
 
 export interface LeadsWorkspaceFilters {
   q: string;
@@ -96,8 +106,11 @@ export interface LeadsWorkspaceFilters {
   city: string;
   source: string;
   website: PresenceFilter;
+  websiteReview: WebsiteReviewFilter;
   contact: PresenceFilter;
+  contactPath: ContactPathFilter;
   primary: PrimarySelectionFilter;
+  review: ReviewSignalFilter;
   confidence: ConfidenceFilter;
   sort: LeadSortOption;
   companyId: string;
@@ -138,6 +151,10 @@ export interface LeadRowView {
   lastEnrichedLabel: string;
   importedLabel: string;
   sourceLabel: string;
+  latestReviewBadge: SelectorBadge;
+  latestReviewSummary: string;
+  latestReviewSnippet?: string;
+  latestReviewMetaLabel: string;
   websiteLabel: string;
   websiteDiscovery: string;
   websiteDiscoveryBadge: SelectorBadge;
@@ -184,8 +201,11 @@ export interface LeadsWorkspaceView {
     cityOptions: FilterOption[];
     sourceOptions: FilterOption[];
     websiteOptions: FilterOption[];
+    websiteReviewOptions: FilterOption[];
     contactOptions: FilterOption[];
+    contactPathOptions: FilterOption[];
     primaryOptions: FilterOption[];
+    reviewOptions: FilterOption[];
     confidenceOptions: FilterOption[];
     sortOptions: Array<{ value: LeadSortOption; label: string }>;
   };
@@ -287,6 +307,78 @@ function matchesConfidenceFilter(
   confidence: "none" | "low" | "medium" | "high",
 ) {
   return value === "all" || value === confidence;
+}
+
+function getReviewSignalFilterState(
+  bundle: ReturnType<typeof listCompanyBundles>[number],
+): Exclude<ReviewSignalFilter, "all" | "with_context"> | "with_context" {
+  const filterState = getLatestReviewSignal(bundle.company).filterState;
+
+  return filterState === "monitor" ? "with_context" : filterState;
+}
+
+function matchesReviewSignalFilter(
+  value: ReviewSignalFilter,
+  reviewState: ReturnType<typeof getReviewSignalFilterState>,
+) {
+  if (value === "all") {
+    return true;
+  }
+
+  if (value === "with_context") {
+    return reviewState !== "missing";
+  }
+
+  return value === reviewState;
+}
+
+function getWebsiteReviewFilterState(
+  bundle: ReturnType<typeof listCompanyBundles>[number],
+): Exclude<WebsiteReviewFilter, "all"> {
+  const confirmationStatus =
+    bundle.company.enrichment?.websiteDiscovery?.confirmationStatus;
+
+  if (confirmationStatus === "needs_review") {
+    return "needs_review";
+  }
+
+  if (
+    confirmationStatus === "record_provided" ||
+    confirmationStatus === "auto_confirmed" ||
+    confirmationStatus === "operator_confirmed"
+  ) {
+    return "confirmed";
+  }
+
+  if (confirmationStatus === "rejected") {
+    return "rejected";
+  }
+
+  return "unverified";
+}
+
+function matchesWebsiteReviewFilter(
+  value: WebsiteReviewFilter,
+  state: ReturnType<typeof getWebsiteReviewFilterState>,
+) {
+  return value === "all" || value === state;
+}
+
+function getContactPathFilterState(
+  bundle: ReturnType<typeof listCompanyBundles>[number],
+): Exclude<ContactPathFilter, "all"> {
+  if (!bundle.primaryContact) {
+    return "missing";
+  }
+
+  return bundle.primaryContact.fullName ? "named" : "fallback";
+}
+
+function matchesContactPathFilter(
+  value: ContactPathFilter,
+  state: ReturnType<typeof getContactPathFilterState>,
+) {
+  return value === "all" || value === state;
 }
 
 function buildEnrichmentOptions(bundles: ReturnType<typeof listCompanyBundles>) {
@@ -428,6 +520,68 @@ function buildPrimaryOptions(bundles: ReturnType<typeof listCompanyBundles>) {
   );
 }
 
+function buildReviewSignalOptions(bundles: ReturnType<typeof listCompanyBundles>) {
+  return makeCountedOptions(
+    [
+      { value: "all", label: "All review signals" },
+      { value: "urgent", label: "Urgent review alerts" },
+      { value: "fresh", label: "Fresh review signals" },
+      { value: "with_context", label: "Has review context" },
+      { value: "missing", label: "No review context" },
+    ],
+    (value) =>
+      value === "all"
+        ? bundles.length
+        : bundles.filter((bundle) =>
+            matchesReviewSignalFilter(
+              value as ReviewSignalFilter,
+              getReviewSignalFilterState(bundle),
+            ),
+          ).length,
+  );
+}
+
+function buildWebsiteReviewOptions(bundles: ReturnType<typeof listCompanyBundles>) {
+  return makeCountedOptions(
+    [
+      { value: "all", label: "All website review states" },
+      { value: "needs_review", label: "Needs website review" },
+      { value: "confirmed", label: "Website confirmed" },
+      { value: "rejected", label: "Website rejected" },
+      { value: "unverified", label: "Website unverified" },
+    ],
+    (value) =>
+      value === "all"
+        ? bundles.length
+        : bundles.filter((bundle) =>
+            matchesWebsiteReviewFilter(
+              value as WebsiteReviewFilter,
+              getWebsiteReviewFilterState(bundle),
+            ),
+          ).length,
+  );
+}
+
+function buildContactPathOptions(bundles: ReturnType<typeof listCompanyBundles>) {
+  return makeCountedOptions(
+    [
+      { value: "all", label: "All primary contact paths" },
+      { value: "named", label: "Named primary contact" },
+      { value: "fallback", label: "Inbox / fallback primary" },
+      { value: "missing", label: "No primary contact" },
+    ],
+    (value) =>
+      value === "all"
+        ? bundles.length
+        : bundles.filter((bundle) =>
+            matchesContactPathFilter(
+              value as ContactPathFilter,
+              getContactPathFilterState(bundle),
+            ),
+          ).length,
+  );
+}
+
 function buildConfidenceOptions(bundles: ReturnType<typeof listCompanyBundles>) {
   return makeCountedOptions(
     [
@@ -507,7 +661,15 @@ function sortBundles(
         return (
           getPrioritySortValue(right.company.priorityTier) -
             getPrioritySortValue(left.company.priorityTier) ||
+          getLatestReviewSignal(right.company).priorityRank -
+            getLatestReviewSignal(left.company).priorityRank ||
           right.company.scoring.fitScore - left.company.scoring.fitScore ||
+          right.company.createdAt.localeCompare(left.company.createdAt)
+        );
+      case "review_priority":
+        return (
+          getLatestReviewSignal(right.company).priorityRank -
+            getLatestReviewSignal(left.company).priorityRank ||
           right.company.createdAt.localeCompare(left.company.createdAt)
         );
       case "newest":
@@ -533,8 +695,13 @@ export async function getLeadsWorkspaceView(
     city: readSearchParam(searchParams.city) || "all",
     source: readSearchParam(searchParams.source) || "all",
     website: (readSearchParam(searchParams.website) || "all") as PresenceFilter,
+    websiteReview:
+      (readSearchParam(searchParams.websiteReview) || "all") as WebsiteReviewFilter,
     contact: (readSearchParam(searchParams.contact) || "all") as PresenceFilter,
+    contactPath:
+      (readSearchParam(searchParams.contactPath) || "all") as ContactPathFilter,
     primary: (readSearchParam(searchParams.primary) || "all") as PrimarySelectionFilter,
+    review: (readSearchParam(searchParams.review) || "all") as ReviewSignalFilter,
     confidence: (readSearchParam(searchParams.confidence) || "all") as ConfidenceFilter,
     sort: (readSearchParam(searchParams.sort) || "newest") as LeadSortOption,
     companyId: readSearchParam(searchParams.companyId),
@@ -561,8 +728,20 @@ export async function getLeadsWorkspaceView(
         (filters.city === "all" || bundle.company.location.city === filters.city) &&
         (filters.source === "all" || bundle.company.source.provider === filters.source) &&
         matchesPresenceFilter(filters.website, hasWebsiteCandidate(bundle.company)) &&
+        matchesWebsiteReviewFilter(
+          filters.websiteReview,
+          getWebsiteReviewFilterState(bundle),
+        ) &&
         matchesPresenceFilter(filters.contact, hasAnyContactPath(bundle)) &&
+        matchesContactPathFilter(
+          filters.contactPath,
+          getContactPathFilterState(bundle),
+        ) &&
         matchesPrimaryFilter(filters.primary, Boolean(bundle.primaryContact)) &&
+        matchesReviewSignalFilter(
+          filters.review,
+          getReviewSignalFilterState(bundle),
+        ) &&
         matchesConfidenceFilter(filters.confidence, confidenceLevel)
       );
     }),
@@ -581,6 +760,7 @@ export async function getLeadsWorkspaceView(
 
   const rows = filteredBundles.map((bundle) => {
     const assignment = assignmentByCompanyId.get(bundle.company.id);
+    const latestReview = getLatestReviewSignal(bundle.company);
 
     return {
       companyId: bundle.company.id,
@@ -612,6 +792,10 @@ export async function getLeadsWorkspaceView(
       lastEnrichedLabel: getLastEnrichedLabel(bundle.company),
       importedLabel: getImportDateLabel(bundle.company),
       sourceLabel: getSourceLabel(bundle.company),
+      latestReviewBadge: latestReview.badge,
+      latestReviewSummary: latestReview.summary,
+      latestReviewSnippet: latestReview.snippet,
+      latestReviewMetaLabel: latestReview.metaLabel,
       websiteLabel:
         bundle.company.presence.websiteUrl ??
         bundle.company.enrichment?.websiteDiscovery?.discoveredWebsite ??
@@ -677,6 +861,16 @@ export async function getLeadsWorkspaceView(
       tone: "warning",
     },
     {
+      label: "Review alerts",
+      value: String(
+        filteredBundles.filter(
+          (bundle) => getLatestReviewSignal(bundle.company).filterState === "urgent",
+        ).length,
+      ),
+      detail: "Imported fresh complaint context that can sharpen prioritization before enrichment.",
+      tone: "warning",
+    },
+    {
       label: "No website yet",
       value: String(
         filteredBundles.filter((bundle) => !hasWebsiteCandidate(bundle.company)).length,
@@ -715,8 +909,11 @@ export async function getLeadsWorkspaceView(
     city: filters.city === "all" ? "" : filters.city,
     source: filters.source === "all" ? "" : filters.source,
     website: filters.website === "all" ? "" : filters.website,
+    websiteReview: filters.websiteReview === "all" ? "" : filters.websiteReview,
     contact: filters.contact === "all" ? "" : filters.contact,
+    contactPath: filters.contactPath === "all" ? "" : filters.contactPath,
     primary: filters.primary === "all" ? "" : filters.primary,
+    review: filters.review === "all" ? "" : filters.review,
     confidence: filters.confidence === "all" ? "" : filters.confidence,
     sort: filters.sort === "newest" ? "" : filters.sort,
     companyId: selectedBundle?.company.id ?? "",
@@ -760,6 +957,7 @@ export async function getLeadsWorkspaceView(
         },
         (bundle) => hasWebsiteCandidate(bundle.company),
       ),
+      websiteReviewOptions: buildWebsiteReviewOptions(bundles),
       contactOptions: buildPresenceOptions(
         bundles,
         {
@@ -769,7 +967,9 @@ export async function getLeadsWorkspaceView(
         },
         (bundle) => hasAnyContactPath(bundle),
       ),
+      contactPathOptions: buildContactPathOptions(bundles),
       primaryOptions: buildPrimaryOptions(bundles),
+      reviewOptions: buildReviewSignalOptions(bundles),
       confidenceOptions: buildConfidenceOptions(bundles),
       sortOptions: [
         { value: "newest", label: "Newest imports" },
@@ -777,6 +977,7 @@ export async function getLeadsWorkspaceView(
         { value: "recently_enriched", label: "Recently enriched" },
         { value: "highest_confidence", label: "Highest confidence" },
         { value: "highest_priority", label: "Highest priority" },
+        { value: "review_priority", label: "Latest review priority" },
       ],
     },
     queueTabs: getQueueTabs(bundles, filters.queue),

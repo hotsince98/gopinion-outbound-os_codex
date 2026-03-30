@@ -31,6 +31,13 @@ export async function createManualLeadAction(
         country: formData.get("country")?.toString(),
         googleRating: formData.get("googleRating")?.toString(),
         reviewCount: formData.get("reviewCount")?.toString(),
+        latestReviewSnippet: formData.get("latestReviewSnippet")?.toString(),
+        latestReviewRating: formData.get("latestReviewRating")?.toString(),
+        latestReviewAuthor: formData.get("latestReviewAuthor")?.toString(),
+        latestReviewDate: formData.get("latestReviewDate")?.toString(),
+        latestReviewResponseStatus: formData
+          .get("latestReviewResponseStatus")
+          ?.toString(),
         primaryContactName: formData.get("primaryContactName")?.toString(),
         contactTitle: formData.get("contactTitle")?.toString(),
         contactEmail: formData.get("contactEmail")?.toString(),

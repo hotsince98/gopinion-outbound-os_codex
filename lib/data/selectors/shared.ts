@@ -15,6 +15,7 @@ import {
 } from "@/lib/data/company/workflow";
 import type {
   Company,
+  CompanyLatestReview,
   Contact,
   PriorityTier,
 } from "@/lib/domain";
@@ -46,6 +47,15 @@ export interface FilterOption {
 export interface SelectorBadge {
   label: string;
   tone: Tone;
+}
+
+export interface LatestReviewSignal {
+  badge: SelectorBadge;
+  summary: string;
+  snippet?: string;
+  metaLabel: string;
+  priorityRank: number;
+  filterState: "missing" | "monitor" | "fresh" | "urgent";
 }
 
 export interface RankedContactPreview {
@@ -744,6 +754,148 @@ export function getReviewSnapshot(company: Company) {
   return `${rating.toFixed(1)}★ • ${reviews} reviews • ${response}`;
 }
 
+function getLatestReviewAgeInDays(review: CompanyLatestReview) {
+  if (!review.publishedAt) {
+    return undefined;
+  }
+
+  const publishedAt = new Date(review.publishedAt);
+
+  if (Number.isNaN(publishedAt.getTime())) {
+    return undefined;
+  }
+
+  return Math.max(
+    0,
+    Math.floor((Date.now() - publishedAt.getTime()) / (1000 * 60 * 60 * 24)),
+  );
+}
+
+function formatLatestReviewDate(review: CompanyLatestReview) {
+  const ageInDays = getLatestReviewAgeInDays(review);
+
+  if (ageInDays == null) {
+    return review.publishedAt ? review.publishedAt.slice(0, 10) : "Date unknown";
+  }
+
+  if (ageInDays === 0) {
+    return "Today";
+  }
+
+  if (ageInDays === 1) {
+    return "1 day ago";
+  }
+
+  if (ageInDays < 14) {
+    return `${ageInDays} days ago`;
+  }
+
+  return review.publishedAt ? review.publishedAt.slice(0, 10) : `${ageInDays} days ago`;
+}
+
+function reviewSnippetLooksNegative(review: CompanyLatestReview) {
+  return /(ignored|never|terrible|bad|awful|issue|problem|wait|still waiting|rude|disappointed|frustrat|upset|response)/iu.test(
+    review.snippet,
+  );
+}
+
+function getRelevantLatestReview(company: Company) {
+  const reviews = company.presence.latestReviews ?? [];
+
+  return [...reviews]
+    .map((review) => {
+      const ageInDays = getLatestReviewAgeInDays(review);
+      const isFresh = ageInDays != null && ageInDays <= 21;
+      const isLowRating = review.rating != null && review.rating <= 3.2;
+      const hasComplaintLanguage = reviewSnippetLooksNegative(review);
+      const hasResponseGap = review.responseStatus === "not_responded";
+      const priorityRank =
+        (isLowRating || hasComplaintLanguage) && (isFresh || hasResponseGap)
+          ? 3
+          : isFresh
+            ? 2
+            : 1;
+
+      return {
+        review,
+        ageInDays,
+        isFresh,
+        isLowRating,
+        hasComplaintLanguage,
+        hasResponseGap,
+        priorityRank,
+      };
+    })
+    .sort((left, right) => {
+      if (right.priorityRank !== left.priorityRank) {
+        return right.priorityRank - left.priorityRank;
+      }
+
+      return (right.review.publishedAt ?? "").localeCompare(
+        left.review.publishedAt ?? "",
+      );
+    })[0];
+}
+
+export function getLatestReviewSignal(company: Company): LatestReviewSignal {
+  const relevantReview = getRelevantLatestReview(company);
+
+  if (!relevantReview) {
+    return {
+      badge: { label: "No recent review context", tone: "muted" },
+      summary: "No latest-review data is attached yet.",
+      snippet: undefined,
+      metaLabel: "Import latest review context to prioritize live reputation issues faster.",
+      priorityRank: 0,
+      filterState: "missing",
+    };
+  }
+
+  const {
+    review,
+    ageInDays,
+    isFresh,
+    isLowRating,
+    hasComplaintLanguage,
+    hasResponseGap,
+  } = relevantReview;
+  const isUrgent = (isLowRating || hasComplaintLanguage) && (isFresh || hasResponseGap);
+  const filterState = isUrgent
+    ? "urgent"
+    : isFresh
+      ? "fresh"
+      : "monitor";
+  const badge: SelectorBadge = isUrgent
+    ? { label: "Review follow-up", tone: "danger" }
+    : isFresh
+      ? { label: "Fresh review signal", tone: "warning" }
+      : { label: "Review context on file", tone: "accent" };
+  const summary = isUrgent
+    ? `Recent review activity suggests a live response or reputation opportunity${review.author ? ` around ${review.author}` : ""}.`
+    : isFresh
+      ? "A fresh public review is available to make the outreach angle feel timely."
+      : "Older review context is available for personalization and operator prep.";
+  const metaParts = [
+    review.rating != null ? `${review.rating.toFixed(1)}★` : undefined,
+    review.author,
+    formatLatestReviewDate(review),
+    review.responseStatus === "responded"
+      ? "Responded"
+      : review.responseStatus === "not_responded"
+        ? "No response yet"
+        : "Response unknown",
+  ];
+
+  return {
+    badge,
+    summary,
+    snippet: review.snippet,
+    metaLabel: metaParts.filter((value): value is string => Boolean(value)).join(" • "),
+    priorityRank: isUrgent ? 3 : isFresh ? 2 : 1,
+    filterState,
+  };
+}
+
 export function formatRoleLabel(contact: Contact) {
   return contact.title ?? formatLabel(contact.role);
 }
@@ -1378,6 +1530,7 @@ export function getRecommendedOfferName(bundle: CompanyBundle) {
 export function getSuggestedNextAction(bundle: CompanyBundle) {
   const workflowState = deriveWorkflowState(bundle);
   const outreachAngle = bundle.company.enrichment?.outreachAngle;
+  const latestReviewSignal = getLatestReviewSignal(bundle.company);
 
   if (
     bundle.company.status === "disqualified" ||
@@ -1418,6 +1571,10 @@ export function getSuggestedNextAction(bundle: CompanyBundle) {
   }
 
   if (bundle.company.enrichment?.manualReviewRequired) {
+    if (latestReviewSignal.filterState === "urgent") {
+      return "Review the fresh complaint signal, verify the contact path, and lead with a fast response angle.";
+    }
+
     return outreachAngle
       ? `Review the ${outreachAngle.label.toLowerCase()} angle and verify the contact path`
       : "Review the enrichment findings and verify the contact path";

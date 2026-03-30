@@ -39,12 +39,14 @@ export interface Repository<TEntity, TId extends string> {
 export interface CompanyRepository extends Repository<Company, CompanyId> {
   create(company: Company): RepositoryResult<Company>;
   update(company: Company): RepositoryResult<Company>;
+  delete(id: CompanyId): RepositoryResult<void>;
   listByPriorityTier(tier: PriorityTier): RepositoryResult<Company[]>;
 }
 
 export interface ContactRepository extends Repository<Contact, ContactId> {
   create(contact: Contact): RepositoryResult<Contact>;
   update(contact: Contact): RepositoryResult<Contact>;
+  delete(id: ContactId): RepositoryResult<void>;
   listByCompanyId(companyId: CompanyId): RepositoryResult<Contact[]>;
 }
 
@@ -64,6 +66,7 @@ export interface EnrollmentRepository
   extends Repository<Enrollment, EnrollmentId> {
   create(enrollment: Enrollment): RepositoryResult<Enrollment>;
   update(enrollment: Enrollment): RepositoryResult<Enrollment>;
+  delete(id: EnrollmentId): RepositoryResult<void>;
   listByCompanyId(companyId: CompanyId): RepositoryResult<Enrollment[]>;
   listByCampaignId(campaignId: CampaignId): RepositoryResult<Enrollment[]>;
   listBySequenceId(sequenceId: SequenceId): RepositoryResult<Enrollment[]>;
@@ -71,6 +74,7 @@ export interface EnrollmentRepository
 }
 
 export interface ReplyRepository extends Repository<Reply, ReplyId> {
+  delete(id: ReplyId): RepositoryResult<void>;
   listByClassification(
     classification: ReplyClassification,
   ): RepositoryResult<Reply[]>;
@@ -79,6 +83,7 @@ export interface ReplyRepository extends Repository<Reply, ReplyId> {
 
 export interface AppointmentRepository
   extends Repository<Appointment, AppointmentId> {
+  delete(id: AppointmentId): RepositoryResult<void>;
   listByCampaignId(campaignId: CampaignId): RepositoryResult<Appointment[]>;
 }
 

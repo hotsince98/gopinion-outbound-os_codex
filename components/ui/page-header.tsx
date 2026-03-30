@@ -12,14 +12,14 @@ export function PageHeader({
   actions?: ReactNode;
 }>) {
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
       <div className="max-w-3xl space-y-3">
         {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        <h2 className="text-3xl font-semibold tracking-tight text-copy sm:text-4xl">
+        <h2 className="text-3xl font-semibold tracking-tight text-copy sm:text-[2.6rem]">
           {title}
         </h2>
         {description ? (
-          <p className="max-w-2xl text-sm leading-7 text-muted sm:text-base">
+          <p className="max-w-2xl text-sm leading-7 text-muted sm:text-[1.02rem]">
             {description}
           </p>
         ) : null}

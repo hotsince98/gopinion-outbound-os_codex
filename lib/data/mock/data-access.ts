@@ -88,6 +88,16 @@ class InMemoryRepository<TEntity extends { id: string }, TId extends string> {
 
     return item;
   }
+
+  protected remove(id: TId): void {
+    const index = this.items.findIndex((currentItem) => currentItem.id === id);
+
+    if (index === -1) {
+      return;
+    }
+
+    this.items.splice(index, 1);
+  }
 }
 
 class InMemoryCompanyRepository
@@ -100,6 +110,10 @@ class InMemoryCompanyRepository
 
   update(company: Company): Company {
     return this.replace(company);
+  }
+
+  delete(id: CompanyId): void {
+    this.remove(id);
   }
 
   listByPriorityTier(tier: PriorityTier): Company[] {
@@ -117,6 +131,10 @@ class InMemoryContactRepository
 
   update(contact: Contact): Contact {
     return this.replace(contact);
+  }
+
+  delete(id: ContactId): void {
+    this.remove(id);
   }
 
   listByCompanyId(companyId: CompanyId): Contact[] {
@@ -163,6 +181,10 @@ class InMemoryEnrollmentRepository
     return this.replace(enrollment);
   }
 
+  delete(id: EnrollmentId): void {
+    this.remove(id);
+  }
+
   listByCompanyId(companyId: CompanyId): Enrollment[] {
     return this.filter((enrollment) => enrollment.companyId === companyId);
   }
@@ -184,6 +206,10 @@ class InMemoryReplyRepository
   extends InMemoryRepository<Reply, ReplyId>
   implements ReplyRepository
 {
+  delete(id: ReplyId): void {
+    this.remove(id);
+  }
+
   listByClassification(classification: ReplyClassification): Reply[] {
     return this.filter((reply) => reply.classification === classification);
   }
@@ -197,6 +223,10 @@ class InMemoryAppointmentRepository
   extends InMemoryRepository<Appointment, AppointmentId>
   implements AppointmentRepository
 {
+  delete(id: AppointmentId): void {
+    this.remove(id);
+  }
+
   listByCampaignId(campaignId: CampaignId): Appointment[] {
     return this.filter((appointment) => appointment.campaignId === campaignId);
   }

@@ -2,6 +2,7 @@ import type {
   ContactRole,
   LeadIntakeFieldErrors,
   LeadIntakeInput,
+  LatestReviewResponseStatus,
 } from "@/lib/domain";
 
 const WEBSITE_PROTOCOL_PATTERN = /^[a-z]+:\/\//i;
@@ -32,6 +33,41 @@ function parseOptionalNumber(value: string | number | undefined) {
   const parsed = typeof value === "number" ? value : Number(value);
 
   return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function parseOptionalIsoDate(value: string | undefined) {
+  const trimmed = trimToUndefined(value);
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = new Date(trimmed);
+
+  return Number.isNaN(parsed.getTime()) ? "invalid" : parsed.toISOString();
+}
+
+function normalizeLatestReviewResponseStatus(
+  value: string | number | undefined,
+): LatestReviewResponseStatus | undefined {
+  const normalized = trimToUndefined(value?.toString())
+    ?.toLowerCase()
+    .replace(/[\s-]+/g, "_");
+
+  switch (normalized) {
+    case undefined:
+      return undefined;
+    case "responded":
+    case "response_posted":
+      return "responded";
+    case "not_responded":
+    case "no_response":
+    case "none":
+    case "unanswered":
+      return "not_responded";
+    default:
+      return "unknown";
+  }
 }
 
 function isValidIpv4Hostname(hostname: string) {
@@ -175,6 +211,11 @@ export function normalizeLeadIntakeInput(
       | "phone"
       | "googleRating"
       | "reviewCount"
+      | "latestReviewSnippet"
+      | "latestReviewRating"
+      | "latestReviewAuthor"
+      | "latestReviewDate"
+      | "latestReviewResponseStatus"
       | "primaryContactName"
       | "contactTitle"
       | "contactEmail"
@@ -197,6 +238,16 @@ export function normalizeLeadIntakeInput(
     phone: trimToUndefined(values.phone?.toString()),
     googleRating: parseOptionalNumber(values.googleRating),
     reviewCount: parseOptionalNumber(values.reviewCount),
+    latestReviewSnippet: trimToUndefined(values.latestReviewSnippet?.toString()),
+    latestReviewRating: parseOptionalNumber(values.latestReviewRating),
+    latestReviewAuthor: trimToUndefined(values.latestReviewAuthor?.toString()),
+    latestReviewDate:
+      parseOptionalIsoDate(values.latestReviewDate?.toString()) === "invalid"
+        ? values.latestReviewDate?.toString().trim()
+        : parseOptionalIsoDate(values.latestReviewDate?.toString()),
+    latestReviewResponseStatus: normalizeLatestReviewResponseStatus(
+      values.latestReviewResponseStatus,
+    ),
     primaryContactName: trimToUndefined(values.primaryContactName?.toString()),
     contactTitle: trimToUndefined(values.contactTitle?.toString()),
     contactEmail: normalizeEmailAddress(values.contactEmail?.toString()),
@@ -250,6 +301,24 @@ export function validateLeadIntakeInput(
       fieldErrors.reviewCount = "Review count must be a number.";
     } else if (!Number.isInteger(input.reviewCount) || input.reviewCount < 0) {
       fieldErrors.reviewCount = "Review count must be a whole number.";
+    }
+  }
+
+  if (input.latestReviewRating != null) {
+    if (Number.isNaN(input.latestReviewRating)) {
+      fieldErrors.latestReviewRating = "Latest review rating must be a number.";
+    } else if (input.latestReviewRating < 0 || input.latestReviewRating > 5) {
+      fieldErrors.latestReviewRating =
+        "Latest review rating must be between 0 and 5.";
+    }
+  }
+
+  if (input.latestReviewDate) {
+    const parsed = new Date(input.latestReviewDate);
+
+    if (Number.isNaN(parsed.getTime())) {
+      fieldErrors.latestReviewDate =
+        "Latest review date must be a valid date.";
     }
   }
 

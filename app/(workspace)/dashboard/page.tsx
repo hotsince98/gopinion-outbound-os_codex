@@ -15,28 +15,6 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const dashboard = await getDashboardView();
 
-  const priorityRows = dashboard.priorityLeads.map((lead) => ({
-    id: lead.companyId,
-    cells: [
-      <div key={`${lead.companyId}-company`} className="space-y-1">
-        <p className="font-medium text-copy">{lead.companyName}</p>
-        <p className="text-sm text-muted">{lead.market}</p>
-      </div>,
-      <span key={`${lead.companyId}-offer`} className="text-sm text-copy">
-        {lead.offerName}
-      </span>,
-      <div key={`${lead.companyId}-owner`} className="space-y-1">
-        <p className="text-sm text-copy">{lead.decisionMakerLabel}</p>
-        <p className="text-xs uppercase tracking-[0.18em] text-muted">
-          {lead.confidenceLabel}
-        </p>
-      </div>,
-      <span key={`${lead.companyId}-next`} className="text-sm text-muted">
-        {lead.nextStep}
-      </span>,
-    ],
-  }));
-
   const sequenceRows = dashboard.sequenceHealth.map((sequence) => ({
     id: sequence.sequenceId,
     cells: [
@@ -87,45 +65,73 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.45fr_0.95fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <SectionCard
           title="Priority dealer queue"
-          description="High-signal accounts that should be ready for human review before enrollment."
+          description="The highest-signal accounts to review first, combining fit, contact readiness, and fresh review pressure."
         >
-          <TableShell
-            columns={["Company", "Offer", "Decision-maker hypothesis", "Next step"]}
-            rows={priorityRows}
-            emptyTitle="No priority companies yet"
-            emptyDescription="The current backend has no qualified or campaign-ready companies. Seed the supported Postgres tables or switch back to mock mode if you want demo data."
-          />
-        </SectionCard>
-
-        <SectionCard
-          title="Learning signals"
-          description="Outcome notes worth turning into repeatable playbooks and structured learning."
-        >
-          {dashboard.learningSignals.length > 0 ? (
-            <div className="grid gap-3">
-              {dashboard.learningSignals.map((signal) => (
-                <div
-                  key={signal.id}
-                  className="surface-muted p-5 transition hover:border-white/12 hover:bg-white/[0.05]"
-                >
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium text-copy">{signal.title}</p>
-                    <span className="rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[0.68rem] font-medium uppercase tracking-[0.18em] text-muted">
-                      {signal.tag}
+          {dashboard.priorityLeads.length > 0 ? (
+            <div className="space-y-3">
+              {dashboard.priorityLeads.map((lead) => (
+                <div key={lead.companyId} className="surface-muted p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-copy">{lead.companyName}</p>
+                      <p className="mt-1 text-sm text-muted">{lead.market}</p>
+                    </div>
+                    <span className="rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[0.68rem] font-medium uppercase tracking-[0.18em] text-copy">
+                      {lead.confidenceLabel}
                     </span>
                   </div>
-                  <p className="text-sm leading-6 text-muted">{signal.summary}</p>
+                  <p className="mt-4 text-sm text-copy">{lead.offerName}</p>
+                  <p className="mt-2 text-sm text-muted">{lead.decisionMakerLabel}</p>
+                  <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+                    <p className="micro-label">Next operator move</p>
+                    <p className="mt-2 text-sm leading-6 text-copy">{lead.nextStep}</p>
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
             <EmptyState
-              eyebrow="Learning"
-              title="No learning signals yet"
-              description="Replies, appointments, and insight records have not generated any structured learning signals in the current backend."
+              eyebrow="Priority queue"
+              title="No priority companies yet"
+              description="The current backend has no qualified or campaign-ready companies. Seed the supported Postgres tables or switch back to mock mode if you want demo data."
+            />
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="Review watchlist"
+          description="Fresh public-review context worth acting on before it cools off."
+        >
+          {dashboard.reviewWatchlist.length > 0 ? (
+            <div className="grid gap-3">
+              {dashboard.reviewWatchlist.map((review) => (
+                <div
+                  key={review.companyId}
+                  className="surface-muted p-5 transition hover:border-white/12 hover:bg-white/[0.05]"
+                >
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-copy">{review.companyName}</p>
+                    <span className="rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[0.68rem] font-medium uppercase tracking-[0.18em] text-muted">
+                      {review.badgeLabel}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted">{review.market}</p>
+                  <p className="mt-3 text-sm leading-6 text-copy">{review.summary}</p>
+                  <p className="mt-2 text-sm text-muted">{review.metaLabel}</p>
+                  {review.snippet ? (
+                    <p className="mt-3 text-sm leading-6 text-muted">{review.snippet}</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              eyebrow="Review watch"
+              title="No review watchlist items yet"
+              description="Imported latest-review context will surface here as soon as it can help with urgency and prioritization."
             />
           )}
         </SectionCard>
@@ -145,28 +151,46 @@ export default async function DashboardPage() {
         </SectionCard>
 
         <SectionCard
-          title="Pipeline blockers"
-          description="Operational friction points that still need data, tooling, or workflow coverage."
+          title="Learning and blockers"
+          description="Operational friction points and repeatable lessons to keep the operator loop improving."
         >
-          {dashboard.blockers.length > 0 ? (
-            <div className="space-y-3">
-              {dashboard.blockers.map((blocker) => (
-                <div key={blocker.id} className="surface-muted p-5">
-                  <div className="mb-2 flex items-center gap-3">
-                    <span className="h-2.5 w-2.5 rounded-full bg-warning/80" />
-                    <p className="text-sm font-medium text-copy">{blocker.title}</p>
+          <div className="space-y-4">
+            {dashboard.learningSignals.length > 0 ? (
+              <div className="space-y-3">
+                {dashboard.learningSignals.map((signal) => (
+                  <div key={signal.id} className="surface-muted p-5">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-copy">{signal.title}</p>
+                      <span className="rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[0.68rem] font-medium uppercase tracking-[0.18em] text-muted">
+                        {signal.tag}
+                      </span>
+                    </div>
+                    <p className="text-sm leading-6 text-muted">{signal.summary}</p>
                   </div>
-                  <p className="text-sm leading-6 text-muted">{blocker.summary}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              eyebrow="Blockers"
-              title="No active blockers recorded"
-              description="The current data snapshot has no stored constraint notes to surface here."
-            />
-          )}
+                ))}
+              </div>
+            ) : null}
+            {dashboard.blockers.length > 0 ? (
+              <div className="space-y-3">
+                {dashboard.blockers.map((blocker) => (
+                  <div key={blocker.id} className="surface-muted p-5">
+                    <div className="mb-2 flex items-center gap-3">
+                      <span className="h-2.5 w-2.5 rounded-full bg-warning/80" />
+                      <p className="text-sm font-medium text-copy">{blocker.title}</p>
+                    </div>
+                    <p className="text-sm leading-6 text-muted">{blocker.summary}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {dashboard.learningSignals.length === 0 && dashboard.blockers.length === 0 ? (
+              <EmptyState
+                eyebrow="Operator signal"
+                title="No learning signals or blockers recorded"
+                description="As replies, appointments, and ops notes accumulate, this panel will become the running memory of what to repeat and what to fix."
+              />
+            ) : null}
+          </div>
         </SectionCard>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CampaignEnrollmentPanel } from "@/components/leads/campaign-enrollment-panel";
+import { SavedWorkspaceViewsBar } from "@/components/leads/saved-workspace-views-bar";
 import { WebsiteDiscoveryReviewActions } from "@/components/leads/website-discovery-review-actions";
 import { SelectedCompanyProfile } from "@/components/companies/selected-company-profile";
 import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
@@ -17,6 +18,7 @@ import {
   getLeadsWorkspaceView,
   type LeadRowView,
 } from "@/lib/data/selectors/leads";
+import { getLeadWorkspaceViewPresets } from "@/lib/data/workspace-views/leads";
 import { buildPathWithQuery } from "@/lib/utils";
 
 export const metadata = {
@@ -77,8 +79,13 @@ function LeadQueueListItem(props: Readonly<{
           label={row.websiteDiscoveryBadge.label}
           tone={row.websiteDiscoveryBadge.tone}
         />
+        <StatusBadge
+          label={row.latestReviewBadge.label}
+          tone={row.latestReviewBadge.tone}
+        />
       </div>
       <p className="mt-3 text-sm text-copy">{row.recommendedOffer}</p>
+      <p className="mt-2 text-sm text-muted">{row.latestReviewSummary}</p>
       <p className="mt-2 text-sm text-muted">{row.workflowReason}</p>
       <p className="mt-2 text-sm text-muted">{row.contactCoverage}</p>
     </Link>
@@ -88,6 +95,9 @@ function LeadQueueListItem(props: Readonly<{
 export default async function LeadsPage({ searchParams }: PageProps) {
   const view = await getLeadsWorkspaceView(await searchParams);
   const selectedCompanyId = view.selectedCompany?.companyId;
+  const savedViewQuery = Object.fromEntries(
+    Object.entries(view.query).filter(([key]) => key !== "companyId"),
+  );
   const selectedLead = selectedCompanyId
     ? view.rows.find((row) => row.companyId === selectedCompanyId)
     : undefined;
@@ -153,6 +163,12 @@ export default async function LeadsPage({ searchParams }: PageProps) {
       </div>
 
       <SegmentedControl items={queueItems} />
+
+      <SavedWorkspaceViewsBar
+        path="/leads"
+        currentQuery={savedViewQuery}
+        presets={getLeadWorkspaceViewPresets()}
+      />
 
       <FilterPanel
         title="Queue filters"
@@ -318,6 +334,20 @@ export default async function LeadsPage({ searchParams }: PageProps) {
                   </select>
                 </label>
                 <label className="space-y-2">
+                  <span className="micro-label">Review signal</span>
+                  <select
+                    name="review"
+                    defaultValue={view.filters.values.review}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.reviewOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
                   <span className="micro-label">Website state</span>
                   <select
                     name="website"
@@ -332,13 +362,41 @@ export default async function LeadsPage({ searchParams }: PageProps) {
                   </select>
                 </label>
                 <label className="space-y-2">
-                  <span className="micro-label">Contact path</span>
+                  <span className="micro-label">Website review</span>
+                  <select
+                    name="websiteReview"
+                    defaultValue={view.filters.values.websiteReview}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.websiteReviewOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">Contact coverage</span>
                   <select
                     name="contact"
                     defaultValue={view.filters.values.contact}
                     className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
                   >
                     {view.filters.contactOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="micro-label">Primary contact path</span>
+                  <select
+                    name="contactPath"
+                    defaultValue={view.filters.values.contactPath}
+                    className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  >
+                    {view.filters.contactPathOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label} ({option.count})
                       </option>

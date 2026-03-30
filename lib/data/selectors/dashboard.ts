@@ -6,6 +6,7 @@ import type {
   Sequence,
 } from "@/lib/domain";
 import { selectPrimaryContact } from "@/lib/data/contacts/quality";
+import { getLatestReviewSignal } from "@/lib/data/selectors/shared";
 import { buildIdMap, getSelectorDataSnapshot } from "@/lib/data/selectors/snapshot";
 
 export interface DashboardStat {
@@ -42,6 +43,16 @@ export interface DashboardSignal {
   summary: string;
 }
 
+export interface DashboardReviewWatchItem {
+  companyId: string;
+  companyName: string;
+  market: string;
+  badgeLabel: string;
+  summary: string;
+  metaLabel: string;
+  snippet?: string;
+}
+
 export interface DashboardBlocker {
   id: string;
   title: string;
@@ -51,6 +62,7 @@ export interface DashboardBlocker {
 export interface DashboardView {
   stats: DashboardStat[];
   priorityLeads: PriorityLeadRow[];
+  reviewWatchlist: DashboardReviewWatchItem[];
   sequenceHealth: SequenceHealthRow[];
   learningSignals: DashboardSignal[];
   blockers: DashboardBlocker[];
@@ -116,6 +128,12 @@ function getPriorityLeads(
     .filter((company) => company.status !== "disqualified" && company.status !== "customer")
     .sort((left, right) => {
       const tierOrder = { tier_1: 0, tier_2: 1, tier_3: 2 } as const;
+      const latestReviewPriority =
+        getLatestReviewSignal(right).priorityRank - getLatestReviewSignal(left).priorityRank;
+
+      if (latestReviewPriority !== 0) {
+        return latestReviewPriority;
+      }
 
       return (
         tierOrder[left.priorityTier] - tierOrder[right.priorityTier] ||
@@ -177,6 +195,33 @@ function getSequenceHealth(
   });
 }
 
+function getReviewWatchlist(companies: Company[]) {
+  return companies
+    .filter((company) => company.status !== "disqualified" && company.status !== "customer")
+    .map((company) => ({
+      company,
+      latestReview: getLatestReviewSignal(company),
+    }))
+    .filter(({ latestReview }) => latestReview.priorityRank > 0)
+    .sort((left, right) => {
+      if (right.latestReview.priorityRank !== left.latestReview.priorityRank) {
+        return right.latestReview.priorityRank - left.latestReview.priorityRank;
+      }
+
+      return right.company.createdAt.localeCompare(left.company.createdAt);
+    })
+    .slice(0, 4)
+    .map(({ company, latestReview }) => ({
+      companyId: company.id,
+      companyName: company.name,
+      market: `${company.location.city}, ${company.location.state}`,
+      badgeLabel: latestReview.badge.label,
+      summary: latestReview.summary,
+      metaLabel: latestReview.metaLabel,
+      snippet: latestReview.snippet,
+    }));
+}
+
 function getLearningSignals(insights: Insight[]): DashboardSignal[] {
   return insights.slice(0, 3).map((insight) => ({
     id: insight.id,
@@ -214,6 +259,9 @@ function getStats(
       company.priorityTier === "tier_1" &&
       (company.status === "qualified" || company.status === "campaign_ready"),
   ).length;
+  const reviewAlerts = companies.filter(
+    (company) => getLatestReviewSignal(company).filterState === "urgent",
+  ).length;
 
   return [
     {
@@ -241,6 +289,14 @@ function getStats(
       tone: "positive",
     },
     {
+      label: "Review alerts",
+      value: String(reviewAlerts),
+      change: reviewAlerts > 0 ? "Fresh reputation openings" : "No urgent alerts",
+      detail:
+        "Companies with recent low-star or unanswered review context that should jump the review queue.",
+      tone: reviewAlerts > 0 ? "warning" : "neutral",
+    },
+    {
       label: "Appointments today",
       value: String(appointmentsToday),
       change: "Goal: 5/day",
@@ -264,6 +320,7 @@ export async function getDashboardView(): Promise<DashboardView> {
       snapshot.enrollments.length,
     ),
     priorityLeads: getPriorityLeads(snapshot.companies, snapshot.contacts, offerById),
+    reviewWatchlist: getReviewWatchlist(snapshot.companies),
     sequenceHealth: getSequenceHealth(
       snapshot.sequences,
       snapshot.enrollments,

@@ -4,8 +4,8 @@
 
 :root {
   color-scheme: dark;
-  --ink: 8 11 18;
-  --shell: 18 24 36;
+  --ink: 7 10 17;
+  --shell: 16 23 35;
   --line: 148 163 184;
   --copy: 232 238 247;
   --muted: 143 156 177;
@@ -22,8 +22,9 @@ html {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top, rgba(102, 145, 190, 0.16), transparent 32%),
-    linear-gradient(180deg, #0b0f18 0%, #080b12 100%);
+    radial-gradient(circle at top left, rgba(94, 146, 213, 0.18), transparent 30%),
+    radial-gradient(circle at top right, rgba(92, 214, 170, 0.08), transparent 28%),
+    linear-gradient(180deg, #0a0e16 0%, #070a11 100%);
   color: rgb(var(--copy));
   font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   text-rendering: optimizeLegibility;
@@ -47,18 +48,18 @@ a {
 
 @layer components {
   .surface-panel {
-    @apply rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] shadow-panel shadow-black/60 backdrop-blur-xl;
+    @apply rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.03))] shadow-panel shadow-black/60 backdrop-blur-xl;
   }
 
   .surface-muted {
-    @apply rounded-2xl border border-white/10 bg-white/[0.04] shadow-innerline;
+    @apply rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] shadow-innerline;
   }
 
   .eyebrow {
-    @apply text-[0.66rem] font-medium uppercase tracking-[0.3em] text-muted;
+    @apply text-[0.66rem] font-medium uppercase tracking-[0.3em] text-muted/90;
   }
 
   .micro-label {
-    @apply text-[0.68rem] font-medium uppercase tracking-[0.24em] text-muted;
+    @apply text-[0.68rem] font-medium uppercase tracking-[0.24em] text-muted/90;
   }
 }

@@ -162,6 +162,14 @@ abstract class SupabaseTableRepository<
 
     return this.mapRow(updatedRow as TableRow<TTable>);
   }
+
+  protected async deleteRow(id: TId): Promise<void> {
+    const { error } = await this.client.from(this.table).delete().eq("id", id as never);
+
+    if (error) {
+      throw new Error(`Supabase ${this.table}.delete failed: ${error.message}`);
+    }
+  }
 }
 
 class SupabaseCompanyRepository
@@ -178,6 +186,10 @@ class SupabaseCompanyRepository
 
   update(company: Company): Promise<Company> {
     return this.updateRow(company.id, mapCompanyDomainToRow(company));
+  }
+
+  delete(id: CompanyId): Promise<void> {
+    return this.deleteRow(id);
   }
 
   listByPriorityTier(tier: PriorityTier): Promise<Company[]> {
@@ -199,6 +211,10 @@ class SupabaseContactRepository
 
   update(contact: Contact): Promise<Contact> {
     return this.updateRow(contact.id, mapContactDomainToRow(contact));
+  }
+
+  delete(id: ContactId): Promise<void> {
+    return this.deleteRow(id);
   }
 
   listByCompanyId(companyId: CompanyId): Promise<Contact[]> {
@@ -233,6 +249,10 @@ class SupabaseReplyRepository
     return this.listWhere("classification", classification);
   }
 
+  delete(id: ReplyId): Promise<void> {
+    return this.deleteRow(id);
+  }
+
   listByEnrollmentId(enrollmentId: EnrollmentId): Promise<Reply[]> {
     return this.listWhere("enrollment_id", enrollmentId);
   }
@@ -252,6 +272,10 @@ class SupabaseEnrollmentRepository
 
   update(enrollment: Enrollment): Promise<Enrollment> {
     return this.updateRow(enrollment.id, mapEnrollmentDomainToRow(enrollment));
+  }
+
+  delete(id: EnrollmentId): Promise<void> {
+    return this.deleteRow(id);
   }
 
   listByCompanyId(companyId: CompanyId): Promise<Enrollment[]> {
@@ -277,6 +301,10 @@ class SupabaseAppointmentRepository
 {
   constructor(client: SupabaseClient) {
     super(client, "appointments", mapAppointmentRowToDomain);
+  }
+
+  delete(id: AppointmentId): Promise<void> {
+    return this.deleteRow(id);
   }
 
   listByCampaignId(campaignId: CampaignId): Promise<Appointment[]> {

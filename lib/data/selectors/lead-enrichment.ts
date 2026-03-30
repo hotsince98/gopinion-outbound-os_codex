@@ -16,6 +16,7 @@ import {
   getImportDateLabel,
   getIndustryLabel,
   getLastEnrichedLabel,
+  getLatestReviewSignal,
   getMissingFieldsLabel,
   getNoteHintSummary,
   getOutreachAngleConfidenceBadge,
@@ -65,6 +66,11 @@ export interface LeadEnrichmentQueueRowView {
   importedLabel: string;
   lastEnrichedLabel: string;
   subindustry: string;
+  latestReviewBadge: SelectorBadge;
+  latestReviewSummary: string;
+  latestReviewSnippet?: string;
+  latestReviewMetaLabel: string;
+  latestReviewFilterState: "missing" | "monitor" | "fresh" | "urgent";
   angleLabel: string;
   angleReason: string;
   angleUrgencyBadge: SelectorBadge;
@@ -244,7 +250,17 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
         workflowState === "blocked"
       );
     })
-    .sort((left, right) => right.company.createdAt.localeCompare(left.company.createdAt));
+    .sort((left, right) => {
+      const reviewPriorityDelta =
+        getLatestReviewSignal(right.company).priorityRank -
+        getLatestReviewSignal(left.company).priorityRank;
+
+      if (reviewPriorityDelta !== 0) {
+        return reviewPriorityDelta;
+      }
+
+      return right.company.createdAt.localeCompare(left.company.createdAt);
+    });
   const sharedSignals = buildSharedSignalMap(rows);
   const campaignAssignment = buildCampaignAssignmentPanelView({
     bundles: rows,
@@ -278,6 +294,16 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
         tone: "neutral",
       },
       {
+        label: "Review alerts",
+        value: String(
+          rows.filter(
+            (bundle) => getLatestReviewSignal(bundle.company).filterState === "urgent",
+          ).length,
+        ),
+        detail: "Fresh low-star or unanswered review context that should stay near the top of the queue.",
+        tone: "warning",
+      },
+      {
         label: "Still blocked",
         value: String(
           rows.filter((bundle) => deriveWorkflowState(bundle) === "blocked").length,
@@ -290,6 +316,7 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
     rows: rows.map((bundle) => {
       const assignment = assignmentByCompanyId.get(bundle.company.id);
       const contactCandidates = getRankedContactPreviews(bundle);
+      const latestReview = getLatestReviewSignal(bundle.company);
 
       return {
         companyId: bundle.company.id,
@@ -310,6 +337,11 @@ export async function getLeadEnrichmentWorkspaceView(): Promise<LeadEnrichmentWo
         importedLabel: getImportDateLabel(bundle.company),
         lastEnrichedLabel: getLastEnrichedLabel(bundle.company),
         subindustry: getIndustryLabel(bundle.company),
+        latestReviewBadge: latestReview.badge,
+        latestReviewSummary: latestReview.summary,
+        latestReviewSnippet: latestReview.snippet,
+        latestReviewMetaLabel: latestReview.metaLabel,
+        latestReviewFilterState: latestReview.filterState,
         angleLabel: getOutreachAngleLabel(bundle.company),
         angleReason: getOutreachAngleReason(bundle.company),
         angleUrgencyBadge: getOutreachAngleUrgencyBadge(bundle.company),

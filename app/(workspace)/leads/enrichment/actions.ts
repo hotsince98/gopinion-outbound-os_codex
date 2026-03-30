@@ -17,16 +17,20 @@ function revalidateLeadSurfaces() {
   revalidatePath("/graph");
 }
 
+function getSelectedCompanyIds(formData: FormData) {
+  return formData
+    .getAll("selectedCompanyIds")
+    .map((value) => value.toString())
+    .filter(Boolean) as CompanyId[];
+}
+
 export async function runLeadEnrichmentAction(
   _previousState: LeadEnrichmentActionState,
   formData: FormData,
 ): Promise<LeadEnrichmentActionState> {
   try {
     const singleCompanyId = formData.get("singleCompanyId")?.toString();
-    const selectedCompanyIds = formData
-      .getAll("selectedCompanyIds")
-      .map((value) => value.toString())
-      .filter(Boolean) as CompanyId[];
+    const selectedCompanyIds = getSelectedCompanyIds(formData);
     const scope = (formData.get("scope")?.toString() ?? "selected") as LeadEnrichmentRunScope;
 
     const resolvedScope: LeadEnrichmentRunScope = singleCompanyId
@@ -79,10 +83,7 @@ export async function removeLeadQueueCompaniesAction(
   formData: FormData,
 ): Promise<LeadQueueMutationActionState> {
   try {
-    const selectedCompanyIds = formData
-      .getAll("selectedCompanyIds")
-      .map((value) => value.toString())
-      .filter(Boolean) as CompanyId[];
+    const selectedCompanyIds = getSelectedCompanyIds(formData);
     const confirmation = formData.get("confirmation")?.toString();
 
     if (selectedCompanyIds.length === 0) {
@@ -138,6 +139,107 @@ export async function removeLeadQueueCompaniesAction(
     return {
       status: "error",
       message: "The queue removal step failed before the selected companies could be updated.",
+    };
+  }
+}
+
+export async function deleteLeadQueueCompaniesAction(
+  _previousState: LeadQueueMutationActionState,
+  formData: FormData,
+): Promise<LeadQueueMutationActionState> {
+  try {
+    const selectedCompanyIds = getSelectedCompanyIds(formData);
+    const confirmation = formData.get("confirmation")?.toString();
+
+    if (selectedCompanyIds.length === 0) {
+      return {
+        status: "error",
+        message: "Select at least one company before deleting it permanently.",
+      };
+    }
+
+    if (confirmation !== "DELETE") {
+      return {
+        status: "error",
+        message: 'Type "DELETE" before permanently deleting selected companies.',
+      };
+    }
+
+    const dataAccess = getDataAccess();
+    const uniqueCompanyIds = Array.from(new Set(selectedCompanyIds));
+    const [contacts, enrollments, replies, appointments] = await Promise.all([
+      dataAccess.contacts.list(),
+      dataAccess.enrollments.list(),
+      dataAccess.replies.list(),
+      dataAccess.appointments.list(),
+    ]);
+    let deletedCount = 0;
+
+    for (const companyId of uniqueCompanyIds) {
+      const company = await dataAccess.companies.getById(companyId);
+
+      if (!company) {
+        continue;
+      }
+
+      const companyContacts = contacts.filter((contact) => contact.companyId === companyId);
+      const companyContactIds = new Set(companyContacts.map((contact) => contact.id));
+      const companyEnrollments = enrollments.filter(
+        (enrollment) => enrollment.companyId === companyId,
+      );
+      const companyEnrollmentIds = new Set(
+        companyEnrollments.map((enrollment) => enrollment.id),
+      );
+      const companyReplies = replies.filter(
+        (reply) =>
+          reply.companyId === companyId ||
+          companyContactIds.has(reply.contactId) ||
+          companyEnrollmentIds.has(reply.enrollmentId),
+      );
+      const companyReplyIds = new Set(companyReplies.map((reply) => reply.id));
+      const companyAppointments = appointments.filter(
+        (appointment) =>
+          appointment.companyId === companyId ||
+          companyContactIds.has(appointment.contactId) ||
+          companyReplyIds.has(appointment.replyId) ||
+          companyEnrollmentIds.has(appointment.enrollmentId),
+      );
+
+      await Promise.all(
+        companyAppointments.map((appointment) =>
+          dataAccess.appointments.delete(appointment.id),
+        ),
+      );
+      await Promise.all(
+        companyReplies.map((reply) => dataAccess.replies.delete(reply.id)),
+      );
+      await Promise.all(
+        companyEnrollments.map((enrollment) =>
+          dataAccess.enrollments.delete(enrollment.id),
+        ),
+      );
+      await Promise.all(
+        companyContacts.map((contact) => dataAccess.contacts.delete(contact.id)),
+      );
+      await dataAccess.companies.delete(companyId);
+      deletedCount += 1;
+    }
+
+    revalidateLeadSurfaces();
+
+    return {
+      status: "success",
+      message:
+        deletedCount === 0
+          ? "The selected companies were already gone."
+          : `Deleted ${deletedCount} compan${deletedCount === 1 ? "y" : "ies"} permanently. Related contacts, enrollments, replies, and appointments were removed too.`,
+      deletedCount,
+    };
+  } catch {
+    return {
+      status: "error",
+      message:
+        "Permanent deletion failed before the selected companies could be removed.",
     };
   }
 }

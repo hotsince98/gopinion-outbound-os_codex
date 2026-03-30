@@ -19,7 +19,7 @@ export function FilterPanel({
   return (
     <section className={cn("surface-panel overflow-hidden", className)}>
       {title || description || action ? (
-        <div className="flex flex-col gap-3 border-b border-white/8 px-5 py-4 lg:flex-row lg:items-start lg:justify-between lg:px-6">
+        <div className="flex flex-col gap-3 border-b border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-5 py-5 lg:flex-row lg:items-start lg:justify-between lg:px-6">
           <div className="max-w-2xl">
             {title ? <p className="text-base font-medium text-copy">{title}</p> : null}
             {description ? (

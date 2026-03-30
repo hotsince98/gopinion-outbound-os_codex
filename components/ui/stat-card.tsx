@@ -42,7 +42,7 @@ export function StatCard({
       </div>
 
       {detail ? (
-        <div className="mt-4 border-t border-white/8 pt-4">
+        <div className="mt-5 border-t border-white/8 pt-4">
           <p className="text-sm leading-6 text-muted">{detail}</p>
         </div>
       ) : null}
