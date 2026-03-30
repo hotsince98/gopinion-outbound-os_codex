@@ -21,9 +21,12 @@ export function RecentReviewList(
         <div
           key={item.id}
           className={`rounded-2xl border border-white/8 bg-black/10 ${
-            props.compact ? "p-3" : "p-4"
+            props.compact ? "p-3.5" : "p-4"
           }`}
         >
+          <p className="text-xs uppercase tracking-[0.16em] text-muted">
+            {item.ratingLabel} • {item.authorLabel} • {item.publishedLabel}
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge label={item.badge.label} tone={item.badge.tone} />
             <StatusBadge
@@ -32,7 +35,9 @@ export function RecentReviewList(
             />
           </div>
           <p className="mt-3 text-sm leading-6 text-copy">{item.summary}</p>
-          <p className="mt-2 text-sm leading-6 text-muted">{item.metaLabel}</p>
+          {!props.compact ? (
+            <p className="mt-2 text-sm leading-6 text-muted">{item.metaLabel}</p>
+          ) : null}
           <p className="mt-2 text-sm leading-6 text-copy">{item.snippet}</p>
         </div>
       ))}

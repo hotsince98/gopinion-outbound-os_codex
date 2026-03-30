@@ -35,17 +35,17 @@ export default function LeadIntakePage() {
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+      <div className="grid gap-6 2xl:grid-cols-[1.05fr_0.95fr]">
         <SectionCard
           title="Manual lead creation"
-          description="Capture a single company with just enough operational context to enter the live intake queue."
+          description="Capture a single company with enough structured market and review context to enter the live intake queue cleanly."
         >
           <ManualLeadForm />
         </SectionCard>
 
         <SectionCard
           title="CSV import foundation"
-          description="Upload a modest CSV, preview the mapped rows, then import them into the same intake workflow."
+          description="Upload a modest CSV, preview the mapped rows and review context, then import them into the same intake workflow."
         >
           <CsvLeadImportForm />
         </SectionCard>

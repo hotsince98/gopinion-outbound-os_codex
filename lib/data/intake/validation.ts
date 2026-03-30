@@ -2,6 +2,7 @@ import type {
   ContactRole,
   LeadIntakeFieldErrors,
   LeadIntakeInput,
+  LeadIntakeRecentReviewInput,
   LatestReviewResponseStatus,
 } from "@/lib/domain";
 
@@ -18,6 +19,7 @@ const RESERVED_WEBSITE_HOSTNAMES = new Set([
   "https",
   "www",
 ]);
+export const MAX_LEAD_RECENT_REVIEWS = 3;
 
 function trimToUndefined(value: string | undefined) {
   const trimmed = value?.trim();
@@ -68,6 +70,109 @@ function normalizeLatestReviewResponseStatus(
     default:
       return "unknown";
   }
+}
+
+function normalizeRecentReviewInput(
+  values:
+    | Partial<
+        Record<
+          keyof LeadIntakeRecentReviewInput,
+          string | number | undefined
+        >
+      >
+    | undefined,
+): LeadIntakeRecentReviewInput | undefined {
+  if (!values) {
+    return undefined;
+  }
+
+  const snippet = trimToUndefined(values.snippet?.toString());
+  const rating = parseOptionalNumber(values.rating);
+  const author = trimToUndefined(values.author?.toString());
+  const publishedAtInput = values.publishedAt?.toString();
+  const normalizedPublishedAt = parseOptionalIsoDate(publishedAtInput);
+  const publishedAt =
+    normalizedPublishedAt === "invalid"
+      ? publishedAtInput?.trim()
+      : normalizedPublishedAt;
+  const responseStatus = normalizeLatestReviewResponseStatus(values.responseStatus);
+
+  if (
+    !snippet &&
+    rating == null &&
+    !author &&
+    !publishedAt &&
+    responseStatus == null
+  ) {
+    return undefined;
+  }
+
+  return {
+    snippet,
+    rating,
+    author,
+    publishedAt,
+    responseStatus,
+  } satisfies LeadIntakeRecentReviewInput;
+}
+
+function buildLegacyRecentReviewInput(values: Partial<Record<
+  | "latestReviewSnippet"
+  | "latestReviewRating"
+  | "latestReviewAuthor"
+  | "latestReviewDate"
+  | "latestReviewResponseStatus",
+  string | number | undefined
+>>) {
+  return normalizeRecentReviewInput({
+    snippet: values.latestReviewSnippet,
+    rating: values.latestReviewRating,
+    author: values.latestReviewAuthor,
+    publishedAt: values.latestReviewDate,
+    responseStatus: values.latestReviewResponseStatus,
+  });
+}
+
+export function normalizeLeadIntakeRecentReviews(
+  reviews:
+    | Array<
+        Partial<
+          Record<
+            keyof LeadIntakeRecentReviewInput,
+            string | number | undefined
+          >
+        >
+      >
+    | undefined,
+) {
+  if (!reviews?.length) {
+    return undefined;
+  }
+
+  const normalized = reviews
+    .map((review) => normalizeRecentReviewInput(review))
+    .filter(
+      (review): review is LeadIntakeRecentReviewInput => review !== undefined,
+    )
+    .slice(0, MAX_LEAD_RECENT_REVIEWS);
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+export function getLeadIntakeRecentReviews(input: LeadIntakeInput) {
+  if (input.recentReviews?.length) {
+    return input.recentReviews.slice(0, MAX_LEAD_RECENT_REVIEWS);
+  }
+
+  const legacyReview = buildLegacyRecentReviewInput({
+    latestReviewSnippet: input.latestReviewSnippet,
+    latestReviewRating: input.latestReviewRating,
+    latestReviewAuthor: input.latestReviewAuthor,
+    latestReviewDate: input.latestReviewDate,
+    latestReviewResponseStatus: input.latestReviewResponseStatus,
+  });
+
+  return legacyReview ? [legacyReview] : [];
 }
 
 function isValidIpv4Hostname(hostname: string) {
@@ -196,35 +301,54 @@ export function deriveContactRoleFromTitle(
 }
 
 export function normalizeLeadIntakeInput(
-  values: Partial<
-    Record<
-      | keyof LeadIntakeInput
-      | "companyName"
-      | "website"
-      | "industryKey"
-      | "subindustry"
-      | "streetAddress"
-      | "city"
-      | "state"
-      | "postalCode"
-      | "country"
-      | "phone"
-      | "googleRating"
-      | "reviewCount"
-      | "latestReviewSnippet"
-      | "latestReviewRating"
-      | "latestReviewAuthor"
-      | "latestReviewDate"
-      | "latestReviewResponseStatus"
-      | "primaryContactName"
-      | "contactTitle"
-      | "contactEmail"
-      | "notes",
-      string | number | undefined
-    >
-  >,
+  values:
+    Partial<
+      Record<
+        | keyof Omit<LeadIntakeInput, "recentReviews">
+        | "companyName"
+        | "website"
+        | "industryKey"
+        | "subindustry"
+        | "streetAddress"
+        | "city"
+        | "state"
+        | "postalCode"
+        | "country"
+        | "phone"
+        | "googleRating"
+        | "reviewCount"
+        | "latestReviewSnippet"
+        | "latestReviewRating"
+        | "latestReviewAuthor"
+        | "latestReviewDate"
+        | "latestReviewResponseStatus"
+        | "primaryContactName"
+        | "contactTitle"
+        | "contactEmail"
+        | "notes",
+        string | number | undefined
+      >
+    > & {
+      recentReviews?: Array<
+        Partial<
+          Record<
+            keyof LeadIntakeRecentReviewInput,
+            string | number | undefined
+          >
+        >
+      >;
+    },
   sourceKind: LeadIntakeInput["sourceKind"],
 ): LeadIntakeInput {
+  const normalizedRecentReviews =
+    normalizeLeadIntakeRecentReviews(values.recentReviews) ??
+    (() => {
+      const legacyReview = buildLegacyRecentReviewInput(values);
+
+      return legacyReview ? [legacyReview] : undefined;
+    })();
+  const primaryReview = normalizedRecentReviews?.[0];
+
   return {
     companyName: values.companyName?.toString().trim() ?? "",
     website: trimToUndefined(values.website?.toString()),
@@ -238,16 +362,12 @@ export function normalizeLeadIntakeInput(
     phone: trimToUndefined(values.phone?.toString()),
     googleRating: parseOptionalNumber(values.googleRating),
     reviewCount: parseOptionalNumber(values.reviewCount),
-    latestReviewSnippet: trimToUndefined(values.latestReviewSnippet?.toString()),
-    latestReviewRating: parseOptionalNumber(values.latestReviewRating),
-    latestReviewAuthor: trimToUndefined(values.latestReviewAuthor?.toString()),
-    latestReviewDate:
-      parseOptionalIsoDate(values.latestReviewDate?.toString()) === "invalid"
-        ? values.latestReviewDate?.toString().trim()
-        : parseOptionalIsoDate(values.latestReviewDate?.toString()),
-    latestReviewResponseStatus: normalizeLatestReviewResponseStatus(
-      values.latestReviewResponseStatus,
-    ),
+    latestReviewSnippet: primaryReview?.snippet,
+    latestReviewRating: primaryReview?.rating,
+    latestReviewAuthor: primaryReview?.author,
+    latestReviewDate: primaryReview?.publishedAt,
+    latestReviewResponseStatus: primaryReview?.responseStatus,
+    recentReviews: normalizedRecentReviews,
     primaryContactName: trimToUndefined(values.primaryContactName?.toString()),
     contactTitle: trimToUndefined(values.contactTitle?.toString()),
     contactEmail: normalizeEmailAddress(values.contactEmail?.toString()),
@@ -260,6 +380,7 @@ export function validateLeadIntakeInput(
   input: LeadIntakeInput,
 ): LeadIntakeFieldErrors {
   const fieldErrors: LeadIntakeFieldErrors = {};
+  const recentReviewErrors: string[] = [];
 
   if (!input.companyName) {
     fieldErrors.companyName = "Company name is required.";
@@ -304,22 +425,42 @@ export function validateLeadIntakeInput(
     }
   }
 
-  if (input.latestReviewRating != null) {
-    if (Number.isNaN(input.latestReviewRating)) {
-      fieldErrors.latestReviewRating = "Latest review rating must be a number.";
-    } else if (input.latestReviewRating < 0 || input.latestReviewRating > 5) {
-      fieldErrors.latestReviewRating =
-        "Latest review rating must be between 0 and 5.";
-    }
-  }
+  const recentReviews = getLeadIntakeRecentReviews(input);
 
-  if (input.latestReviewDate) {
-    const parsed = new Date(input.latestReviewDate);
+  recentReviews.forEach((review, index) => {
+    const slotLabel = `Review ${index + 1}`;
+    const hasMetadataWithoutSnippet = !review.snippet && Boolean(
+      review.rating != null ||
+        review.author ||
+        review.publishedAt ||
+        review.responseStatus,
+    );
 
-    if (Number.isNaN(parsed.getTime())) {
-      fieldErrors.latestReviewDate =
-        "Latest review date must be a valid date.";
+    if (hasMetadataWithoutSnippet) {
+      recentReviewErrors.push(
+        `${slotLabel} needs a snippet before the review metadata can be imported.`,
+      );
     }
+
+    if (review.rating != null) {
+      if (Number.isNaN(review.rating)) {
+        recentReviewErrors.push(`${slotLabel} rating must be a number.`);
+      } else if (review.rating < 0 || review.rating > 5) {
+        recentReviewErrors.push(`${slotLabel} rating must be between 0 and 5.`);
+      }
+    }
+
+    if (review.publishedAt) {
+      const parsed = new Date(review.publishedAt);
+
+      if (Number.isNaN(parsed.getTime())) {
+        recentReviewErrors.push(`${slotLabel} date must be a valid date.`);
+      }
+    }
+  });
+
+  if (recentReviewErrors.length > 0) {
+    fieldErrors.recentReviews = recentReviewErrors;
   }
 
   return fieldErrors;
@@ -328,9 +469,13 @@ export function validateLeadIntakeInput(
 export function getLeadIntakeIssueMessages(
   fieldErrors: LeadIntakeFieldErrors,
 ) {
-  return Object.values(fieldErrors).filter(
-    (value): value is string => Boolean(value),
-  );
+  return Object.values(fieldErrors).flatMap((value) => {
+    if (!value) {
+      return [];
+    }
+
+    return Array.isArray(value) ? value : [value];
+  });
 }
 
 export function normalizeCompanyNameForComparison(name: string) {

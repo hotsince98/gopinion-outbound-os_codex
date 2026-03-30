@@ -26,6 +26,7 @@ import type {
 } from "@/lib/domain";
 import {
   deriveContactRoleFromTitle,
+  getLeadIntakeRecentReviews,
   getLeadIntakeIssueMessages,
   hasContactInput,
   normalizeCompanyNameForComparison,
@@ -90,6 +91,7 @@ function calculateInitialFitScore(
   input: LeadIntakeInput,
   normalizedWebsite: string | undefined,
 ) {
+  const recentReviews = getLeadIntakeRecentReviews(input);
   let score = 42;
 
   if (normalizedWebsite) {
@@ -118,12 +120,18 @@ function calculateInitialFitScore(
           : 0;
   }
 
-  if (input.latestReviewSnippet) {
+  if (recentReviews.length > 0) {
     score += 4;
   }
 
-  if (input.latestReviewRating != null && input.latestReviewRating <= 3.2) {
+  if (recentReviews.some((review) => review.rating != null && review.rating <= 3.2)) {
     score += 4;
+  }
+
+  if (
+    recentReviews.filter((review) => review.responseStatus === "not_responded").length >= 2
+  ) {
+    score += 3;
   }
 
   if (hasContactInput(input)) {
@@ -159,6 +167,7 @@ function buildPainSignals(
   segmentLabel?: string,
   angleLabel?: string,
 ) {
+  const recentReviews = getLeadIntakeRecentReviews(input);
   const painSignals: string[] = [];
 
   if (!normalizedWebsite) {
@@ -173,8 +182,12 @@ function buildPainSignals(
     painSignals.push("Review volume is still relatively light");
   }
 
-  if (input.latestReviewRating != null && input.latestReviewRating <= 3.2) {
+  if (recentReviews.some((review) => review.rating != null && review.rating <= 3.2)) {
     painSignals.push("Recent imported review suggests live reputation pressure");
+  }
+
+  if (recentReviews.filter((review) => review.responseStatus === "not_responded").length >= 2) {
+    painSignals.push("Multiple recent imported reviews still appear unanswered");
   }
 
   if (
@@ -204,20 +217,44 @@ function buildPainSignals(
 }
 
 function buildLatestReviews(input: LeadIntakeInput) {
-  if (!input.latestReviewSnippet) {
+  const recentReviews = getLeadIntakeRecentReviews(input);
+
+  if (recentReviews.length === 0) {
     return undefined;
   }
 
-  return [
-    {
+  return recentReviews.map((review) => ({
       source: "manual_import" as const,
-      snippet: input.latestReviewSnippet,
-      rating: input.latestReviewRating,
-      author: input.latestReviewAuthor,
-      publishedAt: input.latestReviewDate,
-      responseStatus: input.latestReviewResponseStatus ?? "unknown",
-    },
-  ];
+      snippet: review.snippet ?? "",
+      rating: review.rating,
+      author: review.author,
+      publishedAt: review.publishedAt,
+      responseStatus: review.responseStatus ?? "unknown",
+    }));
+}
+
+function deriveReviewResponseBand(input: LeadIntakeInput) {
+  const recentReviews = getLeadIntakeRecentReviews(input);
+
+  if (recentReviews.length === 0) {
+    return "none" as const;
+  }
+
+  const respondedCount = recentReviews.filter(
+    (review) => review.responseStatus === "responded",
+  ).length;
+
+  if (respondedCount === 0) {
+    return "none" as const;
+  }
+
+  if (respondedCount === recentReviews.length) {
+    return "active" as const;
+  }
+
+  return respondedCount / recentReviews.length >= 0.5
+    ? ("inconsistent" as const)
+    : ("low" as const);
 }
 
 function buildScoringReasons(
@@ -227,6 +264,7 @@ function buildScoringReasons(
   segmentLabel?: string,
   angleLabel?: string,
 ) {
+  const recentReviews = getLeadIntakeRecentReviews(input);
   const reasons = [
     normalizedWebsite
       ? "Website is present"
@@ -237,9 +275,11 @@ function buildScoringReasons(
     input.reviewCount != null || input.googleRating != null
       ? "Public review signals are available"
       : "Public review signals still need enrichment",
-    input.latestReviewSnippet
-      ? "Latest review context is available for prioritization"
-      : "No latest review context is attached yet",
+    recentReviews.length > 0
+      ? `${recentReviews.length} recent imported review${
+          recentReviews.length === 1 ? "" : "s"
+        } available for prioritization`
+      : "No recent review context is attached yet",
   ];
 
   reasons.push(`Initial intake fit score set to ${fitScore}`);
@@ -278,6 +318,7 @@ function buildCompanyRecord(
   const priorityTier = getPriorityTier(fitScore);
   const icpProfileId = deriveIcpProfileId(input, normalizedWebsite, fitScore);
   const latestReviews = buildLatestReviews(input);
+  const reviewResponseBand = deriveReviewResponseBand(input);
   const segment = classifyCompanySegment({
     presence: {
       hasWebsite: Boolean(normalizedWebsite),
@@ -287,7 +328,7 @@ function buildCompanyRecord(
         input.googleRating != null || input.reviewCount != null,
       googleRating: input.googleRating,
       reviewCount: input.reviewCount,
-      reviewResponseBand: "none",
+      reviewResponseBand,
       latestReviews,
     },
     softwareToolCountEstimate: undefined,
@@ -302,7 +343,7 @@ function buildCompanyRecord(
         input.googleRating != null || input.reviewCount != null,
       googleRating: input.googleRating,
       reviewCount: input.reviewCount,
-      reviewResponseBand: "none",
+      reviewResponseBand,
       latestReviews,
     },
     segment,
@@ -334,7 +375,7 @@ function buildCompanyRecord(
         input.googleRating != null || input.reviewCount != null,
       googleRating: input.googleRating,
       reviewCount: input.reviewCount,
-      reviewResponseBand: "none",
+      reviewResponseBand,
       latestReviews,
     },
     buyingStage: "unknown",

@@ -13,6 +13,14 @@ export const supportedLeadIndustryOptions = [
   },
 ] as const;
 
+export interface LeadIntakeRecentReviewInput {
+  snippet?: string;
+  rating?: number;
+  author?: string;
+  publishedAt?: string;
+  responseStatus?: LatestReviewResponseStatus;
+}
+
 export interface LeadIntakeInput {
   companyName: string;
   website?: string;
@@ -31,6 +39,7 @@ export interface LeadIntakeInput {
   latestReviewAuthor?: string;
   latestReviewDate?: string;
   latestReviewResponseStatus?: LatestReviewResponseStatus;
+  recentReviews?: LeadIntakeRecentReviewInput[];
   primaryContactName?: string;
   contactTitle?: string;
   contactEmail?: string;
@@ -56,6 +65,7 @@ export interface LeadIntakeFieldErrors {
   latestReviewAuthor?: string;
   latestReviewDate?: string;
   latestReviewResponseStatus?: string;
+  recentReviews?: string[];
   primaryContactName?: string;
   contactTitle?: string;
   contactEmail?: string;
@@ -79,6 +89,8 @@ export interface CsvLeadPreviewRow {
   website?: string;
   marketLabel: string;
   contactLabel: string;
+  reviewLabel: string;
+  reviewSnippets: string[];
   issues: string[];
 }
 

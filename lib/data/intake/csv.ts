@@ -3,15 +3,17 @@ import type {
   CsvLeadPreview,
   CsvLeadPreviewRow,
   LeadIntakeInput,
+  LeadIntakeRecentReviewInput,
 } from "@/lib/domain";
 import {
   getLeadIntakeIssueMessages,
+  MAX_LEAD_RECENT_REVIEWS,
   normalizeLeadIntakeInput,
   validateLeadIntakeInput,
 } from "@/lib/data/intake/validation";
 
 type CsvFieldKey =
-  | keyof Omit<LeadIntakeInput, "industryKey" | "sourceKind">
+  | keyof Omit<LeadIntakeInput, "industryKey" | "sourceKind" | "recentReviews">
   | "industry"
   | "address"
   | "phone"
@@ -29,6 +31,20 @@ interface MatchedCsvField {
   index: number;
   strategy: CsvLeadColumnMapping["strategy"];
   note?: string;
+}
+
+type ReviewCsvFieldKey =
+  | "snippet"
+  | "rating"
+  | "author"
+  | "publishedAt"
+  | "responseStatus";
+
+interface MatchedReviewCsvField {
+  slot: number;
+  key: ReviewCsvFieldKey;
+  header: string;
+  index: number;
 }
 
 export interface ParsedLeadCsvRow {
@@ -171,6 +187,67 @@ function normalizeCsvHeader(value: string) {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
+}
+
+function getReviewColumnMatch(header: string): {
+  slot: number;
+  key: ReviewCsvFieldKey;
+} | undefined {
+  const normalized = normalizeCsvHeader(header);
+  const match = normalized.match(
+    /^(?:(?:latest|recent))?review([1-3])(snippet|text|rating|author|reviewer|date|publishedat|published|responsestatus|response|replystatus|reply)$/,
+  );
+
+  if (!match) {
+    return undefined;
+  }
+
+  const slot = Number(match[1]);
+
+  if (!Number.isInteger(slot) || slot < 1 || slot > MAX_LEAD_RECENT_REVIEWS) {
+    return undefined;
+  }
+
+  const normalizedKey = match[2];
+
+  switch (normalizedKey) {
+    case "snippet":
+    case "text":
+      return { slot, key: "snippet" };
+    case "rating":
+      return { slot, key: "rating" };
+    case "author":
+    case "reviewer":
+      return { slot, key: "author" };
+    case "date":
+    case "published":
+    case "publishedat":
+      return { slot, key: "publishedAt" };
+    case "responsestatus":
+    case "response":
+    case "reply":
+    case "replystatus":
+      return { slot, key: "responseStatus" };
+    default:
+      return undefined;
+  }
+}
+
+function getReviewFieldLabel(slot: number, key: ReviewCsvFieldKey) {
+  const prefix = `Recent review ${slot}`;
+
+  switch (key) {
+    case "snippet":
+      return `${prefix} snippet`;
+    case "rating":
+      return `${prefix} rating`;
+    case "author":
+      return `${prefix} author`;
+    case "publishedAt":
+      return `${prefix} date`;
+    case "responseStatus":
+      return `${prefix} response status`;
+  }
 }
 
 function trimToUndefined(value: string | undefined) {
@@ -502,6 +579,80 @@ function buildMatchedFields(headers: string[]) {
   };
 }
 
+function buildMatchedReviewFields(headers: string[]) {
+  return headers.reduce<MatchedReviewCsvField[]>((accumulator, header, index) => {
+    const match = getReviewColumnMatch(header);
+
+    if (!match) {
+      return accumulator;
+    }
+
+    accumulator.push({
+      slot: match.slot,
+      key: match.key,
+      header,
+      index,
+    });
+
+    return accumulator;
+  }, []);
+}
+
+function buildRecentReviewsFromRow(params: {
+  row: string[];
+  fieldMatches: Partial<Record<CsvFieldKey, MatchedCsvField>>;
+  matchedReviewFields: MatchedReviewCsvField[];
+}) {
+  const recentReviews: Array<
+    Partial<Record<keyof LeadIntakeRecentReviewInput, string | number | undefined>>
+  > = [];
+
+  for (let slot = 1; slot <= MAX_LEAD_RECENT_REVIEWS; slot += 1) {
+    const matchedFieldsForSlot = params.matchedReviewFields.filter(
+      (field) => field.slot === slot,
+    );
+    const legacyFallback =
+      slot === 1
+        ? {
+            snippet: readCell(params.row, params.fieldMatches.latestReviewSnippet?.index),
+            rating: readCell(params.row, params.fieldMatches.latestReviewRating?.index),
+            author: readCell(params.row, params.fieldMatches.latestReviewAuthor?.index),
+            publishedAt: readCell(params.row, params.fieldMatches.latestReviewDate?.index),
+            responseStatus: readCell(
+              params.row,
+              params.fieldMatches.latestReviewResponseStatus?.index,
+            ),
+          }
+        : undefined;
+    const review = matchedFieldsForSlot.reduce<
+      Partial<Record<keyof LeadIntakeRecentReviewInput, string | number | undefined>>
+    >((accumulator, field) => {
+      accumulator[field.key] = readCell(params.row, field.index);
+
+      return accumulator;
+    }, {});
+    const combined = {
+      snippet: review.snippet ?? legacyFallback?.snippet,
+      rating: review.rating ?? legacyFallback?.rating,
+      author: review.author ?? legacyFallback?.author,
+      publishedAt: review.publishedAt ?? legacyFallback?.publishedAt,
+      responseStatus: review.responseStatus ?? legacyFallback?.responseStatus,
+    };
+
+    if (
+      combined.snippet ||
+      combined.rating != null ||
+      combined.author ||
+      combined.publishedAt ||
+      combined.responseStatus
+    ) {
+      recentReviews.push(combined);
+    }
+  }
+
+  return recentReviews;
+}
+
 export function parseLeadCsvText(text: string): ParsedLeadCsv {
   const rows = parseCsvCells(text);
   if (rows.length === 0) {
@@ -516,26 +667,38 @@ export function parseLeadCsvText(text: string): ParsedLeadCsv {
 
   const [headerRow, ...dataRows] = rows;
   const { matchedFields, warnings } = buildMatchedFields(headerRow);
+  const matchedReviewFields = buildMatchedReviewFields(headerRow);
   const collectedWarnings = [...warnings];
   const fieldMatches = Object.fromEntries(
     matchedFields.map((field) => [field.definition.key, field]),
   ) as Partial<Record<CsvFieldKey, MatchedCsvField>>;
   const columnMappings = headerRow.map((header) => {
     const matchedField = matchedFields.find((field) => field.header === header);
+    const matchedReviewField = matchedReviewFields.find(
+      (field) => field.header === header,
+    );
 
     return {
       header,
-      mappedField: matchedField?.definition.label ?? "Unmapped",
-      strategy: matchedField?.strategy ?? "unmapped",
+      mappedField:
+        matchedField?.definition.label ??
+        (matchedReviewField
+          ? getReviewFieldLabel(matchedReviewField.slot, matchedReviewField.key)
+          : "Unmapped"),
+      strategy: matchedField?.strategy ?? (matchedReviewField ? "direct" : "unmapped"),
       note: matchedField?.note,
     } satisfies CsvLeadColumnMapping;
   });
 
   return {
     detectedColumns: headerRow,
-    mappedColumns: matchedFields.map(
-      (field) => `${field.header} -> ${field.definition.label}`,
-    ),
+    mappedColumns: [
+      ...matchedFields.map((field) => `${field.header} -> ${field.definition.label}`),
+      ...matchedReviewFields.map(
+        (field) =>
+          `${field.header} -> ${getReviewFieldLabel(field.slot, field.key)}`,
+      ),
+    ],
     columnMappings,
     warnings: collectedWarnings,
     rows: dataRows.map((row, rowIndex) => {
@@ -568,6 +731,11 @@ export function parseLeadCsvText(text: string): ParsedLeadCsv {
       if (locationFields.warning) {
         collectedWarnings.push(`Row ${rowIndex + 2}: ${locationFields.warning}`);
       }
+      const recentReviews = buildRecentReviewsFromRow({
+        row,
+        fieldMatches,
+        matchedReviewFields,
+      });
       const input = normalizeLeadIntakeInput(
         {
           companyName: readCell(row, fieldMatches.companyName?.index),
@@ -589,6 +757,7 @@ export function parseLeadCsvText(text: string): ParsedLeadCsv {
             row,
             fieldMatches.latestReviewResponseStatus?.index,
           ),
+          recentReviews,
           primaryContactName: readCell(row, fieldMatches.primaryContactName?.index),
           contactTitle: readCell(row, fieldMatches.contactTitle?.index),
           contactEmail: parsedEmails[0],
@@ -607,6 +776,8 @@ export function parseLeadCsvText(text: string): ParsedLeadCsv {
 }
 
 function buildPreviewRow(row: ParsedLeadCsvRow): CsvLeadPreviewRow {
+  const recentReviews = row.input.recentReviews ?? [];
+
   return {
     rowNumber: row.rowNumber,
     companyName: row.input.companyName || "Unnamed company",
@@ -616,6 +787,25 @@ function buildPreviewRow(row: ParsedLeadCsvRow): CsvLeadPreviewRow {
       [row.input.primaryContactName, row.input.contactTitle, row.input.contactEmail]
         .filter(Boolean)
         .join(" • ") || "No contact provided",
+    reviewLabel:
+      recentReviews.length > 0
+        ? `${recentReviews.length} recent review${recentReviews.length === 1 ? "" : "s"} mapped`
+        : "No review context mapped",
+    reviewSnippets: recentReviews
+      .slice(0, 2)
+      .map((review, index) => {
+        const meta = [
+          review.rating != null ? `${review.rating.toFixed(1)}★` : undefined,
+          review.author,
+          review.publishedAt ? review.publishedAt.slice(0, 10) : undefined,
+        ]
+          .filter((value): value is string => Boolean(value))
+          .join(" • ");
+
+        return meta
+          ? `Review ${index + 1}: ${meta} — ${review.snippet ?? "Snippet pending"}`
+          : `Review ${index + 1}: ${review.snippet ?? "Snippet pending"}`;
+      }),
     issues: row.issues,
   };
 }

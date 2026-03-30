@@ -86,15 +86,24 @@ function LeadQueueListItem(props: Readonly<{
         />
       </div>
       <p className="mt-3 text-sm text-copy">{row.recommendedOffer}</p>
-      <p className="mt-2 text-sm text-muted">{row.latestReviewSummary}</p>
-      <p className="mt-1 text-sm text-muted">{row.latestReviewMetaLabel}</p>
-      <div className="mt-3">
-        <RecentReviewList
-          items={row.recentReviews}
-          maxItems={2}
-          compact
-          emptyMessage="No recent review snippets are attached yet."
-        />
+      <div className="mt-3 rounded-2xl border border-white/8 bg-black/10 p-4">
+        <p className="micro-label">Recent review context</p>
+        <p className="mt-2 text-sm leading-6 text-copy">{row.latestReviewSummary}</p>
+        <p className="mt-1 text-sm leading-6 text-muted">{row.latestReviewMetaLabel}</p>
+        <div className="mt-3">
+          <RecentReviewList
+            items={row.recentReviews}
+            maxItems={1}
+            compact
+            emptyMessage="No recent review snippets are attached yet."
+          />
+        </div>
+        {row.recentReviews.length > 1 ? (
+          <p className="mt-3 text-sm text-muted">
+            +{row.recentReviews.length - 1} more recent review
+            {row.recentReviews.length - 1 === 1 ? "" : "s"} in the company profile
+          </p>
+        ) : null}
       </div>
       <p className="mt-2 text-sm text-muted">{row.workflowReason}</p>
       <p className="mt-2 text-sm text-muted">{row.contactCoverage}</p>

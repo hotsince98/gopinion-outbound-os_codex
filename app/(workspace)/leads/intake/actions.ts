@@ -9,6 +9,20 @@ import type {
   ManualLeadActionState,
 } from "@/app/(workspace)/leads/intake/action-state";
 
+function readRecentReviewInputs(formData: FormData) {
+  return Array.from({ length: 3 }, (_, index) => {
+    const slot = index + 1;
+
+    return {
+      snippet: formData.get(`recentReview${slot}Snippet`)?.toString(),
+      rating: formData.get(`recentReview${slot}Rating`)?.toString(),
+      author: formData.get(`recentReview${slot}Author`)?.toString(),
+      publishedAt: formData.get(`recentReview${slot}Date`)?.toString(),
+      responseStatus: formData.get(`recentReview${slot}ResponseStatus`)?.toString(),
+    };
+  });
+}
+
 function revalidateLeadSurfaces() {
   revalidatePath("/dashboard");
   revalidatePath("/leads");
@@ -38,6 +52,7 @@ export async function createManualLeadAction(
         latestReviewResponseStatus: formData
           .get("latestReviewResponseStatus")
           ?.toString(),
+        recentReviews: readRecentReviewInputs(formData),
         primaryContactName: formData.get("primaryContactName")?.toString(),
         contactTitle: formData.get("contactTitle")?.toString(),
         contactEmail: formData.get("contactEmail")?.toString(),

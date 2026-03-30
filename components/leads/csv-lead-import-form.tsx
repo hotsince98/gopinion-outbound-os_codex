@@ -137,17 +137,36 @@ export function CsvLeadImportForm() {
 
         <textarea hidden readOnly name="csvText" value={csvText} />
 
-        <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-          <p className="micro-label">Expected columns</p>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            `company name`, `company`, `business name`, `business`, `name`,
-            `address`, `website`, `phone`, `emails`, `category`, `city`,
-            `state`, `zip`, `country`, `google rating`, `review count`,
-            `number of reviews`, `latest review snippet`, `latest review rating`,
-            `latest review date`, `latest review author`,
-            `latest review response status`, `primary contact name`,
-            `contact title`, `contact email`, `notes`
-          </p>
+        <div className="space-y-4 rounded-3xl border border-white/8 bg-black/20 p-5">
+          <div className="max-w-2xl space-y-2">
+            <p className="micro-label">Expected columns</p>
+            <p className="text-sm leading-6 text-muted">
+              Core business columns still work the same. For reviews, you can either keep using the legacy single-review columns or provide numbered review columns up to 3 recent relevant reviews.
+            </p>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="micro-label">Core columns</p>
+              <p className="mt-3 text-sm leading-6 text-muted">
+                `company name`, `company`, `business name`, `business`, `name`,
+                `address`, `website`, `phone`, `emails`, `category`, `city`,
+                `state`, `zip`, `country`, `google rating`, `review count`,
+                `number of reviews`, `primary contact name`, `contact title`,
+                `contact email`, `notes`
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="micro-label">Review columns</p>
+              <p className="mt-3 text-sm leading-6 text-muted">
+                Legacy: `latest review snippet`, `latest review rating`, `latest review date`, `latest review author`, `latest review response status`
+              </p>
+              <p className="mt-3 text-sm leading-6 text-muted">
+                Multi-review: `review 1 snippet`, `review 1 rating`, `review 1 date`, `review 1 author`, `review 1 response status`, then repeat for `review 2` and `review 3`
+              </p>
+            </div>
+          </div>
         </div>
 
         {clientError ? (
@@ -170,7 +189,7 @@ export function CsvLeadImportForm() {
         ) : null}
 
         {preview ? (
-          <div className="space-y-4 rounded-3xl border border-white/8 bg-black/20 p-5">
+          <div className="space-y-5 rounded-3xl border border-white/8 bg-black/20 p-5 lg:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="micro-label">Preview</p>
@@ -232,7 +251,7 @@ export function CsvLeadImportForm() {
 
             <div className="space-y-3">
               {preview.rows.map((row) => (
-                <div key={row.rowNumber} className="surface-muted p-4">
+                <div key={row.rowNumber} className="surface-muted p-4 lg:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-copy">
@@ -243,8 +262,25 @@ export function CsvLeadImportForm() {
                       </p>
                     </div>
                     {row.website ? (
-                      <p className="text-sm text-muted">{row.website}</p>
+                      <p className="break-words text-sm text-muted">{row.website}</p>
                     ) : null}
+                  </div>
+                  <div className="mt-4 rounded-2xl border border-white/8 bg-black/10 p-4">
+                    <p className="micro-label">Review import</p>
+                    <p className="mt-2 text-sm text-copy">{row.reviewLabel}</p>
+                    {row.reviewSnippets.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {row.reviewSnippets.map((reviewSnippet) => (
+                          <p key={reviewSnippet} className="text-sm leading-6 text-muted">
+                            {reviewSnippet}
+                          </p>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm leading-6 text-muted">
+                        No recent review snippets were mapped from this row.
+                      </p>
+                    )}
                   </div>
                   {row.issues.length ? (
                     <div className="mt-3 space-y-1">

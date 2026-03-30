@@ -176,6 +176,10 @@ export function SelectedCompanyProfile({
             <p className="mt-2 text-sm leading-6 text-copy">
               {company.reviewContext.metaLabel}
             </p>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              {company.reviewContext.reviewCount} recent relevant review
+              {company.reviewContext.reviewCount === 1 ? "" : "s"} on file
+            </p>
           </div>
           <div className="mt-4">
             <RecentReviewList
