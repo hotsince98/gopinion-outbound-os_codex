@@ -72,7 +72,7 @@ export function PreferredSupportingPageCard(props: Readonly<{
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-[1.15rem] border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
+          className="button-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isPending ? "Saving..." : "Save preferred page"}
         </button>

@@ -21,7 +21,8 @@ export function StatCard({
 }>) {
   return (
     <article className="surface-panel relative overflow-hidden p-5 lg:p-6">
-      <div className="absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top_left,rgba(111,202,255,0.14),transparent_55%)]" />
+      <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,rgba(126,188,255,0.55),rgba(255,255,255,0))]" />
+      <div className="absolute inset-x-0 top-0 h-20 bg-[radial-gradient(circle_at_top_left,rgba(126,188,255,0.1),transparent_60%)]" />
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="micro-label">{label}</p>

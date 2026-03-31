@@ -28,8 +28,8 @@ export function SidebarNav({
               className={cn(
                 "group min-w-[165px] flex-1 rounded-2xl border px-4 py-3 transition duration-200 lg:min-w-0",
                 isActive
-                  ? "border-accent/35 bg-accent/10 text-copy shadow-[0_12px_30px_-18px_rgba(111,202,255,0.55)]"
-                  : "border-white/8 bg-white/[0.03] text-muted hover:border-white/12 hover:bg-white/[0.05] hover:text-copy",
+                  ? "border-accent/22 bg-accent/10 text-copy"
+                  : "border-white/8 bg-white/[0.025] text-muted hover:border-white/12 hover:bg-white/[0.045] hover:text-copy",
               )}
             >
               <div className="flex items-center justify-between gap-3">

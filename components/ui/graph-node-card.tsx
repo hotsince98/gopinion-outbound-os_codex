@@ -26,8 +26,8 @@ export function GraphNodeCard({
       className={cn(
         "surface-muted block p-4 transition",
         active
-          ? "border-accent/35 bg-accent/10 shadow-[0_12px_36px_-24px_rgba(111,202,255,0.65)]"
-          : "hover:border-white/12 hover:bg-white/[0.05]",
+          ? "border-accent/22 bg-accent/10"
+          : "hover:border-white/12 hover:bg-white/[0.04]",
       )}
     >
       <div className="flex items-start justify-between gap-3">

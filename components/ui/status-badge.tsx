@@ -2,12 +2,12 @@ import type { Tone } from "@/lib/presentation";
 import { cn } from "@/lib/utils";
 
 const toneClasses: Record<Tone, string> = {
-  neutral: "border-white/12 bg-white/6 text-copy",
-  accent: "border-accent/25 bg-accent/10 text-copy",
-  success: "border-success/25 bg-success/10 text-copy",
-  warning: "border-warning/25 bg-warning/10 text-copy",
-  danger: "border-rose-400/25 bg-rose-400/10 text-copy",
-  muted: "border-white/10 bg-white/[0.03] text-muted",
+  neutral: "border-white/10 bg-white/[0.035] text-copy",
+  accent: "border-accent/22 bg-accent/10 text-copy",
+  success: "border-success/22 bg-success/10 text-copy",
+  warning: "border-warning/22 bg-warning/10 text-copy",
+  danger: "border-rose-400/22 bg-rose-400/10 text-copy",
+  muted: "border-white/10 bg-white/[0.028] text-muted",
 };
 
 export function StatusBadge({

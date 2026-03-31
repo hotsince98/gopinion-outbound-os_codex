@@ -33,7 +33,7 @@ function FilterGroup(props: Readonly<{
   children: ReactNode;
 }>) {
   return (
-    <div className="surface-muted p-5 lg:p-6">
+    <div className="surface-soft p-5 lg:p-6">
       <p className="micro-label">{props.title}</p>
       <p className="mt-2 text-sm leading-6 text-muted">{props.description}</p>
       <div className="mt-5">{props.children}</div>
@@ -54,7 +54,7 @@ function CompanyQueueListItem(props: Readonly<{
       className={`block rounded-[1.7rem] border p-4 transition ${
         props.isSelected
           ? "surface-elevated border-accent/30"
-          : "border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] hover:border-white/12 hover:bg-white/[0.04]"
+          : "border-white/8 bg-white/[0.025] hover:border-white/12 hover:bg-white/[0.04]"
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -155,7 +155,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                   name="q"
                   defaultValue={view.filters.values.q}
                   placeholder="Search company, market, or contact"
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.05]"
+                  className="field-shell"
                 />
               </label>
 
@@ -164,7 +164,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 <select
                   name="icp"
                   defaultValue={view.filters.values.icp}
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  className="field-shell"
                 >
                   {view.filters.icpOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -179,7 +179,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 <select
                   name="tier"
                   defaultValue={view.filters.values.tier}
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  className="field-shell"
                 >
                   {view.filters.tierOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -201,7 +201,7 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
                 <select
                   name="readiness"
                   defaultValue={view.filters.values.readiness}
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                  className="field-shell"
                 >
                   {view.filters.readinessOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -212,17 +212,11 @@ export default async function CompaniesPage({ searchParams }: PageProps) {
               </label>
 
               <div className="flex flex-wrap gap-3 pt-1">
-                <button
-                  type="submit"
-                  className="rounded-[1.15rem] border border-accent/30 bg-accent/10 px-5 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
-                >
+                <button type="submit" className="button-primary">
                   Apply filters
                 </button>
                 {view.hasActiveFilters ? (
-                  <Link
-                    href="/companies"
-                    className="rounded-[1.15rem] border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
-                  >
+                  <Link href="/companies" className="button-secondary">
                     Reset filters
                   </Link>
                 ) : null}

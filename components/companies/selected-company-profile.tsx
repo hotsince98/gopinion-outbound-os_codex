@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ConfidenceBreakdown } from "@/components/enrichment/confidence-breakdown";
 import { ContactRankingStack } from "@/components/enrichment/contact-ranking-stack";
+import { ProviderRunSummary } from "@/components/enrichment/provider-run-summary";
 import { RecentReviewList } from "@/components/reviews/recent-review-list";
 import { DetailList } from "@/components/ui/detail-list";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -34,7 +35,7 @@ function TextList(props: Readonly<{ items: string[]; empty: string }>) {
 
 function MetaItem(props: Readonly<{ label: string; value: string }>) {
   return (
-    <div className="surface-soft p-4">
+    <div className="surface-soft min-w-0 p-4">
       <p className="micro-label">{props.label}</p>
       <p className="mt-2 break-words text-sm leading-6 text-copy">{props.value}</p>
     </div>
@@ -71,74 +72,150 @@ function ProfileSectionTabs(props: Readonly<{
   );
 }
 
+function ReviewTraceLabel(company: CompanyDetailView) {
+  return [
+    company.websiteDiscovery.reviewSourceLabel,
+    company.websiteDiscovery.reviewedAtLabel,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
+
+function CandidateDiagnostics({
+  diagnostics,
+}: Readonly<{
+  diagnostics: string[];
+}>) {
+  if (diagnostics.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-5 space-y-2">
+      <p className="micro-label">Discovery diagnostics</p>
+      {diagnostics.map((item) => (
+        <p key={item} className="text-sm leading-6 text-muted">
+          {item}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function WebsiteDiscoveryCard({
   company,
 }: Readonly<{
   company: CompanyDetailView;
 }>) {
+  const reviewTrace = ReviewTraceLabel(company);
+
   return (
-    <div className="surface-muted p-5">
-      <p className="micro-label">Website and discovery</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <StatusBadge
-          label={company.websiteDiscovery.confirmationBadge.label}
-          tone={company.websiteDiscovery.confirmationBadge.tone}
-        />
-        <StatusBadge
-          label={company.websiteDiscovery.confidenceBadge.label}
-          tone={company.websiteDiscovery.confidenceBadge.tone}
-        />
+    <div className="surface-muted p-6 lg:p-7">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <p className="micro-label">Website and discovery</p>
+          <p className="mt-3 break-words text-[1.05rem] font-medium tracking-[-0.01em] text-copy">
+            {company.websiteDiscovery.officialWebsite ?? company.websiteDiscovery.candidate}
+          </p>
+          <p className="mt-3 text-sm leading-7 text-muted">
+            {company.websiteDiscovery.reason}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge
+            label={company.websiteDiscovery.confirmationBadge.label}
+            tone={company.websiteDiscovery.confirmationBadge.tone}
+          />
+          <StatusBadge
+            label={company.websiteDiscovery.confidenceBadge.label}
+            tone={company.websiteDiscovery.confidenceBadge.tone}
+          />
+        </div>
       </div>
-      <div className="surface-soft mt-4 p-4">
-        <p className="micro-label">Official website</p>
-        <p className="mt-2 break-words text-[0.96rem] font-medium leading-6 text-copy">
-          {company.websiteDiscovery.officialWebsite ?? company.websiteDiscovery.candidate}
-        </p>
-      </div>
-      <div className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
+
+      <div className="mt-5 grid gap-3 lg:grid-cols-2 2xl:grid-cols-4">
         <MetaItem label="Discovery status" value={company.websiteDiscovery.label} />
-        <MetaItem label="Preferred page" value={company.preferredSupportingPage.label} />
+        <MetaItem
+          label="Preferred page"
+          value={company.preferredSupportingPage.label}
+        />
         <MetaItem
           label="Page source"
           value={company.preferredSupportingPage.sourceLabel}
         />
+        <MetaItem
+          label="Review trace"
+          value={reviewTrace || "Awaiting manual review"}
+        />
       </div>
-      <p className="mt-4 text-sm leading-6 text-muted">
-        {company.websiteDiscovery.reason}
-      </p>
+
+      {company.preferredSupportingPage.url || company.preferredSupportingPage.reason ? (
+        <div className="surface-soft mt-5 p-5">
+          <p className="micro-label">Preferred supporting page</p>
+          {company.preferredSupportingPage.url ? (
+            <a
+              href={company.preferredSupportingPage.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 block break-words text-sm font-medium text-copy transition hover:text-accent"
+            >
+              {company.preferredSupportingPage.url}
+            </a>
+          ) : null}
+          {company.preferredSupportingPage.reason ? (
+            <p className="mt-3 text-sm leading-6 text-muted">
+              {company.preferredSupportingPage.reason}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <CandidateDiagnostics diagnostics={company.websiteDiscovery.candidateDiagnostics} />
     </div>
   );
 }
 
 function RecentReviewsCard({
   company,
+  maxItems = 3,
+  compactList = false,
 }: Readonly<{
   company: CompanyDetailView;
+  maxItems?: number;
+  compactList?: boolean;
 }>) {
   return (
-    <div className="surface-muted p-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="micro-label">Recent public reviews</p>
-        <StatusBadge
-          label={company.reviewContext.badge.label}
-          tone={company.reviewContext.badge.tone}
-        />
+    <div className="surface-muted p-6 lg:p-7">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,0.85fr)]">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="micro-label">Recent public reviews</p>
+            <StatusBadge
+              label={company.reviewContext.badge.label}
+              tone={company.reviewContext.badge.tone}
+            />
+          </div>
+          <p className="mt-3 text-sm leading-7 text-copy">
+            {company.reviewContext.summary}
+          </p>
+        </div>
+        <div className="surface-soft p-4">
+          <p className="micro-label">Review pressure summary</p>
+          <p className="mt-2 text-sm leading-6 text-copy">
+            {company.reviewContext.metaLabel}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            {company.reviewContext.reviewCount} recent relevant review
+            {company.reviewContext.reviewCount === 1 ? "" : "s"} on file
+          </p>
+        </div>
       </div>
-      <p className="mt-3 text-sm leading-6 text-copy">{company.reviewContext.summary}</p>
-      <div className="surface-soft mt-4 p-4">
-        <p className="micro-label">Review pressure summary</p>
-        <p className="mt-2 text-sm leading-6 text-copy">
-          {company.reviewContext.metaLabel}
-        </p>
-        <p className="mt-2 text-sm leading-6 text-muted">
-          {company.reviewContext.reviewCount} recent relevant review
-          {company.reviewContext.reviewCount === 1 ? "" : "s"} on file
-        </p>
-      </div>
-      <div className="mt-4">
+
+      <div className="mt-5">
         <RecentReviewList
           items={company.reviewContext.reviews}
-          maxItems={3}
+          maxItems={maxItems}
+          compact={compactList}
           emptyMessage="No recent review snippets are attached on this company yet."
         />
       </div>
@@ -146,49 +223,92 @@ function RecentReviewsCard({
   );
 }
 
-function RecommendedContactCard({
+function CompactContactHighlights({
   company,
 }: Readonly<{
   company: CompanyDetailView;
 }>) {
+  const highlights = company.contactSummary.highlights.slice(0, 2);
+
+  if (highlights.length === 0) {
+    return (
+      <p className="text-sm leading-6 text-muted">
+        No ranked contact paths are available yet.
+      </p>
+    );
+  }
+
   return (
-    <div className="surface-muted p-5">
-      <p className="micro-label">Recommended outreach contact</p>
-      <div className="mt-3 flex flex-wrap gap-2">
+    <div className="grid gap-3">
+      {highlights.map((item) => (
+        <div key={item.id} className="surface-soft p-4">
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge
+              label={item.slotLabel}
+              tone={item.slotLabel === "Primary" ? "success" : "accent"}
+            />
+            <StatusBadge
+              label={item.qualityBadge.label}
+              tone={item.qualityBadge.tone}
+            />
+          </div>
+          <p className="mt-3 text-sm font-medium text-copy">{item.label}</p>
+          <p className="mt-1 text-sm text-muted">{item.roleLabel}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RecommendedContactCard({
+  company,
+  showRanking = false,
+}: Readonly<{
+  company: CompanyDetailView;
+  showRanking?: boolean;
+}>) {
+  return (
+    <div className="surface-muted p-6 lg:p-7">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="micro-label">Recommended outreach contact</p>
         <StatusBadge
           label={company.topRecommendedContact.qualityBadge.label}
           tone={company.topRecommendedContact.qualityBadge.tone}
         />
       </div>
-      <div className="surface-soft mt-4 p-4">
-        <p className="micro-label">Primary outreach path</p>
-        <p className="mt-2 text-base font-medium text-copy">
-          {company.topRecommendedContact.label}
-        </p>
-        <p className="mt-2 text-sm text-muted">{company.contactSummary.totalLabel}</p>
-      </div>
-      <p className="mt-4 text-sm leading-6 text-muted">
+
+      <p className="mt-4 text-[1.02rem] font-medium tracking-[-0.01em] text-copy">
+        {company.topRecommendedContact.label}
+      </p>
+      <p className="mt-2 text-sm text-muted">{company.contactSummary.totalLabel}</p>
+      <p className="mt-4 text-sm leading-7 text-copy">
         {company.topRecommendedContact.reason}
       </p>
-      <div className="mt-4">
-        <ContactRankingStack
-          totalLabel={company.contactSummary.totalLabel}
-          items={company.contactSummary.highlights}
-        />
+
+      <div className="mt-5">
+        {showRanking ? (
+          <ContactRankingStack
+            totalLabel={company.contactSummary.totalLabel}
+            items={company.contactSummary.highlights}
+          />
+        ) : (
+          <CompactContactHighlights company={company} />
+        )}
       </div>
     </div>
   );
 }
 
-function AngleReadinessCard({
+function OutreachPlanCard({
   company,
+  showCampaignSummary = true,
 }: Readonly<{
   company: CompanyDetailView;
+  showCampaignSummary?: boolean;
 }>) {
   return (
-    <div className="surface-muted p-5">
-      <p className="micro-label">Angle and readiness</p>
-      <div className="mt-3 flex flex-wrap gap-2">
+    <div className="surface-muted p-6 lg:p-7">
+      <div className="flex flex-wrap gap-2">
         <StatusBadge
           label={company.outreachAngle.urgencyBadge.label}
           tone={company.outreachAngle.urgencyBadge.tone}
@@ -202,19 +322,22 @@ function AngleReadinessCard({
           tone={company.outreachAngle.reviewPathBadge.tone}
         />
       </div>
-      <p className="mt-3 text-base font-medium text-copy">
+
+      <p className="mt-4 text-[1.02rem] font-medium tracking-[-0.01em] text-copy">
         {company.outreachAngle.label}
       </p>
-      <p className="mt-2 text-sm leading-6 text-copy">
+      <p className="mt-3 text-sm leading-7 text-muted">
         {company.outreachAngle.reason}
       </p>
-      <div className="mt-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(12rem,1fr))]">
+
+      <div className="mt-5 grid gap-3 lg:grid-cols-2">
         <MetaItem label="Segment lens" value={company.outreachAngle.segmentLabel} />
         <MetaItem label="Offer CTA" value={company.recommendedOffer.cta} />
       </div>
-      <div className="surface-soft mt-4 p-4">
+
+      <div className="surface-soft mt-5 p-5">
         <p className="micro-label">Recommended offer</p>
-        <p className="mt-3 text-base font-medium text-copy">
+        <p className="mt-3 text-sm font-medium text-copy">
           {company.recommendedOffer.name}
         </p>
         <p className="mt-2 text-sm leading-6 text-muted">
@@ -224,6 +347,17 @@ function AngleReadinessCard({
           {company.recommendedOffer.angle}
         </p>
       </div>
+
+      {showCampaignSummary ? (
+        <div className="mt-5 space-y-2">
+          <p className="micro-label">Campaign context</p>
+          {company.campaignSummary.map((item) => (
+            <p key={item} className="text-sm leading-6 text-muted">
+              {item}
+            </p>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -234,18 +368,17 @@ function FitReputationCard({
   company: CompanyDetailView;
 }>) {
   return (
-    <div className="surface-muted p-5">
-      <p className="micro-label">Fit and reputation context</p>
-      <div className="mt-3 space-y-4">
+    <div className="surface-muted p-6 lg:p-7">
+      <div className="space-y-5">
         <div>
-          <p className="text-sm font-medium text-copy">Company basics</p>
-          <div className="mt-3">
+          <p className="micro-label">Company basics</p>
+          <div className="mt-4">
             <DetailList items={company.basics} />
           </div>
         </div>
         <div>
-          <p className="text-sm font-medium text-copy">Reputation signals</p>
-          <div className="mt-3">
+          <p className="micro-label">Reputation signals</p>
+          <div className="mt-4">
             <DetailList items={company.reputation} />
           </div>
         </div>
@@ -260,12 +393,11 @@ function PainsNotesCard({
   company: CompanyDetailView;
 }>) {
   return (
-    <div className="surface-muted p-5">
-      <p className="micro-label">Likely pains and operator notes</p>
-      <div className="mt-3 space-y-4">
+    <div className="surface-muted p-6 lg:p-7">
+      <div className="space-y-5">
         <div>
-          <p className="text-sm font-medium text-copy">Pain signals</p>
-          <div className="mt-2">
+          <p className="micro-label">Likely pains</p>
+          <div className="mt-3">
             <TextList
               items={company.pains}
               empty="No pain signals are stored on the record yet."
@@ -273,8 +405,8 @@ function PainsNotesCard({
           </div>
         </div>
         <div>
-          <p className="text-sm font-medium text-copy">Notes</p>
-          <div className="mt-2">
+          <p className="micro-label">Operator notes</p>
+          <div className="mt-3">
             <TextList
               items={company.notes}
               empty="No additional operator notes are attached yet."
@@ -286,19 +418,43 @@ function PainsNotesCard({
   );
 }
 
+function ProviderTransparencyCard({
+  company,
+}: Readonly<{
+  company: CompanyDetailView;
+}>) {
+  return (
+    <div className="surface-muted p-6 lg:p-7">
+      <p className="micro-label">Provider transparency</p>
+      <div className="mt-4">
+        <ProviderRunSummary
+          badge={company.providerTransparency.badge}
+          label={company.providerTransparency.label}
+          fallback={company.providerTransparency.fallback}
+          evidence={company.providerTransparency.evidence}
+          pageUsage={company.providerTransparency.pageUsage}
+        />
+      </div>
+    </div>
+  );
+}
+
 function DecisionMakerCoverageCard({
   company,
 }: Readonly<{
   company: CompanyDetailView;
 }>) {
   return (
-    <div className="surface-muted p-5">
-      <p className="micro-label">Decision-maker coverage</p>
-      <div className="mt-3 space-y-3">
+    <div className="surface-muted p-6 lg:p-7">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="micro-label">Decision-maker coverage</p>
+        <p className="text-sm text-muted">{company.contactSummary.totalLabel}</p>
+      </div>
+      <div className="mt-5 space-y-4">
         {company.contacts.length > 0 ? (
           company.contacts.map((contact) => (
-            <div key={contact.id} className="surface-soft p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+            <div key={contact.id} className="surface-soft p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="break-words text-sm font-medium text-copy">
@@ -314,13 +470,13 @@ function DecisionMakerCoverageCard({
                   </div>
                   <p className="mt-1 text-sm text-muted">{contact.role}</p>
                   {contact.email ? (
-                    <p className="mt-1 break-all text-sm text-copy">{contact.email}</p>
+                    <p className="mt-2 break-all text-sm text-copy">{contact.email}</p>
                   ) : null}
                   {contact.phone ? (
                     <p className="mt-1 text-sm text-muted">{contact.phone}</p>
                   ) : null}
                 </div>
-                <div className="text-left lg:text-right">
+                <div className="text-left xl:text-right">
                   <p className="text-xs uppercase tracking-[0.18em] text-muted">
                     {contact.confidence}
                   </p>
@@ -332,7 +488,8 @@ function DecisionMakerCoverageCard({
                   </p>
                 </div>
               </div>
-              <p className="mt-3 break-words text-sm leading-6 text-muted">
+
+              <p className="mt-4 break-words text-sm leading-6 text-muted">
                 {contact.source}
               </p>
               {contact.readinessReason ? (
@@ -375,16 +532,16 @@ function OverviewSection({
   company: CompanyDetailView;
 }>) {
   return (
-    <>
-      <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
+    <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.92fr)]">
+      <div className="space-y-5">
         <WebsiteDiscoveryCard company={company} />
-        <RecentReviewsCard company={company} />
+        <RecentReviewsCard company={company} maxItems={2} compactList />
       </div>
-      <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
+      <div className="space-y-5">
         <RecommendedContactCard company={company} />
-        <AngleReadinessCard company={company} />
+        <OutreachPlanCard company={company} />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -394,8 +551,11 @@ function WebsiteSection({
   company: CompanyDetailView;
 }>) {
   return (
-    <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
-      <WebsiteDiscoveryCard company={company} />
+    <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.9fr)]">
+      <div className="space-y-5">
+        <WebsiteDiscoveryCard company={company} />
+        <ProviderTransparencyCard company={company} />
+      </div>
       <FitReputationCard company={company} />
     </div>
   );
@@ -407,9 +567,12 @@ function ReviewsSection({
   company: CompanyDetailView;
 }>) {
   return (
-    <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
-      <RecentReviewsCard company={company} />
-      <PainsNotesCard company={company} />
+    <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.9fr)]">
+      <RecentReviewsCard company={company} maxItems={4} />
+      <div className="space-y-5">
+        <PainsNotesCard company={company} />
+        <FitReputationCard company={company} />
+      </div>
     </div>
   );
 }
@@ -421,9 +584,9 @@ function ContactsSection({
 }>) {
   return (
     <div className="space-y-5">
-      <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(24rem,1fr))]">
-        <RecommendedContactCard company={company} />
-        <FitReputationCard company={company} />
+      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.12fr)_minmax(20rem,0.92fr)]">
+        <RecommendedContactCard company={company} showRanking />
+        <OutreachPlanCard company={company} showCampaignSummary={false} />
       </div>
       <DecisionMakerCoverageCard company={company} />
     </div>
@@ -447,12 +610,12 @@ export function SelectedCompanyProfile({
     return (
       <SectionCard
         title="Selected company"
-        description="Pick a company from the queue to open its website, contact, and readiness profile."
+        description="Pick a company from the queue to open its website, contact, review, and readiness workspace."
       >
         <EmptyState
           eyebrow="Company detail"
           title="Select a company to inspect it"
-          description="The center workspace expands the chosen company into a clearer operator profile so you can review one account deeply before taking action."
+          description="The center workspace turns the chosen account into the dominant task object so deeper context stays calm, readable, and easy to act on."
         />
       </SectionCard>
     );
@@ -464,10 +627,20 @@ export function SelectedCompanyProfile({
     <SectionCard
       title={company.companyName}
       description={`${company.market} • ${company.subindustry} • ${company.icpLabel}`}
+      action={
+        sectionLinks?.length ? (
+          <Link
+            href={`/companies?companyId=${company.companyId}`}
+            className="button-secondary"
+          >
+            Open full company page
+          </Link>
+        ) : undefined
+      }
       contentClassName="space-y-6"
     >
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(18rem,0.85fr)]">
-        <div className="surface-elevated p-6">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(19rem,0.95fr)]">
+        <div className="surface-elevated p-6 lg:p-7">
           <div className="flex flex-wrap gap-2">
             <StatusBadge
               label={company.priorityBadge.label}
@@ -482,28 +655,56 @@ export function SelectedCompanyProfile({
               tone={company.readinessBadge.tone}
             />
           </div>
-          <div className="mt-5 space-y-3">
-            <p className="text-base font-medium tracking-[-0.01em] text-copy">
-              {company.reviewSnapshot}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge
-                label={company.reviewContext.badge.label}
-                tone={company.reviewContext.badge.tone}
-              />
-              <p className="text-sm text-muted">{company.reviewContext.metaLabel}</p>
+
+          <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.95fr)]">
+            <div className="space-y-5">
+              <div>
+                <p className="micro-label">Operator brief</p>
+                <p className="mt-3 text-[1.18rem] font-semibold leading-8 tracking-[-0.02em] text-copy">
+                  {company.reviewSnapshot}
+                </p>
+                <p className="mt-4 text-sm leading-7 text-muted">
+                  {company.suggestedNextAction}
+                </p>
+              </div>
+
+              <div className="surface-soft p-5">
+                <p className="micro-label">Recommended angle</p>
+                <p className="mt-3 text-sm font-medium text-copy">
+                  {company.outreachAngle.label}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  {company.outreachAngle.reason}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="surface-soft mt-5 p-4">
-            <p className="micro-label">Suggested next action</p>
-            <p className="mt-3 text-sm leading-6 text-copy">
-              {company.suggestedNextAction}
-            </p>
+
+            <div className="grid gap-3">
+              <MetaItem
+                label="Official website"
+                value={
+                  company.websiteDiscovery.officialWebsite ??
+                  company.websiteDiscovery.candidate
+                }
+              />
+              <MetaItem
+                label="Primary contact"
+                value={company.topRecommendedContact.label}
+              />
+              <MetaItem
+                label="Recommended offer"
+                value={company.recommendedOffer.name}
+              />
+              <MetaItem
+                label="Current campaign"
+                value={company.campaignSummary[0] ?? "No active campaign"}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="surface-muted p-5">
-          <p className="micro-label">Confidence overview</p>
+        <div className="surface-muted p-6">
+          <p className="micro-label">Readiness board</p>
           <div className="mt-4">
             <ConfidenceBreakdown
               items={[
@@ -534,18 +735,43 @@ export function SelectedCompanyProfile({
               ]}
             />
           </div>
+
+          <div className="surface-soft mt-5 p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge
+                label={company.reviewContext.badge.label}
+                tone={company.reviewContext.badge.tone}
+              />
+              <p className="text-sm text-muted">{company.reviewContext.metaLabel}</p>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-copy">
+              {company.reviewContext.summary}
+            </p>
+          </div>
+
+          <div className="mt-5 space-y-2">
+            <p className="micro-label">Campaign context</p>
+            {company.campaignSummary.map((item) => (
+              <p key={item} className="text-sm leading-6 text-muted">
+                {item}
+              </p>
+            ))}
+          </div>
         </div>
       </div>
 
       <ProfileSectionTabs links={sectionLinks} />
 
       {showFullProfile ? (
-        <div className="space-y-5">
+        <div className="space-y-8">
           <OverviewSection company={company} />
           <WebsiteSection company={company} />
           <ReviewsSection company={company} />
           <ContactsSection company={company} />
         </div>
+      ) : null}
+      {!showFullProfile && section === "overview" ? (
+        <OverviewSection company={company} />
       ) : null}
       {!showFullProfile && section === "website" ? (
         <WebsiteSection company={company} />
@@ -555,9 +781,6 @@ export function SelectedCompanyProfile({
       ) : null}
       {!showFullProfile && section === "contacts" ? (
         <ContactsSection company={company} />
-      ) : null}
-      {!showFullProfile && section === "overview" ? (
-        <OverviewSection company={company} />
       ) : null}
     </SectionCard>
   );

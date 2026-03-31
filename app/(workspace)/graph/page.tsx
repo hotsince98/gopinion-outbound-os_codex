@@ -30,17 +30,11 @@ export default async function GraphPage({ searchParams }: PageProps) {
         description="Inspect how typed companies, contacts, campaigns, offers, appointments, and insights connect across the outbound system. The graph stays useful by emphasizing relationships and next actions instead of visual gimmicks."
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
-            >
+            <Link href="/dashboard" className="button-primary">
               Back to dashboard
             </Link>
             {view.hasActiveFilters ? (
-              <Link
-                href="/graph"
-                className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-copy transition hover:border-white/14 hover:bg-white/[0.06]"
-              >
+              <Link href="/graph" className="button-secondary">
                 Clear filters
               </Link>
             ) : null}
@@ -61,7 +55,10 @@ export default async function GraphPage({ searchParams }: PageProps) {
         ))}
       </div>
 
-      <FilterPanel>
+      <FilterPanel
+        title="Graph controls"
+        description="Shape the graph with the same calm filter language as the rest of the product. Keep relationships visible without turning the canvas into noise."
+      >
         <form className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-[1.6fr_repeat(2,minmax(0,1fr))_auto] lg:items-end">
             <label className="space-y-2">
@@ -71,7 +68,7 @@ export default async function GraphPage({ searchParams }: PageProps) {
                 name="q"
                 defaultValue={view.filters.values.q}
                 placeholder="Search company, campaign, offer, or related node"
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.05]"
+                className="field-shell"
               />
             </label>
 
@@ -80,7 +77,7 @@ export default async function GraphPage({ searchParams }: PageProps) {
               <select
                 name="nodeType"
                 defaultValue={view.filters.values.nodeType}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                className="field-shell"
               >
                 {view.filters.nodeTypeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -95,7 +92,7 @@ export default async function GraphPage({ searchParams }: PageProps) {
               <select
                 name="status"
                 defaultValue={view.filters.values.status}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy outline-none transition focus:border-accent/35 focus:bg-white/[0.05]"
+                className="field-shell"
               >
                 {view.filters.statusOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -105,10 +102,7 @@ export default async function GraphPage({ searchParams }: PageProps) {
               </select>
             </label>
 
-            <button
-              type="submit"
-              className="rounded-2xl border border-accent/30 bg-accent/10 px-5 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15"
-            >
+            <button type="submit" className="button-primary">
               Apply filters
             </button>
           </div>
@@ -117,14 +111,14 @@ export default async function GraphPage({ searchParams }: PageProps) {
             {view.filters.relationshipToggles.map((toggle) => (
               <label
                 key={toggle.key}
-                className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-copy"
+                className="surface-soft flex items-center gap-3 px-4 py-3 text-sm text-copy"
               >
                 <input
                   type="checkbox"
                   name={toggle.key}
                   value="1"
                   defaultChecked={toggle.enabled}
-                  className="h-4 w-4 rounded border-white/20 bg-transparent accent-[rgb(111,202,255)]"
+                  className="h-4 w-4 rounded border-white/20 bg-transparent accent-[rgb(var(--accent))]"
                 />
                 <span>{toggle.label}</span>
                 <span className="text-muted">({toggle.count})</span>
@@ -188,7 +182,7 @@ export default async function GraphPage({ searchParams }: PageProps) {
                     {view.relationships.map((relationship) => (
                       <div
                         key={relationship.id}
-                        className="rounded-2xl border border-white/8 bg-black/10 p-4"
+                        className="surface-soft p-4"
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <StatusBadge

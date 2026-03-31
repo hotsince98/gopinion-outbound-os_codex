@@ -30,11 +30,13 @@ export function CampaignEnrollmentPanel({
   description,
   panel,
   autoSelectSingle = false,
+  compact = false,
 }: Readonly<{
   title: string;
   description: string;
   panel: CampaignAssignmentPanelView;
   autoSelectSingle?: boolean;
+  compact?: boolean;
 }>) {
   const [state, formAction, isPending] = useActionState(
     runCampaignEnrollmentAction,
@@ -58,8 +60,15 @@ export function CampaignEnrollmentPanel({
     }
   }, [autoSelectSingle, panel.rows, state.status]);
 
+  const compactSingleRow =
+    compact && autoSelectSingle && panel.rows.length === 1 ? panel.rows[0] : undefined;
+  const effectiveSelectedCompanyIds = compactSingleRow
+    ? [compactSingleRow.companyId]
+    : selectedCompanyIds;
   const allSelected =
-    panel.rows.length > 0 && selectedCompanyIds.length === panel.rows.length;
+    !compactSingleRow &&
+    panel.rows.length > 0 &&
+    effectiveSelectedCompanyIds.length === panel.rows.length;
   const readyCount = panel.rows.filter((row) => row.canEnroll).length;
   const blockedCount = panel.rows.filter((row) => !row.canAssign).length;
   const reviewCount = panel.rows.filter(
@@ -206,67 +215,127 @@ export function CampaignEnrollmentPanel({
                 </select>
               </label>
 
+              {compactSingleRow ? (
+                <div className="surface-soft p-4">
+                  <div className="flex flex-wrap gap-2">
+                    <StatusBadge
+                      label={compactSingleRow.recommendedCampaignStatusBadge.label}
+                      tone={compactSingleRow.recommendedCampaignStatusBadge.tone}
+                    />
+                    <StatusBadge
+                      label={compactSingleRow.decisionBadge.label}
+                      tone={compactSingleRow.decisionBadge.tone}
+                    />
+                    {compactSingleRow.manualReviewRequired ? (
+                      <StatusBadge label="Manual review" tone="warning" />
+                    ) : null}
+                    {compactSingleRow.campaignReviewRequired ? (
+                      <StatusBadge label="Campaign review" tone="accent" />
+                    ) : null}
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-copy">
+                    {compactSingleRow.recommendedCampaignName}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    {compactSingleRow.decisionReason}
+                  </p>
+                  <p className="mt-3 text-sm text-copy">
+                    {compactSingleRow.primaryContactLabel}
+                  </p>
+                  <p className="mt-2 text-sm text-muted">
+                    {compactSingleRow.primaryContactQuality}
+                  </p>
+                  <p className="mt-2 text-sm text-muted">
+                    {compactSingleRow.primaryContactSource}
+                  </p>
+                  {compactSingleRow.primaryContactWarnings[0] ? (
+                    <p className="mt-2 text-sm text-warning">
+                      {compactSingleRow.primaryContactWarnings[0]}
+                    </p>
+                  ) : null}
+                  <p className="mt-3 text-sm text-copy">
+                    Offer focus: {compactSingleRow.recommendedOffer}
+                  </p>
+                </div>
+              ) : null}
+
+              {compactSingleRow
+                ? effectiveSelectedCompanyIds.map((companyId) => (
+                    <input
+                      key={companyId}
+                      type="hidden"
+                      name="selectedCompanyIds"
+                      value={companyId}
+                    />
+                  ))
+                : null}
+
               <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))]">
                 <button
                   type="submit"
                   name="mode"
                   value="assign"
-                  disabled={isPending || selectedCompanyIds.length === 0}
+                  disabled={isPending || effectiveSelectedCompanyIds.length === 0}
                   className="rounded-[1.15rem] border border-accent/30 bg-accent/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-accent/50 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isPending ? "Working..." : `Assign selected (${selectedCompanyIds.length})`}
+                  {isPending
+                    ? "Working..."
+                    : `Assign selected (${effectiveSelectedCompanyIds.length})`}
                 </button>
 
                 <button
                   type="submit"
                   name="mode"
                   value="enroll"
-                  disabled={isPending || selectedCompanyIds.length === 0}
+                  disabled={isPending || effectiveSelectedCompanyIds.length === 0}
                   className="rounded-[1.15rem] border border-success/30 bg-success/10 px-4 py-3 text-sm font-medium text-copy transition hover:border-success/50 hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isPending ? "Working..." : `Enroll selected (${selectedCompanyIds.length})`}
+                  {isPending
+                    ? "Working..."
+                    : `Enroll selected (${effectiveSelectedCompanyIds.length})`}
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="surface-panel p-5 lg:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <label className="inline-flex items-center gap-2 text-sm text-muted">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={(event) => toggleAll(event.currentTarget.checked)}
-                className="h-4 w-4 rounded border-white/15 bg-transparent"
-              />
-              Select all visible
-            </label>
-            <p className="text-sm text-muted">
-              {selectedCompanyIds.length} selected • {panel.rows.length} in view
-            </p>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {panel.rows.map((row) => (
-              <label
-                key={row.companyId}
-                className={`block rounded-[1.6rem] border p-4 transition ${
-                  selectedCompanyIds.includes(row.companyId)
-                    ? "surface-elevated border-accent/30"
-                    : "border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] hover:border-white/12 hover:bg-white/[0.04]"
-                }`}
-              >
+        {!compactSingleRow ? (
+          <div className="surface-panel p-5 lg:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <label className="inline-flex items-center gap-2 text-sm text-muted">
                 <input
                   type="checkbox"
-                  name="selectedCompanyIds"
-                  value={row.companyId}
-                  checked={selectedCompanyIds.includes(row.companyId)}
-                  onChange={(event) =>
-                    toggleSelected(row.companyId, event.currentTarget.checked)
-                  }
-                  className="sr-only"
+                  checked={allSelected}
+                  onChange={(event) => toggleAll(event.currentTarget.checked)}
+                  className="h-4 w-4 rounded border-white/15 bg-transparent"
                 />
+                Select all visible
+              </label>
+              <p className="text-sm text-muted">
+                {effectiveSelectedCompanyIds.length} selected • {panel.rows.length} in view
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {panel.rows.map((row) => (
+                <label
+                  key={row.companyId}
+                  className={`block rounded-[1.6rem] border p-4 transition ${
+                    effectiveSelectedCompanyIds.includes(row.companyId)
+                      ? "surface-elevated border-accent/30"
+                      : "border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] hover:border-white/12 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    name="selectedCompanyIds"
+                    value={row.companyId}
+                    checked={effectiveSelectedCompanyIds.includes(row.companyId)}
+                    onChange={(event) =>
+                      toggleSelected(row.companyId, event.currentTarget.checked)
+                    }
+                    className="sr-only"
+                  />
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -280,18 +349,20 @@ export function CampaignEnrollmentPanel({
                         tone={row.confidenceBadge.tone}
                       />
                     </div>
-                    <p className="mt-1 text-sm text-muted">{row.market}</p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">
-                      {row.lastEnrichedLabel}
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-muted">
-                    {selectedCompanyIds.includes(row.companyId) ? "Selected" : "Select"}
-                  </span>
-                </div>
+                        <p className="mt-1 text-sm text-muted">{row.market}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">
+                          {row.lastEnrichedLabel}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-muted">
+                        {effectiveSelectedCompanyIds.includes(row.companyId)
+                          ? "Selected"
+                          : "Select"}
+                      </span>
+                    </div>
 
-                <div className="mt-4 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))]">
-                  <div className="surface-soft p-4">
+                    <div className="mt-4 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))]">
+                      <div className="surface-soft p-4">
                     <p className="micro-label">Campaign recommendation</p>
                     <p className="mt-3 text-sm font-medium text-copy">
                       {row.recommendedCampaignName}
@@ -340,11 +411,12 @@ export function CampaignEnrollmentPanel({
                     ) : null}
                     <p className="mt-3 text-sm leading-6 text-copy">{row.decisionReason}</p>
                   </div>
-                </div>
-              </label>
-            ))}
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
       </form>
     </div>
   );

@@ -4,16 +4,16 @@
 
 :root {
   color-scheme: dark;
-  --ink: 6 9 16;
-  --shell: 18 25 39;
-  --line: 148 163 184;
-  --copy: 232 238 247;
-  --muted: 143 156 177;
-  --accent: 111 202 255;
-  --success: 92 214 170;
-  --warning: 245 184 73;
-  --panel: 18 24 38;
-  --panel-soft: 13 18 29;
+  --ink: 8 12 19;
+  --shell: 15 20 31;
+  --line: 128 146 172;
+  --copy: 234 239 247;
+  --muted: 146 159 179;
+  --accent: 126 188 255;
+  --success: 108 193 165;
+  --warning: 232 178 97;
+  --panel: 16 21 33;
+  --panel-soft: 11 16 26;
 }
 
 html {
@@ -24,13 +24,14 @@ html {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(96, 157, 236, 0.16), transparent 24%),
-    radial-gradient(circle at 88% 10%, rgba(92, 214, 170, 0.09), transparent 22%),
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.05), transparent 32%),
-    linear-gradient(180deg, #0b1019 0%, #070b12 54%, #05080f 100%);
+    radial-gradient(circle at top left, rgba(126, 188, 255, 0.14), transparent 24%),
+    radial-gradient(circle at 82% 0%, rgba(255, 255, 255, 0.05), transparent 18%),
+    radial-gradient(circle at 50% 110%, rgba(126, 188, 255, 0.06), transparent 28%),
+    linear-gradient(180deg, #0c111a 0%, #09101a 52%, #070c14 100%);
   color: rgb(var(--copy));
   font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -51,59 +52,105 @@ a {
 
 @layer components {
   .surface-panel {
-    @apply rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] shadow-panel shadow-black/60 backdrop-blur-xl;
+    @apply rounded-[1.75rem] border border-white/10 backdrop-blur-xl;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.016)),
+      rgba(var(--panel), 0.84);
     box-shadow:
-      0 24px 60px rgba(0, 0, 0, 0.42),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      0 20px 48px rgba(0, 0, 0, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.045);
   }
 
   .surface-muted {
-    @apply rounded-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] shadow-innerline;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    @apply rounded-[1.45rem] border border-white/10;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.034), rgba(255, 255, 255, 0.01)),
+      rgba(var(--panel-soft), 0.76);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.028);
   }
 
   .surface-elevated {
-    @apply rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(114,191,255,0.14),rgba(255,255,255,0.03))] shadow-panel shadow-black/60;
+    @apply rounded-[1.55rem] border border-accent/20;
+    background:
+      linear-gradient(180deg, rgba(126, 188, 255, 0.09), rgba(255, 255, 255, 0.022)),
+      rgba(var(--panel), 0.9);
     box-shadow:
-      0 24px 60px rgba(4, 10, 24, 0.5),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      0 18px 40px rgba(6, 11, 22, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 
   .surface-soft {
-    @apply rounded-[1.25rem] border border-white/10 bg-black/10;
+    @apply rounded-[1.2rem] border border-white/10;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0.006)),
+      rgba(7, 10, 17, 0.24);
+  }
+
+  .panel-header {
+    @apply border-b border-white/10;
+    background:
+      radial-gradient(circle at top left, rgba(126, 188, 255, 0.1), transparent 30%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.038), rgba(255, 255, 255, 0.012));
+  }
+
+  .panel-header-quiet {
+    @apply border-b border-white/10;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  }
+
+  .shell-rail {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0.008)),
+      rgba(var(--shell), 0.7);
+  }
+
+  .shell-header {
+    @apply border-b border-white/10 backdrop-blur-2xl;
+    background:
+      linear-gradient(180deg, rgba(8, 12, 19, 0.86), rgba(8, 12, 19, 0.76)),
+      rgba(var(--shell), 0.8);
+  }
+
+  .pill-shell {
+    @apply rounded-full border border-white/10 bg-white/[0.035] px-3 py-1 text-[0.68rem] font-medium uppercase tracking-[0.18em] text-muted;
+  }
+
+  .pill-shell-accent {
+    @apply rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-[0.68rem] font-medium uppercase tracking-[0.18em] text-copy;
   }
 
   .button-primary {
-    @apply rounded-full border border-accent/35 bg-accent/10 px-4 py-2.5 text-sm font-medium text-copy transition hover:border-accent/55 hover:bg-accent/15;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    @apply rounded-full border border-accent/30 bg-accent/10 px-4 py-2.5 text-sm font-medium text-copy transition hover:border-accent/40 hover:bg-accent/20;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
   }
 
   .button-secondary {
-    @apply rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-copy transition hover:border-white/15 hover:bg-white/[0.06];
+    @apply rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-copy transition hover:border-white/20 hover:bg-white/[0.05];
   }
 
   .button-success {
-    @apply rounded-full border border-success/30 bg-success/10 px-4 py-2.5 text-sm font-medium text-copy transition hover:border-success/45 hover:bg-success/15;
+    @apply rounded-full border border-success/25 bg-success/10 px-4 py-2.5 text-sm font-medium text-copy transition hover:border-success/40 hover:bg-success/20;
   }
 
   .button-warning {
-    @apply rounded-full border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm font-medium text-copy transition hover:border-warning/45 hover:bg-warning/15;
+    @apply rounded-full border border-warning/25 bg-warning/10 px-4 py-2.5 text-sm font-medium text-copy transition hover:border-warning/40 hover:bg-warning/20;
   }
 
   .field-shell {
-    @apply w-full rounded-[1.15rem] border border-white/10 bg-white/[0.035] px-4 py-3.5 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/35 focus:bg-white/[0.055];
+    @apply w-full rounded-[1.15rem] border border-white/10 bg-white/[0.028] px-4 py-3.5 text-sm text-copy outline-none transition placeholder:text-muted focus:border-accent/30 focus:bg-white/[0.045];
   }
 
   .quiet-rule {
-    @apply border-t border-white/8;
+    @apply border-t border-white/10;
   }
 
   .eyebrow {
-    @apply text-[0.66rem] font-medium uppercase tracking-[0.32em] text-muted/85;
+    @apply text-[0.64rem] font-medium uppercase tracking-[0.34em] text-muted/85;
   }
 
   .micro-label {
-    @apply text-[0.68rem] font-medium uppercase tracking-[0.24em] text-muted/85;
+    @apply text-[0.66rem] font-medium uppercase tracking-[0.24em] text-muted/85;
   }
 }
 

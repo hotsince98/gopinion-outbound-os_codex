@@ -115,12 +115,13 @@ export function SavedWorkspaceViewsBar(props: Readonly<{
   }
 
   return (
-    <div className="surface-panel px-5 py-5 lg:px-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="max-w-2xl">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="max-w-3xl">
           <p className="micro-label">Saved views</p>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Return to the queue states you use most often without rebuilding filters. Saved views already use a review-lens model that can grow from one latest review to richer recent-review sets later.
+            Keep common queue states one click away so operators can move between
+            focused slices without rebuilding filters.
           </p>
         </div>
         <button
@@ -133,7 +134,7 @@ export function SavedWorkspaceViewsBar(props: Readonly<{
       </div>
 
       {isSaving ? (
-        <div className="mt-4 grid gap-3 rounded-[1.4rem] border border-white/10 bg-black/10 p-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.1fr)_auto]">
+        <div className="grid gap-3 rounded-[1.3rem] border border-white/10 bg-black/10 p-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.1fr)_auto]">
           <label className="space-y-2">
             <span className="micro-label">View name</span>
             <input
@@ -167,10 +168,10 @@ export function SavedWorkspaceViewsBar(props: Readonly<{
         </div>
       ) : null}
 
-      <div className="mt-5 space-y-4">
-        <div>
+      <div className="space-y-3">
+        <div className="space-y-2">
           <p className="micro-label">Built-in workflow views</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {props.presets.map((preset) => (
               <ViewChip
                 key={preset.id}
@@ -183,9 +184,9 @@ export function SavedWorkspaceViewsBar(props: Readonly<{
           </div>
         </div>
 
-        <div>
+        <div className="space-y-2">
           <p className="micro-label">My saved views</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {savedViews.length > 0 ? (
               savedViews.map((view) => (
                 <ViewChip
@@ -209,7 +210,7 @@ export function SavedWorkspaceViewsBar(props: Readonly<{
                 />
               ))
             ) : (
-              <div className="rounded-[1.4rem] border border-dashed border-white/10 px-4 py-3 text-sm text-muted">
+              <div className="rounded-[1.2rem] border border-dashed border-white/10 px-4 py-3 text-sm text-muted">
                 No custom views saved yet.
               </div>
             )}

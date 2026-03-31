@@ -26,10 +26,10 @@ export function TableShell({
   }
 
   return (
-    <div className="overflow-hidden rounded-[1.7rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015))] shadow-innerline">
+    <div className="surface-muted overflow-hidden">
       <div className="scrollbar-subtle overflow-x-auto">
         <table className="min-w-full divide-y divide-white/8">
-          <thead className="bg-white/[0.03]">
+          <thead className="bg-white/[0.025]">
             <tr>
               {columns.map((column) => (
                 <th
@@ -44,7 +44,7 @@ export function TableShell({
 
           <tbody className="divide-y divide-white/8">
             {rows.map((row) => (
-              <tr key={row.id} className="transition hover:bg-white/[0.035]">
+              <tr key={row.id} className="transition hover:bg-white/[0.03]">
                 {row.cells.map((cell, index) => (
                   <td key={`${row.id}-${index}`} className="px-6 py-5 align-top">
                     {cell}
